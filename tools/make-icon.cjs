@@ -9,7 +9,7 @@
  * (صيغة مدعومة على Windows Vista وما بعده) دون أي اعتماد خارجي.
  */
 const { execFileSync } = require("node:child_process");
-const { existsSync, readFileSync, writeFileSync } = require("node:fs");
+const { existsSync, readFileSync, statSync, writeFileSync } = require("node:fs");
 const path = require("node:path");
 
 const root = path.join(__dirname, "..");
@@ -21,6 +21,12 @@ if (!existsSync(source)) {
   process.exit(1);
 }
 
+/* لا نعيد التوليد إذا كان icon.ico أحدث من icon.png */
+if (existsSync(target) && statSync(target).mtimeMs >= statSync(source).mtimeMs) {
+  console.log(`icon.ico up to date → ${path.relative(root, target)}`);
+  process.exit(0);
+}
+
 /** يجرّب ImageMagick (v7: magick ثم v6: convert) لإنتاج ICO متعدد الأحجام. */
 function tryMagick() {
   const args = ["-background", "none"];
@@ -30,7 +36,9 @@ function tryMagick() {
   }
   args.push(target);
 
-  for (const bin of ["magick", "convert"]) {
+  /* ملاحظة: على Windows يوجد convert.exe نظامي ليس ImageMagick، لذلك لا نستخدمه هناك */
+  const bins = process.platform === "win32" ? ["magick"] : ["magick", "convert"];
+  for (const bin of bins) {
     try {
       execFileSync(bin, args, { stdio: "ignore" });
       return true;
