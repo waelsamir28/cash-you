@@ -26,6 +26,8 @@ function readConfig() {
   }
 }
 
+const windowIcon = path.join(__dirname, "icon.png");
+
 ipcMain.handle("cash-you:get-device-code", () => getDeviceCode());
 ipcMain.handle("cash-you:get-activation-record", () => {
   const file = path.join(app.getPath("userData"), "cash-you-license.bin");
@@ -52,6 +54,8 @@ function createWindow() {
     minWidth: 980,
     minHeight: 650,
     backgroundColor: "#0b1220",
+    title: "CASH YOU — كاش يو",
+    icon: windowIcon,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -62,7 +66,9 @@ function createWindow() {
   });
 
   if (!config.url || !/^https?:\/\//i.test(config.url)) {
-    const html = '<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><body style="margin:0;background:#0b1220;color:#e2e8f0;font:16px Tahoma;display:grid;place-items:center;height:100vh"><main style="max-width:620px;padding:36px;border:1px solid #334155;border-radius:22px;background:#111c31"><h1 style="color:#fbbf24">CASH YOU</h1><p>أضف رابط موقع CASH YOU المنشور داخل electron/app-config.json ثم أعد تشغيل التطبيق.</p><p style="color:#94a3b8">للتطوير شغّل npm run dev ثم استخدم http://localhost:3000.</p></main></body></html>';
+    /* صفحة الإعداد تظهر عند عدم ضبط رابط الموقع في app-config.json */
+    const iconDataUrl = `data:image/png;base64,${readFileSync(windowIcon).toString("base64")}`;
+    const html = `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><body style="margin:0;background:#0b1220;color:#e2e8f0;font:16px Tahoma;display:grid;place-items:center;height:100vh"><main style="max-width:620px;padding:36px;border:1px solid #334155;border-radius:22px;background:#111c31"><img src="${iconDataUrl}" alt="CASH YOU" width="96" height="96" style="border-radius:22px"><h1 style="color:#fbbf24">CASH YOU</h1><p>أضف رابط موقع CASH YOU المنشور داخل electron/app-config.json ثم أعد تشغيل التطبيق.</p><p style="color:#94a3b8">للتطوير شغّل npm run dev ثم استخدم http://localhost:3000.</p></main></body></html>`;
     win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
     return;
   }

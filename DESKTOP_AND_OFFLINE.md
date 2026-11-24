@@ -1,5 +1,14 @@
 # CASH YOU على Windows والعمل دون اتصال
 
+## أيقونة البرنامج وملف التثبيت
+
+- الشعار الرسمي في `assets/branding/icon.png` (خلفية شفافة، 256×256).
+- سكربت `tools/make-icon.cjs` يولّد `assets/branding/icon.ico` بكل الأحجام القياسية (16–256) المستخدمة كأيقونة للتطبيق والمثبت.
+- صفحة GitHub Actions باسم **Build Windows EXE** تبني المثبت آلياً على Windows وترفعه:
+  - كملف قابل للتنزيل من صفحة **Releases** باسم `CASH-YOU-Setup-<version>.exe`.
+  - وكرافدة (artifact) باسم `CASH-YOU-Windows-Setup` على صفحة تشغيل الـ Workflow.
+- البناء يعمل تلقائياً عند أي تغيير في `electron/` أو `assets/branding/` أو `package.json` على فرع `main`، ويمكن تشغيله يدوياً من تبويب Actions ← Run workflow.
+
 ## إعداد الترخيص
 
 1. افتح `tools/license-generator.html` في Edge أو Chrome. يمكن فتحه مباشرة من الملف دون إنترنت.
@@ -13,12 +22,14 @@
 1. أنشئ قاعدة Neon واضبط `DATABASE_URL` على خادم Next.js كما في `NEON_SETUP.md`، ثم شغّل `npm run db:push`.
 2. انشر موقع Next.js عبر HTTPS واضبط المفتاح العام في بيئة البناء.
 3. ضع عنوان الموقع المنشور في `electron/app-config.json` بدل القيمة الفارغة.
-4. على Windows، ثبّت الاعتمادات ثم أنشئ المثبت:
+4. لإنشاء المثبت بدون GitHub: على Windows ثبّت الاعتمادات ثم أنشئ المثبت:
 
    ```bash
    npm install
    npm run desktop:dist
    ```
+
+   الناتج في مجلد `release/CASH-YOU-Setup-1.0.0.exe` مع أيقونة التطبيق والمثبت من الشعار الرسمي.
 
    للتطوير المحلي: شغّل `npm run dev` ثم `npm run desktop` بعد وضع `http://localhost:3000` في ملف إعداد Electron.
 

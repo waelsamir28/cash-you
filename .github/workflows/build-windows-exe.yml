@@ -1,0 +1,101 @@
+name: Build Windows EXE
+
+# يبني ملف التثبيت CASH-YOU-Setup-x.y.z.exe على GitHub Actions
+# ويُرفقه بـ Release حتى يمكن تنزيله مباشرة من صفحة الإصدارات.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "electron/**"
+      - "assets/branding/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/build-windows-exe.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "electron/**"
+      - "assets/branding/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/build-windows-exe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-installer:
+    name: Package CASH YOU for Windows
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare the app + installer icon (ICO)
+        run: node tools/make-icon.cjs
+
+      - name: Package the NSIS installer
+        run: npm run desktop:dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Verify outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f assets/branding/icon.ico
+          compgen -G "release/*.exe" > /dev/null
+          ls -lh release
+
+      - name: Upload the installer as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CASH-YOU-Windows-Setup
+          path: |
+            release/*.exe
+            release/*.blockmap
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish or update the GitHub Release
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          APP_VERSION=$(node -p "require('./package.json').version")
+          TAG="desktop-v${APP_VERSION}"
+
+          # اجمع ملفات الإصدار التي وُلدت فعلاً: المثبت وملف blockmap إن وُجد
+          FILES=()
+          while IFS= read -r -d '' f; do FILES+=("$f"); done < <(find release -maxdepth 1 -type f \( -name '*.exe' -o -name '*.blockmap' \) -print0)
+
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No release files found" >&2
+            exit 1
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+          else
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "CASH YOU Desktop v${APP_VERSION}" \
+              --notes "ملف تثبيت ويندوز: CASH-YOU-Setup-${APP_VERSION}.exe — بناء آلي رقم ${{ github.run_number }} من GitHub Actions، والأيقونة واللوجو من شعار CASH YOU الرسمي." \
+              "${FILES[@]}"
+          fi

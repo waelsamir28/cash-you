@@ -1,6 +1,9 @@
 {
-  "name": "nextjs-postgresql-template",
+  "name": "cash-you",
+  "version": "1.0.0",
   "private": true,
+  "description": "CASH YOU — نظام مبيعات ونقاط بيع عربي (سطح مكتب + ويب)",
+  "author": "CASH YOU",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "next dev",
@@ -12,7 +15,7 @@
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "desktop": "electron electron/main.cjs",
-    "desktop:dist": "electron-builder --win nsis"
+    "desktop:dist": "electron-builder --win nsis --publish never"
   },
   "dependencies": {
     "dotenv": "17.3.1",
@@ -40,8 +43,31 @@
   "build": {
     "appId": "com.cashyou.pos",
     "productName": "CASH YOU",
-    "files": ["electron/**/*", "package.json"],
-    "win": { "target": ["nsis"] },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+    "copyright": "CASH YOU",
+    "artifactName": "CASH-YOU-Setup-${version}.${ext}",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets/branding"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/branding/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/branding/icon.ico",
+      "uninstallerIcon": "assets/branding/icon.ico",
+      "installerHeaderIcon": "assets/branding/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CASH YOU"
+    }
   }
 }

@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 type P = { className?: string };
 
 const base = "shrink-0";
@@ -174,17 +176,13 @@ export const IcoWallet = ({ className = "w-4 h-4" }: P) => (
 );
 
 export const IcoLogo = ({ className = "w-8 h-8" }: P) => (
-  <svg viewBox="0 0 48 48" className={`${base} ${className}`}>
-    <defs>
-      <linearGradient id="cyLogoG" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#fbbf24" />
-        <stop offset="55%" stopColor="#f59e0b" />
-        <stop offset="100%" stopColor="#f97316" />
-      </linearGradient>
-    </defs>
-    <rect x="2" y="2" width="44" height="44" rx="13" fill="url(#cyLogoG)" />
-    <rect x="2" y="2" width="44" height="44" rx="13" fill="none" stroke="#fde68a" strokeWidth="1.5" />
-    <path d="M31 17.5a8.5 8.5 0 100 13" fill="none" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
-    <path d="M24 12v24" stroke="#1e293b" strokeWidth="2.6" strokeLinecap="round" opacity="0.55" />
-  </svg>
+  <Image
+    src="/icon.png"
+    alt="CASH YOU"
+    width={256}
+    height={256}
+    priority
+    draggable={false}
+    className={`${base} rounded-[22%] object-contain ${className}`}
+  />
 );

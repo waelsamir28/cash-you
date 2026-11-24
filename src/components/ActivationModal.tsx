@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { activate, getDeviceIdentity, readActiveLicense, type DeviceIdentity, type LicensePayload } from "@/lib/license";
+import { IcoLogo } from "@/components/icons";
 
 const planTitle = (plan: LicensePayload["plan"]) => ({ "1y": "سنة واحدة من أول تفعيل", "2y": "سنتان من أول تفعيل", life: "مدى الحياة" })[plan];
 
@@ -64,7 +65,7 @@ export function ActivationModal({ required, onClose, onActivated }: { required: 
     <div className={`fixed inset-0 ${isBlocking ? "z-[200]" : "z-[100]"} grid place-items-center bg-ink-950/80 backdrop-blur-sm p-3`} dir="rtl">
       <section className="w-full max-w-lg overflow-hidden rounded-[22px] border border-white/15 bg-ink-800 shadow-[0_35px_100px_-25px_rgba(0,0,0,.8)]">
         <header className="border-b border-white/10 bg-gradient-to-l from-amber-brand/15 via-cash-cyan/10 to-cash-violet/15 px-5 py-5">
-          <div className="flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-amber-brand to-orange-600 font-black text-ink-900">CY</div><div><p className="text-[10px] font-black tracking-[.2em] text-cash-cyan">CASH YOU · LICENSE</p><h2 className="mt-1 text-[18px] font-black text-white">{active ? "النسخة مفعّلة" : "تفعيل نسخة كاش يو"}</h2></div>
+          <div className="flex items-center gap-3"><IcoLogo className="h-11 w-11 rounded-2xl bg-white/95 p-0.5" /><div><p className="text-[10px] font-black tracking-[.2em] text-cash-cyan">CASH YOU · LICENSE</p><h2 className="mt-1 text-[18px] font-black text-white">{active ? "النسخة مفعّلة" : "تفعيل نسخة كاش يو"}</h2></div>
             {!isBlocking && <button onClick={onClose} className="mr-auto rounded-lg px-3 py-2 text-[12px] font-bold text-slate-300 hover:bg-white/10">إغلاق</button>}
           </div>
           <p className="mt-3 text-[12px] leading-6 text-slate-300">{active ? `نوع الترخيص: ${planTitle(active.payload.plan)}${active.expiresAt ? ` · ينتهي ${new Date(active.expiresAt).toLocaleDateString("ar-EG")}` : ""}` : "أرسل كود الجهاز إلى الدعم، ثم أدخل كود التفعيل الذي يصدره لك."}</p>
