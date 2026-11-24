@@ -12,8 +12,8 @@
 
 1. أنشئ قاعدة Neon واضبط `DATABASE_URL` على خادم Next.js كما في `NEON_SETUP.md`، ثم شغّل `npm run db:push`.
 2. انشر موقع Next.js عبر HTTPS واضبط المفتاح العام في بيئة البناء.
-3. ضع عنوان الموقع المنشور في `electron/app-config.json` بدل القيمة الفارغة.
-4. على Windows، ثبّت الاعتمادات ثم أنشئ المثبت:
+3. لبناء المثبّت على GitHub، شغّل Workflow باسم **CI and Windows installer**؛ سينشئ ملف EXE ويرفعه كـArtifact باسم `cash-you-windows-installer` لمدة 14 يومًا. يمكن تمرير رابط HTTPS كمدخل `cash_you_url` في التشغيل اليدوي، أو ضبط متغير المستودع `CASH_YOU_URL`. إذا لم تمرر رابطًا، ستطلبه شاشة الإعداد عند أول تشغيل للـEXE.
+4. للبناء محليًا على Windows، ضع الرابط في `electron/app-config.json`، ثم شغّل:
 
    ```bash
    npm install

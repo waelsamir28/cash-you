@@ -148,6 +148,7 @@ export async function readActiveLicense(deviceCode: string): Promise<{
 declare global {
   interface Window {
     cashYou?: {
+      configureAppUrl?: (url: string) => Promise<{ ok: boolean; error?: string }>;
       getDeviceCode: () => Promise<string>;
       getActivationRecord?: () => Promise<string | null>;
       saveActivationRecord?: (record: string) => Promise<boolean>;

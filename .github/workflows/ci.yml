@@ -1,10 +1,15 @@
-name: CI
+name: CI and Windows installer
 
 on:
   push:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      cash_you_url:
+        description: "Optional HTTPS URL for the hosted CASH YOU app (otherwise the installer asks on first launch)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -48,3 +53,49 @@ jobs:
 
       - name: Build Next.js app
         run: npm run build
+
+  build-windows-installer:
+    name: Build Windows installer
+    runs-on: windows-latest
+    needs: verify
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure hosted app URL (optional)
+        shell: pwsh
+        env:
+          CASH_YOU_URL: ${{ inputs.cash_you_url || vars.CASH_YOU_URL }}
+        run: |
+          $config = Get-Content electron/app-config.json -Raw | ConvertFrom-Json
+          if ($env:CASH_YOU_URL) {
+            $parsed = [System.Uri]::new($env:CASH_YOU_URL)
+            if ($parsed.Scheme -ne 'https' -and -not ($parsed.IsLoopback -and $parsed.Scheme -eq 'http')) {
+              throw 'CASH_YOU_URL must use HTTPS (HTTP is allowed only for localhost development).'
+            }
+            $config.url = $parsed.AbsoluteUri.TrimEnd('/')
+            Write-Host "Bundling hosted app URL: $($parsed.GetLeftPart([System.UriPartial]::Authority))"
+          } else {
+            Write-Host 'No app URL supplied; the installer will ask for the URL on first launch.'
+          }
+          $config | ConvertTo-Json | Set-Content electron/app-config.json -Encoding utf8
+
+      - name: Build Windows installer
+        run: npm run desktop:dist
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cash-you-windows-installer
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 14

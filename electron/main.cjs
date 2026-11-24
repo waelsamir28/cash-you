@@ -3,6 +3,7 @@ const { execFileSync } = require("node:child_process");
 const { createHash } = require("node:crypto");
 const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
 function getDeviceCode() {
   if (process.platform !== "win32") throw new Error("CASH YOU desktop activation is supported on Windows only");
@@ -19,12 +20,47 @@ function getDeviceCode() {
 }
 
 function readConfig() {
-  try {
-    return JSON.parse(readFileSync(path.join(__dirname, "app-config.json"), "utf8"));
-  } catch {
-    return { url: "" };
+  for (const file of [path.join(app.getPath("userData"), "app-config.json"), path.join(__dirname, "app-config.json")]) {
+    try {
+      const config = JSON.parse(readFileSync(file, "utf8"));
+      if (typeof config.url === "string") return config;
+    } catch {}
   }
+  return { url: "" };
 }
+
+function restrictNavigation(window, url) {
+  const allowedOrigin = new URL(url).origin;
+  window.webContents.on("will-navigate", (event, target) => {
+    let targetOrigin = "";
+    try { targetOrigin = new URL(target).origin; } catch {}
+    if (targetOrigin !== allowedOrigin) {
+      event.preventDefault();
+      if (target.startsWith("https://") || target.startsWith("http://")) void shell.openExternal(target);
+    }
+  });
+}
+
+ipcMain.handle("cash-you:configure-app-url", async (event, value) => {
+  const setupPage = pathToFileURL(path.join(__dirname, "setup.html")).href;
+  if (event.sender.getURL() !== setupPage) throw new Error("إجراء الإعداد غير مصرح به");
+  let parsed;
+  try { parsed = new URL(String(value)); } catch { throw new Error("اكتب رابطًا صحيحًا يبدأ بـ https://"); }
+  const isLocalhost = ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
+  if (parsed.protocol !== "https:" && !(isLocalhost && parsed.protocol === "http:")) {
+    throw new Error("يجب أن يكون رابط الموقع آمنًا ويبدأ بـ https://");
+  }
+  parsed.hash = "";
+  const url = parsed.toString().replace(/\/$/, "");
+  const folder = app.getPath("userData");
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(path.join(folder, "app-config.json"), JSON.stringify({ url }, null, 2), "utf8");
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window) throw new Error("نافذة التطبيق غير متاحة");
+  restrictNavigation(window, url);
+  await window.loadURL(url);
+  return { ok: true };
+});
 
 ipcMain.handle("cash-you:get-device-code", () => getDeviceCode());
 ipcMain.handle("cash-you:get-activation-record", () => {
@@ -61,17 +97,17 @@ function createWindow() {
     },
   });
 
-  if (!config.url || !/^https?:\/\//i.test(config.url)) {
-    const html = '<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><body style="margin:0;background:#0b1220;color:#e2e8f0;font:16px Tahoma;display:grid;place-items:center;height:100vh"><main style="max-width:620px;padding:36px;border:1px solid #334155;border-radius:22px;background:#111c31"><h1 style="color:#fbbf24">CASH YOU</h1><p>أضف رابط موقع CASH YOU المنشور داخل electron/app-config.json ثم أعد تشغيل التطبيق.</p><p style="color:#94a3b8">للتطوير شغّل npm run dev ثم استخدم http://localhost:3000.</p></main></body></html>';
-    win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    return;
-  }
-
-  win.loadURL(config.url);
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https://") || url.startsWith("http://")) void shell.openExternal(url);
     return { action: "deny" };
   });
+  if (!config.url || !/^https?:\/\//i.test(config.url)) {
+    win.loadFile(path.join(__dirname, "setup.html"));
+    return;
+  }
+
+  restrictNavigation(win, config.url);
+  win.loadURL(config.url);
 }
 
 app.whenReady().then(() => {
