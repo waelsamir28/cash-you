@@ -27,10 +27,10 @@ jobs:
       DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/cash_you?sslmode=disable
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -60,10 +60,10 @@ jobs:
     needs: verify
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -90,10 +90,13 @@ jobs:
           $config | ConvertTo-Json | Set-Content electron/app-config.json -Encoding utf8
 
       - name: Build Windows installer
-        run: npm run desktop:dist
+        run: npm run desktop:dist -- --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          DEBUG: electron-builder
 
       - name: Upload Windows installer artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: cash-you-windows-installer
           path: dist/*.exe
