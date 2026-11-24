@@ -6,6 +6,22 @@ export const metadata: Metadata = {
   title: "CASH YOU | كاش يو - نظام المبيعات ونقاط البيع",
   description:
     "كاش يو (CASH YOU) — نظام مبيعات ونقاط بيع عربي كامل RTL لإدارة الفواتير والأصناف والعملاء.",
+  applicationName: "CASH YOU",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png", sizes: "256x256" },
+      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  openGraph: {
+    title: "CASH YOU | كاش يو",
+    description: "نظام مبيعات ونقاط بيع عربي كامل RTL لإدارة الفواتير والأصناف والعملاء.",
+    images: [{ url: "/icon-512.png", width: 512, height: 512, alt: "CASH YOU" }],
+  },
 };
 
 export const viewport: Viewport = {
