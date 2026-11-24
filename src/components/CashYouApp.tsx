@@ -1,0 +1,755 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Bootstrap, Customer, InstallmentInput, InvoiceRow, ModuleKind, PaymentMethod, Product } from "@/lib/types";
+import { computeTotals, emptyDraft, lineTotal, newLine, type Draft } from "@/lib/draft";
+import { arDate, arTime, money, uid } from "@/lib/format";
+import {
+  isMuted,
+  setMuted,
+  sfxAdd,
+  sfxCash,
+  sfxError,
+  sfxKey,
+  sfxRemove,
+  sfxSave,
+  sfxScan,
+  sfxToggle,
+} from "@/lib/sound";
+import { IconRail, StatusBar, TabStrip, TitleBar, type Tab } from "@/components/Chrome";
+import { PosScreen, type PosActions } from "@/components/PosScreen";
+import { HomeScreen } from "@/components/HomeScreen";
+import { ProductsScreen, PartiesScreen } from "@/components/ManagementScreens";
+import { TradeScreen } from "@/components/TradeScreen";
+import { ExpensesScreen, InstallmentsScreen, ReportsScreen, TreasuryScreen } from "@/components/FinanceScreens";
+import { InstallmentDialog } from "@/components/InstallmentDialog";
+import {
+  CloseConfirm,
+  CustomerDisplay,
+  DiscountDialog,
+  InvoiceDetail,
+  MinimizedBar,
+  PromptDialog,
+  ReceiptModal,
+  ShutdownScreen,
+  SourceScreen,
+  Toasts,
+  type ReceiptData,
+  type Toast,
+} from "@/components/Overlays";
+
+type Overlay =
+  | { kind: "none" }
+  | { kind: "customerScreen" }
+  | { kind: "addCustomer" }
+  | { kind: "addPayment" }
+  | { kind: "discount" }
+  | { kind: "close" }
+  | { kind: "receipt"; receipt: ReceiptData }
+  | { kind: "invoice"; invoice: InvoiceRow }
+  | { kind: "installment"; print: boolean };
+
+export default function CashYouApp({ initial }: { initial: Bootstrap }) {
+  const [data, setData] = useState<Bootstrap>(initial);
+  const [tabs, setTabs] = useState<Tab[]>([
+    { id: "home", kind: "home", title: "الرئيسية" },
+    { id: "inv-1", kind: "invoice", title: "فاتورة مبيعات" },
+  ]);
+  const [activeId, setActiveId] = useState("inv-1");
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({
+    "inv-1": emptyDraft(initial.nextInvoiceNumber),
+  });
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [muted, setMutedState] = useState(false);
+  const [overlay, setOverlay] = useState<Overlay>({ kind: "none" });
+  const [minimized, setMinimized] = useState(false);
+  const [shutdown, setShutdown] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+
+  const barcodeRef = useRef<HTMLInputElement | null>(null);
+  const seq = useRef(1);
+
+  /* ---------------- الساعة الحية ---------------- */
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(t);
+  }, []);
+
+
+
+  /* ---------------- التنبيهات ---------------- */
+  const toast = useCallback(
+    (kind: Toast["kind"], text: string, undo?: () => void) => {
+      const id = uid();
+      setToasts((prev) => [...prev.slice(-3), { id, kind, text, undo }]);
+      window.setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), undo ? 6500 : 4200);
+    },
+    [],
+  );
+  const dismiss = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  /* ---------------- التبويب النشط ---------------- */
+  const activeTab = tabs.find((t) => t.id === activeId) ?? tabs[0];
+  const draft = drafts[activeId] ?? drafts["inv-1"] ?? emptyDraft(data.nextInvoiceNumber);
+  const totals = useMemo(() => computeTotals(draft), [draft]);
+
+  /* تركيز خانة الباركود تلقائياً عند فتح أو تبديل فاتورة */
+  const activeKind = activeTab?.kind;
+  useEffect(() => {
+    if (activeKind !== "invoice") return;
+    const t = window.setTimeout(() => barcodeRef.current?.focus(), 90);
+    return () => window.clearTimeout(t);
+  }, [activeId, activeKind]);
+
+  const patch = useCallback(
+    (p: Partial<Draft>) => {
+      setDrafts((prev) => {
+        const cur = prev[activeId];
+        if (!cur) return prev;
+        return { ...prev, [activeId]: { ...cur, ...p } };
+      });
+    },
+    [activeId],
+  );
+
+  /* ---------------- إدارة التبويبات ---------------- */
+  const openInvoiceTab = useCallback(() => {
+    seq.current += 1;
+    const id = `inv-${seq.current}`;
+    const openCount = tabs.filter((t) => t.kind === "invoice").length;
+    setDrafts((prev) => ({
+      ...prev,
+      [id]: emptyDraft(data.nextInvoiceNumber + openCount),
+    }));
+    setTabs((prev) => [...prev, { id, kind: "invoice", title: "فاتورة مبيعات" }]);
+    setActiveId(id);
+    sfxKey();
+    window.setTimeout(() => barcodeRef.current?.focus(), 60);
+    return id;
+  }, [data.nextInvoiceNumber, tabs]);
+
+  const openSourceTab = useCallback(() => {
+    setTabs((prev) =>
+      prev.some((t) => t.id === "source")
+        ? prev
+        : [...prev, { id: "source", kind: "source", title: "كود المصدر VB.NET" }],
+    );
+    setActiveId("source");
+    sfxKey();
+  }, []);
+
+  const openModule = useCallback((kind: ModuleKind, title: string) => {
+    if (kind === "invoice") { openInvoiceTab(); return; }
+    if (kind === "home") { setActiveId("home"); sfxKey(); return; }
+    if (kind === "source") { openSourceTab(); return; }
+    const id = `module-${kind}-${title}`;
+    setTabs((prev) => prev.some((t) => t.id === id) ? prev : [...prev, { id, kind, title }]);
+    setActiveId(id);
+    sfxKey();
+  }, [openInvoiceTab, openSourceTab]);
+
+  const refreshData = useCallback(async () => {
+    const res = await fetch("/api/bootstrap", { cache: "no-store" });
+    if (!res.ok) throw new Error("تعذر تحديث البيانات من قاعدة البيانات");
+    const fresh = (await res.json()) as Bootstrap;
+    setData(fresh);
+  }, []);
+
+  const closeTab = useCallback(
+    (id: string) => {
+      setTabs((prev) => {
+        const next = prev.filter((t) => t.id !== id);
+        if (next.length === 0) return prev;
+        return next;
+      });
+      setDrafts((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setActiveId((cur) => (cur === id ? "home" : cur));
+      sfxKey();
+    },
+    [],
+  );
+
+  /* ---------------- إضافة الأصناف ---------------- */
+  const addProduct = useCallback(
+    (p: Product, qty = 1) => {
+      setDrafts((prev) => {
+        const cur = prev[activeId];
+        if (!cur) return prev;
+        const existing = cur.items.find((li) => li.productId === p.id);
+        let items;
+        let lastUid: string;
+        if (existing) {
+          lastUid = existing.uid;
+          items = cur.items.map((li) =>
+            li.uid === existing.uid ? { ...li, qty: li.qty + qty } : li,
+          );
+        } else {
+          const li = newLine(p.id, p.code, p.name, p.unit, p.price);
+          lastUid = li.uid;
+          items = [...cur.items, li];
+        }
+        return { ...prev, [activeId]: { ...cur, items, lastAddedUid: lastUid } };
+      });
+      sfxAdd();
+      if (p.stock <= 0) toast("warn", `تنبيه: رصيد الصنف «${p.name}» نفد من المخزون`);
+    },
+    [activeId, toast],
+  );
+
+  const addByCode = useCallback(
+    (raw: string) => {
+      const term = raw.trim();
+      if (!term) return false;
+      const hit =
+        data.products.find((p) => p.code === term) ??
+        data.products.find((p) => p.code.endsWith(term)) ??
+        data.products.find((p) => p.name.includes(term));
+      if (!hit) {
+        sfxError();
+        toast("err", `لا يوجد صنف بالكود «${term}»`);
+        return false;
+      }
+      sfxScan();
+      addProduct(hit);
+      return true;
+    },
+    [data.products, addProduct, toast],
+  );
+
+  const updateLine = useCallback(
+    (lineUid: string, p: Partial<{ qty: number; price: number; discount: number }>) => {
+      setDrafts((prev) => {
+        const cur = prev[activeId];
+        if (!cur) return prev;
+        return {
+          ...prev,
+          [activeId]: {
+            ...cur,
+            items: cur.items.map((li) => (li.uid === lineUid ? { ...li, ...p } : li)),
+          },
+        };
+      });
+    },
+    [activeId],
+  );
+
+  const removeLine = useCallback(
+    (lineUid: string) => {
+      const cur = drafts[activeId];
+      if (!cur) return;
+      const removed = cur.items.find((li) => li.uid === lineUid);
+      const index = cur.items.findIndex((li) => li.uid === lineUid);
+      if (!removed) return;
+      setDrafts((prev) => ({
+        ...prev,
+        [activeId]: { ...cur, items: cur.items.filter((li) => li.uid !== lineUid) },
+      }));
+      sfxRemove();
+      toast("warn", `تم حذف «${removed.name}» من الفاتورة`, () => {
+        setDrafts((prev) => {
+          const c = prev[activeId];
+          if (!c) return prev;
+          const items = [...c.items];
+          items.splice(Math.min(index, items.length), 0, removed);
+          return { ...prev, [activeId]: { ...c, items } };
+        });
+        sfxAdd();
+      });
+    },
+    [activeId, drafts, toast],
+  );
+
+  const payFull = useCallback(() => {
+    if (draft.items.length === 0) {
+      sfxError();
+      toast("warn", "أضف أصنافاً إلى الفاتورة أولاً");
+      return;
+    }
+    patch({ paidText: String(computeTotals(draft).total) });
+    sfxCash();
+    toast("ok", `تم تسجيل دفع كامل بمبلغ ${money(computeTotals(draft).total)} جنيه`);
+  }, [draft, patch, toast]);
+
+  const newInvoice = useCallback(() => {
+    if (activeTab?.kind !== "invoice") {
+      openInvoiceTab();
+      return;
+    }
+    if (draft.items.length === 0) {
+      sfxKey();
+      toast("info", "الفاتورة الحالية فارغة — جاهزة للمسح الضوئي");
+      barcodeRef.current?.focus();
+      return;
+    }
+    openInvoiceTab();
+    toast("ok", "تم فتح فاتورة جديدة في تبويب مستقل");
+  }, [activeTab, draft.items.length, openInvoiceTab, toast]);
+
+  /* ---------------- الحفظ ---------------- */
+  const save = useCallback(
+    async (print: boolean, installment?: InstallmentInput) => {
+      if (saving) return;
+      if (activeTab?.kind !== "invoice") {
+        toast("warn", "افتح تبويب فاتورة مبيعات أولاً");
+        return;
+      }
+      if (draft.items.length === 0) {
+        sfxError();
+        toast("err", "لا يمكن حفظ فاتورة بدون أصناف");
+        return;
+      }
+      if (draft.saleType === "تقسيط" && !installment) {
+        if (!draft.customerId) {
+          sfxError();
+          toast("err", "اختر عميلاً محدداً قبل البيع بالتقسيط");
+          return;
+        }
+        setOverlay({ kind: "installment", print });
+        return;
+      }
+      setSaving(true);
+      const snapshot = draft;
+      const t = computeTotals(snapshot);
+      try {
+        const res = await fetch("/api/invoices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerId: snapshot.customerId,
+            customerName: snapshot.customerName,
+            paymentMethod: snapshot.paymentMethod,
+            saleType: snapshot.saleType,
+            discountPercent: snapshot.discountPercent,
+            paid: t.paid,
+            printed: print,
+            installment,
+            items: snapshot.items.map((li) => ({
+              productId: li.productId,
+              code: li.code,
+              name: li.name,
+              unit: li.unit,
+              qty: li.qty,
+              price: li.price,
+              discount: li.discount,
+            })),
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error ?? "تعذر حفظ الفاتورة");
+
+        const receipt: ReceiptData = {
+          number: json.number,
+          createdAt: json.createdAt,
+          customerName: snapshot.customerName,
+          paymentMethod: snapshot.paymentMethod,
+          saleType: snapshot.saleType,
+          discountPercent: snapshot.discountPercent,
+          subtotal: t.subtotal,
+          total: json.total,
+          paid: json.paid,
+          remaining: json.remaining,
+          items: snapshot.items.map((li) => ({
+            name: li.name,
+            code: li.code,
+            qty: li.qty,
+            price: li.price,
+            total: lineTotal(li),
+            unit: li.unit,
+          })),
+        };
+
+        const newRow: InvoiceRow = {
+          id: json.id,
+          number: json.number,
+          customerId: snapshot.customerId,
+          customerName: snapshot.customerName,
+          paymentMethod: snapshot.paymentMethod,
+          saleType: snapshot.saleType,
+          total: json.total,
+          paid: json.paid,
+          remaining: json.remaining,
+          itemsCount: snapshot.items.length,
+          createdAt: json.createdAt,
+        };
+
+        setData((prev) => {
+          const stockMap = new Map<string, number>();
+          snapshot.items.forEach((li) => {
+            if (li.productId) stockMap.set(String(li.productId), (stockMap.get(String(li.productId)) ?? 0) + li.qty);
+          });
+          return {
+            ...prev,
+            nextInvoiceNumber: json.nextInvoiceNumber,
+            invoices: [newRow, ...prev.invoices].slice(0, 40),
+            products: prev.products.map((p) =>
+              stockMap.has(String(p.id)) ? { ...p, stock: p.stock - (stockMap.get(String(p.id)) ?? 0) } : p,
+            ),
+            customers: prev.customers.map((c) =>
+              c.id === snapshot.customerId ? { ...c, balance: json.newCustomerBalance } : c,
+            ),
+          };
+        });
+
+        setDrafts((prev) => ({
+          ...prev,
+          [activeId]: {
+            ...emptyDraft(json.number),
+            number: json.number,
+            customerId: snapshot.customerId,
+            customerName: snapshot.customerName,
+            paymentMethod: snapshot.paymentMethod,
+            saleType: snapshot.saleType,
+          },
+        }));
+
+        await refreshData();
+        if (print) {
+          sfxSave();
+          setOverlay({ kind: "receipt", receipt });
+        } else {
+          sfxSave();
+          toast("ok", installment ? `تم حفظ الفاتورة ${json.number} وإنشاء جدول الأقساط` : `تم حفظ الفاتورة رقم ${json.number} بمبلغ ${money(json.total)} جنيه`);
+        }
+        window.setTimeout(() => barcodeRef.current?.focus(), 80);
+      } catch (err) {
+        sfxError();
+        toast("err", err instanceof Error ? err.message : "تعذر حفظ الفاتورة");
+      } finally {
+        setSaving(false);
+      }
+    },
+    [activeId, activeTab, draft, saving, toast, refreshData],
+  );
+
+  /* ---------------- اختصارات لوحة المفاتيح ---------------- */
+  const saveRef = useRef(save);
+  const newRef = useRef(newInvoice);
+  const payRef = useRef(payFull);
+  const kindRef = useRef<Tab["kind"] | undefined>(activeTab?.kind);
+  useEffect(() => {
+    saveRef.current = save;
+    newRef.current = newInvoice;
+    payRef.current = payFull;
+    kindRef.current = activeTab?.kind;
+  }, [save, newInvoice, payFull, activeTab]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const keys = ["F3", "F4", "F5", "F10", "F11", "F12"];
+      if (keys.includes(e.key)) {
+        e.preventDefault();
+        if (shutdown || minimized) return;
+        if (e.key === "F3") {
+          sfxKey();
+          barcodeRef.current?.focus();
+          barcodeRef.current?.select();
+        }
+        if (e.key === "F4") newRef.current();
+        if (kindRef.current !== "invoice") return;
+        if (e.key === "F5") void saveRef.current(false);
+        if (e.key === "F10") void saveRef.current(true);
+        if (e.key === "F11") {
+          sfxKey();
+          setOverlay({ kind: "discount" });
+        }
+        if (e.key === "F12") payRef.current();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        document.getElementById("cy-global-search")?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [shutdown, minimized]);
+
+  /* ---------------- أزرار النافذة ---------------- */
+  const onWindowAction = useCallback((a: "min" | "max" | "close") => {
+    sfxKey();
+    if (a === "min") setMinimized(true);
+    if (a === "close") setOverlay({ kind: "close" });
+    if (a === "max") {
+      const el = document.documentElement;
+      if (!document.fullscreenElement) void el.requestFullscreen?.().catch(() => undefined);
+      else void document.exitFullscreen?.().catch(() => undefined);
+    }
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    const next = !isMuted();
+    setMuted(next);
+    setMutedState(next);
+    if (!next) sfxToggle();
+  }, []);
+
+  /* ---------------- إجراءات شاشة البيع ---------------- */
+  const actions: PosActions = useMemo(
+    () => ({
+      patch,
+      addProduct,
+      addByCode,
+      updateLine,
+      removeLine,
+      save: (p: boolean) => void save(p),
+      newInvoice,
+      payFull,
+      openDiscount: () => {
+        sfxKey();
+        setOverlay({ kind: "discount" });
+      },
+      openCustomerScreen: () => {
+        sfxToggle();
+        setOverlay({ kind: "customerScreen" });
+      },
+      quickAddCustomer: () => {
+        sfxKey();
+        setOverlay({ kind: "addCustomer" });
+      },
+      quickAddPayment: () => {
+        sfxKey();
+        setOverlay({ kind: "addPayment" });
+      },
+    }),
+    [patch, addProduct, addByCode, updateLine, removeLine, save, newInvoice, payFull],
+  );
+
+  /* ---------------- إضافة عميل / طريقة دفع ---------------- */
+  const submitCustomer = async (v: Record<string, string>) => {
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: v.name, phone: v.phone, balance: Number(v.balance) || 0 }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "تعذر إضافة العميل");
+      const c = json as Customer;
+      setData((prev) => ({ ...prev, customers: [...prev.customers, c] }));
+      patch({ customerId: c.id, customerName: c.name });
+      setOverlay({ kind: "none" });
+      sfxSave();
+      toast("ok", `تمت إضافة العميل «${c.name}» واختياره في الفاتورة`);
+    } catch (err) {
+      sfxError();
+      toast("err", err instanceof Error ? err.message : "تعذر إضافة العميل");
+    }
+  };
+
+  const submitPayment = async (v: Record<string, string>) => {
+    try {
+      const res = await fetch("/api/payment-methods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: v.name }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "تعذر إضافة طريقة الدفع");
+      const m = json as PaymentMethod;
+      setData((prev) => ({ ...prev, paymentMethods: [...prev.paymentMethods, m] }));
+      patch({ paymentMethod: m.name });
+      setOverlay({ kind: "none" });
+      sfxSave();
+      toast("ok", `تمت إضافة طريقة الدفع «${m.name}»`);
+    } catch (err) {
+      sfxError();
+      toast("err", err instanceof Error ? err.message : "تعذر إضافة طريقة الدفع");
+    }
+  };
+
+  const stamp = { date: arDate(now), time: arTime(now) };
+
+  if (shutdown) {
+    return (
+      <ShutdownScreen
+        onRestart={() => {
+          setShutdown(false);
+          setOverlay({ kind: "none" });
+          sfxSave();
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="h-[100dvh] w-full flex flex-col bg-ink-950 overflow-hidden">
+      <TitleBar
+        data={data}
+        muted={muted}
+        onToggleMute={toggleMute}
+        onPickProduct={(p) => {
+          if (activeTab?.kind !== "invoice") {
+            const id = openInvoiceTab();
+            window.setTimeout(() => {
+              setDrafts((prev) => {
+                const cur = prev[id];
+                if (!cur) return prev;
+                const li = newLine(p.id, p.code, p.name, p.unit, p.price);
+                return { ...prev, [id]: { ...cur, items: [...cur.items, li], lastAddedUid: li.uid } };
+              });
+              sfxAdd();
+            }, 30);
+          } else {
+            addProduct(p);
+          }
+        }}
+        onPickInvoice={(i) => setOverlay({ kind: "invoice", invoice: i })}
+        onWindowAction={onWindowAction}
+        minimized={minimized}
+      />
+
+      <TabStrip
+        tabs={tabs}
+        activeId={activeId}
+        onSelect={(id) => {
+          setActiveId(id);
+          sfxKey();
+        }}
+        onClose={closeTab}
+        onNew={openInvoiceTab}
+      />
+
+      <div className="flex-1 min-h-0 flex">
+        <IconRail
+          activeKind={activeTab?.kind ?? "home"}
+          onRail={(kind, label) => openModule(kind, label)}
+        />
+
+        <main className="flex-1 min-w-0 flex flex-col">
+          {activeTab?.kind === "home" && (
+            <HomeScreen
+              data={data}
+              onNewInvoice={openInvoiceTab}
+              onOpenInvoice={(i) => setOverlay({ kind: "invoice", invoice: i })}
+              onOpenModule={openModule}
+            />
+          )}
+
+          {activeTab?.kind === "source" && <SourceScreen />}
+          {activeTab?.kind === "products" && <ProductsScreen data={data} refresh={refreshData} notify={toast} />}
+          {activeTab?.kind === "parties" && <PartiesScreen key={activeTab.id} initialKind={activeTab.title === "الموردون" ? "supplier" : "customer"} data={data} refresh={refreshData} notify={toast} />}
+          {(activeTab?.kind === "purchase" || activeTab?.kind === "salesReturn" || activeTab?.kind === "purchaseReturn") && (
+            <TradeScreen key={activeTab.id} kind={activeTab.kind} data={data} refresh={refreshData} notify={toast} stamp={stamp} />
+          )}
+          {activeTab?.kind === "installments" && <InstallmentsScreen data={data} refresh={refreshData} notify={toast} />}
+          {activeTab?.kind === "expenses" && <ExpensesScreen data={data} refresh={refreshData} notify={toast} />}
+          {activeTab?.kind === "treasury" && <TreasuryScreen data={data} refresh={refreshData} notify={toast} />}
+          {activeTab?.kind === "reports" && <ReportsScreen data={data} />}
+
+          {activeTab?.kind === "invoice" && (
+            <PosScreen
+              key={activeTab.id}
+              data={data}
+              draft={draft}
+              totals={totals}
+              actions={actions}
+              barcodeRef={barcodeRef}
+              saving={saving}
+              stamp={stamp}
+            />
+          )}
+        </main>
+      </div>
+
+      <StatusBar
+        clock={now}
+        dateText={stamp.date}
+        timeText={stamp.time}
+        invoiceNumber={draft.number}
+        itemsCount={draft.items.length}
+      />
+
+      {/* ---------------- الطبقات العلوية ---------------- */}
+      {overlay.kind === "customerScreen" && (
+        <CustomerDisplay
+          draft={draft}
+          totals={totals}
+          shopName={data.shop.name}
+          onClose={() => setOverlay({ kind: "none" })}
+        />
+      )}
+
+      {overlay.kind === "addCustomer" && (
+        <PromptDialog
+          title="إضافة عميل جديد"
+          subtitle="سيتم اختيار العميل تلقائياً في الفاتورة الحالية"
+          fields={[
+            { key: "name", label: "اسم العميل", placeholder: "مثال: مكتبة الأمل", required: true },
+            { key: "phone", label: "رقم التليفون", placeholder: "01xxxxxxxxx" },
+            { key: "balance", label: "الرصيد الافتتاحي", placeholder: "0.00", type: "number" },
+          ]}
+          submitLabel="حفظ العميل"
+          onClose={() => setOverlay({ kind: "none" })}
+          onSubmit={(v) => void submitCustomer(v)}
+        />
+      )}
+
+      {overlay.kind === "addPayment" && (
+        <PromptDialog
+          title="إضافة طريقة دفع"
+          subtitle="مثال: محفظة فودافون كاش"
+          fields={[{ key: "name", label: "اسم طريقة الدفع", placeholder: "اكتب الاسم...", required: true }]}
+          submitLabel="إضافة"
+          onClose={() => setOverlay({ kind: "none" })}
+          onSubmit={(v) => void submitPayment(v)}
+        />
+      )}
+
+      {overlay.kind === "discount" && (
+        <DiscountDialog
+          current={draft.discountPercent}
+          subtotal={totals.subtotal}
+          onClose={() => setOverlay({ kind: "none" })}
+          onApply={(percent) => {
+            patch({ discountPercent: percent });
+            setOverlay({ kind: "none" });
+            sfxCash();
+            toast("ok", `تم تطبيق خصم ${percent}% على الفاتورة`);
+          }}
+        />
+      )}
+
+      {overlay.kind === "installment" && (
+        <InstallmentDialog
+          total={totals.total}
+          customerName={draft.customerName}
+          onClose={() => setOverlay({ kind: "none" })}
+          onSubmit={(cfg) => {
+            setOverlay({ kind: "none" });
+            void save(overlay.kind === "installment" ? overlay.print : false, cfg);
+          }}
+        />
+      )}
+
+      {overlay.kind === "receipt" && (
+        <ReceiptModal receipt={overlay.receipt} shop={data.shop} onClose={() => setOverlay({ kind: "none" })} />
+      )}
+
+      {overlay.kind === "invoice" && (
+        <InvoiceDetail invoice={overlay.invoice} onClose={() => setOverlay({ kind: "none" })} />
+      )}
+
+      {overlay.kind === "close" && (
+        <CloseConfirm
+          dirty={draft.items.length > 0}
+          onCancel={() => setOverlay({ kind: "none" })}
+          onConfirm={() => {
+            setOverlay({ kind: "none" });
+            setShutdown(true);
+          }}
+        />
+      )}
+
+      {minimized && <MinimizedBar data={data} onRestore={() => setMinimized(false)} />}
+
+      <Toasts toasts={toasts} onDismiss={dismiss} />
+    </div>
+  );
+}

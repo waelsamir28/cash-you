@@ -1,0 +1,287 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink-950: #020617;
+  --color-ink-900: #0f172a;
+  --color-ink-800: #1e293b;
+  --color-ink-700: #334155;
+  --color-ink-600: #475569;
+  --color-ink-500: #64748b;
+
+  --color-amber-brand: #f59e0b;
+  --color-amber-soft: #fef08a;
+  --color-amber-cream: #fef9c3;
+
+  --color-cash-green: #10b981;
+  --color-cash-green-deep: #047857;
+  --color-cash-red: #ef4444;
+  --color-cash-orange: #f97316;
+  --color-cash-cyan: #22d3ee;
+  --color-cash-violet: #8b5cf6;
+
+  --color-paper: #f1f5f9;
+  --color-paper-2: #f8fafc;
+  --color-line: #cbd5e1;
+
+  --font-sans: "Cairo", "Tajawal", "Segoe UI", "Noto Kufi Arabic", sans-serif;
+  --font-mono: "IBM Plex Mono", "Consolas", ui-monospace, monospace;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: #0b1220;
+    color: #0f172a;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  input,
+  select,
+  button,
+  textarea {
+    font-family: inherit;
+  }
+
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  ::selection {
+    background: #f59e0b;
+    color: #0f172a;
+  }
+}
+
+/* ---------- شريط التمرير بهوية التطبيق ---------- */
+.cy-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #475569 #e2e8f0;
+}
+.cy-scroll::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+.cy-scroll::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 999px;
+  border: 2px solid #f1f5f9;
+}
+.cy-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #64748b, #334155);
+  border-radius: 999px;
+  border: 2px solid #e2e8f0;
+}
+.cy-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #f59e0b, #b45309);
+}
+
+.cy-scroll-dark {
+  scrollbar-width: thin;
+  scrollbar-color: #64748b #0f172a;
+}
+.cy-scroll-dark::-webkit-scrollbar {
+  width: 11px;
+}
+.cy-scroll-dark::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+.cy-scroll-dark::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #475569, #1e293b);
+  border-radius: 999px;
+  border: 2px solid #0f172a;
+}
+.cy-scroll-dark::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #22d3ee, #0e7490);
+}
+
+/* ---------- خلفيات وحركات ---------- */
+.cy-mesh {
+  background-image:
+    radial-gradient(1100px 460px at 88% -12%, rgba(34, 211, 238, 0.18), transparent 62%),
+    radial-gradient(900px 420px at 6% 0%, rgba(245, 158, 11, 0.16), transparent 60%),
+    radial-gradient(760px 520px at 50% 118%, rgba(139, 92, 246, 0.14), transparent 64%),
+    linear-gradient(180deg, #0f172a 0%, #111c31 55%, #0b1220 100%);
+}
+
+.cy-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+}
+
+.cy-aurora {
+  background: linear-gradient(
+    100deg,
+    transparent 12%,
+    rgba(245, 158, 11, 0.14) 32%,
+    rgba(34, 211, 238, 0.16) 50%,
+    rgba(139, 92, 246, 0.13) 68%,
+    transparent 88%
+  );
+  background-size: 260% 100%;
+  animation: cy-sweep 16s linear infinite;
+}
+
+@keyframes cy-sweep {
+  0% {
+    background-position: 160% 0;
+  }
+  100% {
+    background-position: -60% 0;
+  }
+}
+
+@keyframes cy-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.cy-rise {
+  animation: cy-rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cy-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  60% {
+    transform: scale(1.015);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.cy-pop {
+  animation: cy-pop 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cy-flash {
+  0% {
+    background-color: rgba(245, 158, 11, 0.55);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.cy-flash {
+  animation: cy-flash 0.9s ease-out both;
+}
+
+@keyframes cy-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(16, 185, 129, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+.cy-ring {
+  animation: cy-pulse-ring 2.2s ease-out infinite;
+}
+
+@keyframes cy-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.cy-slide-in {
+  animation: cy-slide-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cy-marquee {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+.cy-marquee {
+  animation: cy-marquee 22s linear infinite;
+}
+
+.cy-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.cy-press {
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease,
+    border-color 0.18s ease;
+}
+.cy-press:active {
+  transform: translateY(2px) scale(0.985);
+}
+
+.cy-focus:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px #ffffff,
+    0 0 0 4px #f59e0b;
+}
+
+/* ---------- الطباعة ---------- */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #cy-print-area,
+  #cy-print-area * {
+    visibility: visible !important;
+  }
+  #cy-print-area {
+    position: fixed;
+    inset: 0;
+    width: 80mm;
+    margin: 0 auto;
+    padding: 4mm;
+    background: #fff;
+    color: #000;
+    overflow: visible;
+  }
+  .cy-no-print {
+    display: none !important;
+  }
+}

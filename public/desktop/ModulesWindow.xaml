@@ -1,0 +1,154 @@
+<Window x:Class="CashYou.ModulesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="CASH YOU | كاش يو - وحدات الإدارة"
+        WindowState="Maximized" WindowStyle="None" ResizeMode="CanResize"
+        FlowDirection="RightToLeft" FontFamily="Cairo, Tajawal, Segoe UI, Tahoma"
+        Background="{StaticResource BrPaper}" UseLayoutRounding="True">
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="62"/><RowDefinition Height="*"/><RowDefinition Height="34"/></Grid.RowDefinitions>
+
+        <!-- الشريط العلوي الموحد -->
+        <Border Grid.Row="0" Background="{StaticResource BrInk800}">
+            <Grid Margin="12,0"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="38" Height="38" CornerRadius="12" Background="{StaticResource BrAmber}"><TextBlock Text="C" FontSize="22" FontWeight="Black" Foreground="#FF1E293B" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+                    <StackPanel Margin="10,0"><TextBlock Foreground="White" FontSize="16" FontWeight="Black" FlowDirection="LeftToRight"><Run Text="CASH"/><Run Text=" YOU" Foreground="#FFF59E0B"/></TextBlock><TextBlock Text="وحدات الإدارة والحسابات" Foreground="#FF94A3B8" FontSize="10"/></StackPanel>
+                </StackPanel>
+                <TextBlock x:Name="LblModuleTitle" Grid.Column="1" Text="الرئيسية" Foreground="White" FontSize="18" FontWeight="Black" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="#2610B981" BorderBrush="#7310B981" BorderThickness="1" CornerRadius="10" Padding="10,6"><TextBlock Text="تفعيل / نسخة مرخصة" Foreground="#FF10B981" FontWeight="Bold" FontSize="11"/></Border>
+                    <Button Content="—" Width="38" Height="30" Margin="10,0,0,0" Style="{StaticResource FlatButton}" Background="#26FFFFFF" Click="Min_Click"/>
+                    <Button Content="✕" Width="38" Height="30" Margin="4,0,0,0" Style="{StaticResource FlatButton}" Background="{StaticResource BrRed}" Click="Close_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="66"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <!-- شريط التنقل الجانبي -->
+            <Border Grid.Column="0" Background="{StaticResource BrInk800}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel x:Name="SideNav" Margin="5">
+                    <Button Content="ر" Tag="dashboard" Style="{StaticResource FlatButton}" Height="46" Margin="0,0,0,5" Background="{StaticResource BrAmber}" Foreground="#FF1E293B" Click="Nav_Click" ToolTip="الرئيسية"/>
+                    <Button Content="ب" Tag="invoice" Style="{StaticResource FlatButton}" Height="46" Margin="0,0,0,5" Background="#14FFFFFF" Click="Nav_Click" ToolTip="فاتورة مبيعات"/>
+                    <Button Content="م" Tag="salesReturn" Style="{StaticResource FlatButton}" Height="46" Margin="0,0,0,5" Background="#14FFFFFF" Click="Nav_Click" ToolTip="مرتجع مبيعات"/>
+                    <Button Content="ش" Tag="purchase" Style="{StaticResource FlatButton}" Height="46" Margin="0,0,0,5" Background="#14FFFFFF" Click="Nav_Click" ToolTip="فاتورة مشتريات"/>
+                    <Button Content="رش" Tag="purchaseReturn" Style="{StaticResource FlatButton}" Height="46" Margin="0,0,0,5" Background="#14FFFFFF" Click="Nav_Click" ToolTip="مرتجع مشتريات"/>
+                    <Button Content="ص" Tag="products" Style="{StaticResource FlatButton}" Height="46" Margin="0,0,0,5" Background="#14FFFFFF" Click="Nav_Click" ToolTip="الأصناف والمخازن"/>
+                    <Button Content="ع" Tag="parties" Style="{StaticResource FlatButton}" Height="46" Margin="0,0,0,5" Background="#14FFFFFF" Click="Nav_Click" ToolTip="العملاء والموردون"/>
+                    <Button Content="ق" Tag="installments" Style="{StaticResource FlatButton}" Height="46" Margin="0,0,0,5" Background="#14FFFFFF" Click="Nav_Click" ToolTip="نظام التقسيط"/>
+                    <Button Content="مص" Tag="expenses" Style="{StaticResource FlatButton}" Height="46" Margin="0,0,0,5" Background="#14FFFFFF" Click="Nav_Click" ToolTip="المصروفات"/>
+                    <Button Content="خ" Tag="treasury" Style="{StaticResource FlatButton}" Height="46" Margin="0,0,0,5" Background="#14FFFFFF" Click="Nav_Click" ToolTip="الخزينة"/>
+                    <Button Content="ت" Tag="reports" Style="{StaticResource FlatButton}" Height="46" Margin="0,0,0,5" Background="#14FFFFFF" Click="Nav_Click" ToolTip="التقارير والأرباح"/>
+                </StackPanel></ScrollViewer>
+            </Border>
+
+            <Grid Grid.Column="1" Margin="7">
+                <!-- الرئيسية -->
+                <ScrollViewer x:Name="ViewDashboard" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <UniformGrid Columns="4">
+                            <Border CornerRadius="14" Background="#FF0891B2" Margin="3" Padding="16"><StackPanel><TextBlock Text="مبيعات اليوم" Foreground="White" FontWeight="Bold"/><TextBlock x:Name="KpiSales" Text="0.00" Foreground="White" FontSize="28" FontWeight="Black"/></StackPanel></Border>
+                            <Border CornerRadius="14" Background="{StaticResource BrInk800}" Margin="3" Padding="16"><StackPanel><TextBlock Text="مشتريات اليوم" Foreground="#FFCBD5E1" FontWeight="Bold"/><TextBlock x:Name="KpiPurchases" Text="0.00" Foreground="White" FontSize="28" FontWeight="Black"/></StackPanel></Border>
+                            <Border CornerRadius="14" Background="{StaticResource BrRed}" Margin="3" Padding="16"><StackPanel><TextBlock Text="مصروفات اليوم" Foreground="White" FontWeight="Bold"/><TextBlock x:Name="KpiExpenses" Text="0.00" Foreground="White" FontSize="28" FontWeight="Black"/></StackPanel></Border>
+                            <Border CornerRadius="14" Background="{StaticResource BrGreen}" Margin="3" Padding="16"><StackPanel><TextBlock Text="صافي نقدية الخزينة" Foreground="White" FontWeight="Bold"/><TextBlock x:Name="KpiCash" Text="0.00" Foreground="White" FontSize="28" FontWeight="Black"/></StackPanel></Border>
+                        </UniformGrid>
+                        <TextBlock Text="الوصول السريع لجميع الوحدات" FontSize="17" FontWeight="Black" Margin="6,18,6,8"/>
+                        <UniformGrid Columns="4" x:Name="DashboardCards">
+                            <Button Content="فاتورة مبيعات" Tag="invoice" Click="Nav_Click" Style="{StaticResource FlatButton}" Height="105" Margin="4" Background="{StaticResource BrAmber}" Foreground="#FF0F172A" FontSize="16"/>
+                            <Button Content="مرتجع مبيعات" Tag="salesReturn" Click="Nav_Click" Style="{StaticResource FlatButton}" Height="105" Margin="4" Background="{StaticResource BrOrange}" FontSize="16"/>
+                            <Button Content="فاتورة مشتريات" Tag="purchase" Click="Nav_Click" Style="{StaticResource FlatButton}" Height="105" Margin="4" Background="#FF0891B2" FontSize="16"/>
+                            <Button Content="مرتجع مشتريات" Tag="purchaseReturn" Click="Nav_Click" Style="{StaticResource FlatButton}" Height="105" Margin="4" Background="#FF7C3AED" FontSize="16"/>
+                            <Button Content="الأصناف والمخازن" Tag="products" Click="Nav_Click" Style="{StaticResource FlatButton}" Height="105" Margin="4" Background="#FF059669" FontSize="16"/>
+                            <Button Content="العملاء والموردون" Tag="parties" Click="Nav_Click" Style="{StaticResource FlatButton}" Height="105" Margin="4" Background="#FF2563EB" FontSize="16"/>
+                            <Button Content="نظام التقسيط" Tag="installments" Click="Nav_Click" Style="{StaticResource FlatButton}" Height="105" Margin="4" Background="#FFC026D3" FontSize="16"/>
+                            <Button Content="المصروفات" Tag="expenses" Click="Nav_Click" Style="{StaticResource FlatButton}" Height="105" Margin="4" Background="#FFE11D48" FontSize="16"/>
+                            <Button Content="الخزينة" Tag="treasury" Click="Nav_Click" Style="{StaticResource FlatButton}" Height="105" Margin="4" Background="#FF0D9488" FontSize="16"/>
+                            <Button Content="التقارير والأرباح" Tag="reports" Click="Nav_Click" Style="{StaticResource FlatButton}" Height="105" Margin="4" Background="{StaticResource BrInk700}" FontSize="16"/>
+                        </UniformGrid>
+                        <DataGrid x:Name="GrdRecent" Height="300" Margin="4,12,4,4" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" RowHeight="32">
+                            <DataGrid.Columns><DataGridTextColumn Header="الفاتورة" Binding="{Binding Number}"/><DataGridTextColumn Header="العميل" Width="*" Binding="{Binding CustomerName}"/><DataGridTextColumn Header="الإجمالي" Binding="{Binding Total,StringFormat=N2}"/><DataGridTextColumn Header="المدفوع" Binding="{Binding Paid,StringFormat=N2}"/><DataGridTextColumn Header="المتبقي" Binding="{Binding Remaining,StringFormat=N2}"/></DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- الأصناف والمخازن -->
+                <Grid x:Name="ViewProducts" Visibility="Collapsed"><Grid.ColumnDefinitions><ColumnDefinition Width="360"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Background="White" CornerRadius="12" Margin="0,0,5,0" Padding="14"><ScrollViewer><StackPanel>
+                        <TextBlock Text="إضافة / تعديل صنف" FontSize="17" FontWeight="Black" Margin="0,0,0,12"/>
+                        <TextBlock Text="الباركود" FontWeight="Bold"/><DockPanel><Button DockPanel.Dock="Right" Content="توليد" Click="GenerateBarcode_Click" Style="{StaticResource FlatButton}" Background="{StaticResource BrAmber}" Foreground="#FF1E293B" Width="70" Margin="0,4,5,8"/><TextBox x:Name="TxtPCode" Style="{StaticResource CyTextBox}" Margin="0,4,0,8"/></DockPanel>
+                        <TextBlock Text="اسم الصنف" FontWeight="Bold"/><TextBox x:Name="TxtPName" Style="{StaticResource CyTextBox}" Margin="0,4,0,8"/>
+                        <TextBlock Text="التصنيف" FontWeight="Bold"/><ComboBox x:Name="CmbPCategory" Style="{StaticResource CyCombo}" DisplayMemberPath="Name" SelectedValuePath="Id" Margin="0,4,0,8"/>
+                        <TextBlock Text="الوحدة" FontWeight="Bold"/><ComboBox x:Name="CmbPUnit" Style="{StaticResource CyCombo}" Margin="0,4,0,8"><ComboBoxItem Content="قطعة"/><ComboBoxItem Content="علبة"/><ComboBoxItem Content="كرتونة"/></ComboBox>
+                        <UniformGrid Columns="2"><StackPanel Margin="0,0,3,0"><TextBlock Text="سعر الشراء" FontWeight="Bold"/><TextBox x:Name="TxtPBuy" Text="0" Style="{StaticResource CyTextBox}"/></StackPanel><StackPanel Margin="3,0,0,0"><TextBlock Text="بيع قطاعي" FontWeight="Bold"/><TextBox x:Name="TxtPRetail" Text="0" Style="{StaticResource CyTextBox}"/></StackPanel></UniformGrid>
+                        <UniformGrid Columns="2" Margin="0,8,0,0"><StackPanel Margin="0,0,3,0"><TextBlock Text="بيع جملة" FontWeight="Bold"/><TextBox x:Name="TxtPWholesale" Text="0" Style="{StaticResource CyTextBox}"/></StackPanel><StackPanel Margin="3,0,0,0"><TextBlock Text="الرصيد الحالي" FontWeight="Bold"/><TextBox x:Name="TxtPStock" Text="0" Style="{StaticResource CyTextBox}"/></StackPanel></UniformGrid>
+                        <TextBlock Text="حد تنبيه المخزون" FontWeight="Bold" Margin="0,8,0,0"/><TextBox x:Name="TxtPMin" Text="5" Style="{StaticResource CyTextBox}" Margin="0,4,0,12"/>
+                        <Button Content="حفظ الصنف" Click="SaveProduct_Click" Style="{StaticResource FlatButton}" Background="{StaticResource BrGreen}" Height="44"/>
+                        <Button Content="صنف جديد" Click="ClearProduct_Click" Style="{StaticResource FlatButton}" Background="#FFE2E8F0" Foreground="#FF1E293B" Height="38" Margin="0,6,0,0"/>
+                    </StackPanel></ScrollViewer></Border>
+                    <Border Grid.Column="1" Background="White" CornerRadius="12"><Grid><Grid.RowDefinitions><RowDefinition Height="52"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                        <DockPanel Margin="10"><Button DockPanel.Dock="Left" Content="حذف المحدد" Click="DeleteProduct_Click" Style="{StaticResource FlatButton}" Background="{StaticResource BrRed}" Height="34"/><TextBox x:Name="TxtProductSearch" Style="{StaticResource CyTextBox}" TextChanged="ProductSearch_TextChanged" ToolTip="بحث بالاسم أو الباركود"/></DockPanel>
+                        <DataGrid x:Name="GrdProducts" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="GrdProducts_SelectionChanged" LoadingRow="GrdProducts_LoadingRow" RowHeight="32">
+                            <DataGrid.Columns><DataGridTextColumn Header="الباركود" Binding="{Binding Code}"/><DataGridTextColumn Header="اسم الصنف" Width="*" Binding="{Binding Name}"/><DataGridTextColumn Header="الوحدة" Binding="{Binding Unit}"/><DataGridTextColumn Header="شراء" Binding="{Binding Cost,StringFormat=N2}"/><DataGridTextColumn Header="قطاعي" Binding="{Binding Price,StringFormat=N2}"/><DataGridTextColumn Header="جملة" Binding="{Binding WholesalePrice,StringFormat=N2}"/><DataGridTextColumn Header="الرصيد" Binding="{Binding Stock}"/><DataGridTextColumn Header="الحد" Binding="{Binding MinStockLimit}"/></DataGrid.Columns>
+                        </DataGrid>
+                    </Grid></Border>
+                </Grid>
+
+                <!-- المشتريات والمرتجعات -->
+                <Grid x:Name="ViewTrade" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="64"/><RowDefinition Height="*"/><RowDefinition Height="90"/><RowDefinition Height="58"/></Grid.RowDefinitions>
+                    <Border Background="White" CornerRadius="12" Margin="0,0,0,5"><StackPanel Orientation="Horizontal" Margin="10" VerticalAlignment="Center">
+                        <TextBlock x:Name="LblTradeParty" Text="المورد" FontWeight="Black" VerticalAlignment="Center" Margin="0,0,6,0"/><ComboBox x:Name="CmbTradeParty" Width="220" Style="{StaticResource CyCombo}" DisplayMemberPath="Name" SelectedValuePath="Id" Margin="0,0,12,0"/>
+                        <TextBlock Text="الباركود" FontWeight="Black" VerticalAlignment="Center" Margin="0,0,6,0"/><TextBox x:Name="TxtTradeBarcode" Width="160" Style="{StaticResource CyTextBox}" KeyDown="TradeBarcode_KeyDown" Margin="0,0,12,0"/>
+                        <TextBlock Text="بحث" FontWeight="Black" VerticalAlignment="Center" Margin="0,0,6,0"/><TextBox x:Name="TxtTradeSearch" Width="160" Style="{StaticResource CyTextBox}" TextChanged="TradeSearch_TextChanged" Margin="0,0,12,0"/>
+                        <TextBlock Text="رقم الأصل" FontWeight="Black" VerticalAlignment="Center" Margin="0,0,6,0"/><TextBox x:Name="TxtTradeReference" Width="90" Style="{StaticResource CyTextBox}" Margin="0,0,12,0"/>
+                        <TextBlock Text="خصم %" FontWeight="Black" Foreground="#FFEF4444" VerticalAlignment="Center" Margin="0,0,6,0"/><TextBox x:Name="TxtTradeDiscount" Text="0" Width="64" TextAlignment="Center" FontWeight="Black" Foreground="#FFEF4444" Style="{StaticResource CyTextBox}" TextChanged="TradeDiscount_TextChanged" Margin="0,0,12,0"/>
+                        <TextBlock Text="البيان" FontWeight="Black" VerticalAlignment="Center" Margin="0,0,6,0"/><TextBox x:Name="TxtTradeNotes" Width="150" Style="{StaticResource CyTextBox}"/>
+                    </StackPanel></Border>
+                    <Grid Grid.Row="1" Margin="0,0,0,5"><Grid.ColumnDefinitions><ColumnDefinition Width="6*"/><ColumnDefinition Width="4*"/></Grid.ColumnDefinitions>
+                        <DataGrid x:Name="GrdTrade" Grid.Column="0" AutoGenerateColumns="False" CanUserAddRows="False" RowHeight="34" CellEditEnding="GrdTrade_CellEditEnding">
+                            <DataGrid.Columns><DataGridTemplateColumn Header="×" Width="40"><DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="حذف" Click="DeleteTradeLine_Click" Style="{StaticResource FlatButton}" Background="{StaticResource BrRed}" Height="25"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn><DataGridTextColumn Header="الإجمالي" Binding="{Binding Total,StringFormat=N2}" IsReadOnly="True"/><DataGridTextColumn Header="السعر" Binding="{Binding Price}"/><DataGridTextColumn Header="الكمية" Binding="{Binding Qty}"/><DataGridTextColumn Header="الوحدة" Binding="{Binding Unit}" IsReadOnly="True"/><DataGridTextColumn Header="اسم الصنف" Width="*" Binding="{Binding Name}" IsReadOnly="True"/><DataGridTextColumn Header="الكود" Binding="{Binding Code}" IsReadOnly="True"/></DataGrid.Columns>
+                        </DataGrid>
+                        <Border Grid.Column="1" Background="White" CornerRadius="12" Margin="5,0,0,0"><ScrollViewer><ItemsControl x:Name="ItemsTrade"><ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="3"/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Button Tag="{Binding}" Click="TradeTouch_Click" Style="{StaticResource FlatButton}" Background="White" Foreground="#FF1E293B" Height="70" Margin="3"><StackPanel><TextBlock Text="{Binding Name}" TextWrapping="Wrap" TextAlignment="Center"/><TextBlock Text="{Binding Price,StringFormat=N2}" Foreground="#FF047857" FontWeight="Black" TextAlignment="Center"/></StackPanel></Button></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer></Border>
+                    </Grid>
+                    <UniformGrid Grid.Row="2" Columns="3"><Border Background="{StaticResource BrInk800}" CornerRadius="12" Margin="0,0,4,0" Padding="12"><StackPanel><TextBlock Text="إجمالي المستند" Foreground="#FF94A3B8" FontWeight="Bold"/><TextBlock x:Name="LblTradeTotal" Text="0.00" Foreground="White" FontSize="30" FontWeight="Black"/></StackPanel></Border><Border Background="{StaticResource BrAmberSoft}" CornerRadius="12" Margin="4,0" Padding="12"><StackPanel><TextBlock x:Name="LblTradeCash" Text="المدفوع" Foreground="#FF92400E" FontWeight="Bold"/><TextBox x:Name="TxtTradePaid" Text="0" TextChanged="TradePaid_TextChanged" Background="Transparent" BorderThickness="0" Foreground="#FF047857" FontSize="30" FontWeight="Black"/></StackPanel></Border><Border Background="{StaticResource BrAmberCream}" CornerRadius="12" Margin="4,0,0,0" Padding="12"><StackPanel><TextBlock Text="المتبقي على الحساب" Foreground="#FF92400E" FontWeight="Bold"/><TextBlock x:Name="LblTradeRemaining" Text="0.00" Foreground="#FFEF4444" FontSize="30" FontWeight="Black"/></StackPanel></Border></UniformGrid>
+                    <Button Grid.Row="3" x:Name="BtnSaveTrade" Content="حفظ المستند" Click="SaveTrade_Click" Style="{StaticResource FlatButton}" Background="{StaticResource BrGreen}" FontSize="15"/>
+                </Grid>
+
+                <!-- العملاء والموردون -->
+                <Grid x:Name="ViewParties" Visibility="Collapsed"><Grid.ColumnDefinitions><ColumnDefinition Width="350"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Border Background="White" CornerRadius="12" Padding="14" Margin="0,0,5,0"><StackPanel>
+                        <UniformGrid Columns="2" Margin="0,0,0,12"><Button Content="العملاء" Tag="customer" Click="PartyKind_Click" Style="{StaticResource FlatButton}" Background="{StaticResource BrAmber}" Foreground="#FF1E293B" Height="38" Margin="0,0,3,0"/><Button Content="الموردون" Tag="supplier" Click="PartyKind_Click" Style="{StaticResource FlatButton}" Background="{StaticResource BrInk700}" Height="38" Margin="3,0,0,0"/></UniformGrid>
+                        <TextBlock Text="الاسم" FontWeight="Bold"/><TextBox x:Name="TxtPartyName" Style="{StaticResource CyTextBox}" Margin="0,4,0,8"/><TextBlock Text="التليفون" FontWeight="Bold"/><TextBox x:Name="TxtPartyPhone" Style="{StaticResource CyTextBox}" Margin="0,4,0,8"/><TextBlock Text="العنوان" FontWeight="Bold"/><TextBox x:Name="TxtPartyAddress" Style="{StaticResource CyTextBox}" Margin="0,4,0,8"/><TextBlock Text="الرصيد الافتتاحي" FontWeight="Bold"/><TextBox x:Name="TxtPartyOpening" Text="0" Style="{StaticResource CyTextBox}" Margin="0,4,0,8"/><TextBlock Text="الرصيد الحالي" FontWeight="Bold"/><TextBox x:Name="TxtPartyBalance" Text="0" Style="{StaticResource CyTextBox}" Margin="0,4,0,12"/>
+                        <Button Content="حفظ البيانات" Click="SaveParty_Click" Style="{StaticResource FlatButton}" Background="{StaticResource BrGreen}" Height="42"/>
+                        <Separator Margin="0,16"/><TextBlock Text="سند قبض / صرف" FontWeight="Black" FontSize="16"/><TextBlock Text="قيمة السند" FontWeight="Bold" Margin="0,8,0,0"/><TextBox x:Name="TxtVoucherAmount" Text="0" Style="{StaticResource CyTextBox}" Margin="0,4,0,8"/><TextBlock Text="البيان" FontWeight="Bold"/><TextBox x:Name="TxtVoucherNotes" Style="{StaticResource CyTextBox}" Margin="0,4,0,8"/><Button x:Name="BtnSaveVoucher" Content="حفظ وطباعة سند قبض" Click="SaveVoucher_Click" Style="{StaticResource FlatButton}" Background="{StaticResource BrOrange}" Height="42"/>
+                    </StackPanel></Border>
+                    <DataGrid x:Name="GrdParties" Grid.Column="1" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="GrdParties_SelectionChanged" RowHeight="36"><DataGrid.Columns><DataGridTextColumn Header="الاسم" Width="*" Binding="{Binding Name}"/><DataGridTextColumn Header="التليفون" Binding="{Binding Phone}"/><DataGridTextColumn Header="العنوان" Binding="{Binding Address}"/><DataGridTextColumn Header="افتتاحي" Binding="{Binding OpeningBalance,StringFormat=N2}"/><DataGridTextColumn Header="الرصيد الحالي" Binding="{Binding Balance,StringFormat=N2}"/></DataGrid.Columns></DataGrid>
+                </Grid>
+
+                <!-- الأقساط -->
+                <Grid x:Name="ViewInstallments" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="90"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <UniformGrid Columns="3"><Border Background="#FFFEE2E2" CornerRadius="12" Margin="0,0,4,5" Padding="12"><StackPanel><TextBlock Text="الأقساط المتأخرة" FontWeight="Bold" Foreground="#FFB91C1C"/><TextBlock x:Name="LblLateInstallments" FontSize="28" FontWeight="Black" Foreground="#FFEF4444"/></StackPanel></Border><Border Background="{StaticResource BrAmberSoft}" CornerRadius="12" Margin="4,0,4,5" Padding="12"><StackPanel><TextBlock Text="أقساط اليوم" FontWeight="Bold"/><TextBlock x:Name="LblTodayInstallments" FontSize="28" FontWeight="Black"/></StackPanel></Border><Border Background="#FFD1FAE5" CornerRadius="12" Margin="4,0,0,5" Padding="12"><StackPanel><TextBlock Text="إجمالي المحصل" FontWeight="Bold"/><TextBlock x:Name="LblCollectedInstallments" FontSize="28" FontWeight="Black" Foreground="#FF047857"/></StackPanel></Border></UniformGrid>
+                    <DataGrid x:Name="GrdInstallments" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" LoadingRow="GrdInstallments_LoadingRow" RowHeight="38"><DataGrid.Columns><DataGridTemplateColumn Header="تحصيل" Width="110"><DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="تحصيل القسط" Tag="{Binding Id}" Click="CollectInstallment_Click" Style="{StaticResource FlatButton}" Background="{StaticResource BrInk800}" Height="28"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn><DataGridTextColumn Header="الحالة" Binding="{Binding Status}"/><DataGridTextColumn Header="القيمة" Binding="{Binding Amount,StringFormat=N2}"/><DataGridTextColumn Header="الاستحقاق" Binding="{Binding DueDate}"/><DataGridTextColumn Header="القسط" Binding="{Binding Sequence}"/><DataGridTextColumn Header="العميل" Width="*" Binding="{Binding CustomerName}"/><DataGridTextColumn Header="التعاقد" Binding="{Binding PlanId}"/></DataGrid.Columns></DataGrid>
+                </Grid>
+
+                <!-- المصروفات -->
+                <Grid x:Name="ViewExpenses" Visibility="Collapsed"><Grid.ColumnDefinitions><ColumnDefinition Width="340"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Border Background="White" CornerRadius="12" Padding="16" Margin="0,0,5,0"><StackPanel><TextBlock Text="تسجيل مصروف جديد" FontSize="17" FontWeight="Black" Margin="0,0,0,14"/><TextBlock Text="نوع المصروف" FontWeight="Bold"/><ComboBox x:Name="CmbExpenseCategory" Style="{StaticResource CyCombo}" Margin="0,4,0,10"><ComboBoxItem Content="إيجار"/><ComboBoxItem Content="كهرباء"/><ComboBoxItem Content="رواتب"/><ComboBoxItem Content="نثريات"/><ComboBoxItem Content="صيانة"/></ComboBox><TextBlock Text="القيمة" FontWeight="Bold"/><TextBox x:Name="TxtExpenseAmount" Text="0" Style="{StaticResource CyTextBox}" FontSize="22" Margin="0,4,0,10"/><TextBlock Text="البيان" FontWeight="Bold"/><TextBox x:Name="TxtExpenseNotes" Style="{StaticResource CyTextBox}" Height="70" AcceptsReturn="True" Margin="0,4,0,12"/><Button Content="حفظ وصرف من الخزينة" Click="SaveExpense_Click" Style="{StaticResource FlatButton}" Background="{StaticResource BrRed}" Height="44"/></StackPanel></Border>
+                    <DataGrid x:Name="GrdExpenses" Grid.Column="1" AutoGenerateColumns="False" IsReadOnly="True" RowHeight="36"><DataGrid.Columns><DataGridTextColumn Header="الرقم" Binding="{Binding Number}"/><DataGridTextColumn Header="النوع" Binding="{Binding Category}"/><DataGridTextColumn Header="القيمة" Binding="{Binding Amount,StringFormat=N2}"/><DataGridTextColumn Header="البيان" Width="*" Binding="{Binding Notes}"/><DataGridTextColumn Header="التاريخ" Binding="{Binding CreatedAt}"/></DataGrid.Columns></DataGrid>
+                </Grid>
+
+                <!-- الخزينة -->
+                <Grid x:Name="ViewTreasury" Visibility="Collapsed"><Grid.RowDefinitions><RowDefinition Height="92"/><RowDefinition Height="*"/><RowDefinition Height="58"/></Grid.RowDefinitions>
+                    <UniformGrid Columns="3"><Border Background="{StaticResource BrInk800}" CornerRadius="12" Margin="0,0,4,5" Padding="12"><StackPanel><TextBlock Text="صافي الخزينة" Foreground="#FF94A3B8" FontWeight="Bold"/><TextBlock x:Name="LblTreasuryBalance" FontSize="30" FontWeight="Black" Foreground="White"/></StackPanel></Border><Border Background="#FFD1FAE5" CornerRadius="12" Margin="4,0,4,5" Padding="12"><StackPanel><TextBlock Text="إجمالي الوارد" FontWeight="Bold"/><TextBlock x:Name="LblTreasuryIn" FontSize="30" FontWeight="Black" Foreground="#FF047857"/></StackPanel></Border><Border Background="#FFFEE2E2" CornerRadius="12" Margin="4,0,0,5" Padding="12"><StackPanel><TextBlock Text="إجمالي المنصرف" FontWeight="Bold"/><TextBlock x:Name="LblTreasuryOut" FontSize="30" FontWeight="Black" Foreground="#FFEF4444"/></StackPanel></Border></UniformGrid>
+                    <DataGrid x:Name="GrdTreasury" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" RowHeight="34"><DataGrid.Columns><DataGridTextColumn Header="المصدر" Binding="{Binding Source}"/><DataGridTextColumn Header="الاتجاه" Binding="{Binding Direction}"/><DataGridTextColumn Header="المبلغ" Binding="{Binding Amount,StringFormat=N2}"/><DataGridTextColumn Header="المرجع" Binding="{Binding Reference}"/><DataGridTextColumn Header="الاسم" Width="*" Binding="{Binding PartyName}"/><DataGridTextColumn Header="التاريخ" Binding="{Binding CreatedAt}"/></DataGrid.Columns></DataGrid>
+                    <Button Grid.Row="2" Content="إغلاق الوردية وطباعة ملخص الدرج" Click="CloseShift_Click" Style="{StaticResource FlatButton}" Background="{StaticResource BrOrange}" FontSize="15"/>
+                </Grid>
+
+                <!-- التقارير -->
+                <ScrollViewer x:Name="ViewReports" Visibility="Collapsed"><StackPanel><UniformGrid Columns="4"><Border Background="{StaticResource BrGreen}" CornerRadius="12" Margin="3" Padding="14"><StackPanel><TextBlock Text="إجمالي المبيعات" Foreground="White"/><TextBlock x:Name="RptSales" Foreground="White" FontSize="27" FontWeight="Black"/></StackPanel></Border><Border Background="{StaticResource BrInk700}" CornerRadius="12" Margin="3" Padding="14"><StackPanel><TextBlock Text="إجمالي المشتريات" Foreground="White"/><TextBlock x:Name="RptPurchases" Foreground="White" FontSize="27" FontWeight="Black"/></StackPanel></Border><Border Background="{StaticResource BrRed}" CornerRadius="12" Margin="3" Padding="14"><StackPanel><TextBlock Text="المصروفات" Foreground="White"/><TextBlock x:Name="RptExpenses" Foreground="White" FontSize="27" FontWeight="Black"/></StackPanel></Border><Border Background="{StaticResource BrAmber}" CornerRadius="12" Margin="3" Padding="14"><StackPanel><TextBlock Text="صافي النتيجة" Foreground="#FF1E293B"/><TextBlock x:Name="RptNet" Foreground="#FF1E293B" FontSize="27" FontWeight="Black"/></StackPanel></Border></UniformGrid><DataGrid x:Name="GrdReport" Height="520" Margin="4,14,4,4" AutoGenerateColumns="True" IsReadOnly="True"/></StackPanel></ScrollViewer>
+            </Grid>
+        </Grid>
+
+        <Border Grid.Row="2" Background="{StaticResource BrInk800}"><Grid Margin="12,0"><TextBlock Text="المستخدم: م. وائل الجمال" Foreground="#FFE2E8F0" FontWeight="Bold" VerticalAlignment="Center"/><TextBlock Text="الدعم الفني : م / وائل الجمال   تليفون : 01222355769" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/><TextBlock Text="النظام متصل · SQLite جاهزة" Foreground="#FF10B981" FontWeight="Bold" HorizontalAlignment="Left" VerticalAlignment="Center"/></Grid></Border>
+    </Grid>
+</Window>
