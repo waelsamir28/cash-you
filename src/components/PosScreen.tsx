@@ -668,6 +668,8 @@ function CellInput({
   const [txt, setTxt] = useState(String(value));
   const [focus, setFocus] = useState(false);
   useEffect(() => {
+    // Keep the draft input in sync with its controlled value when it is not being edited.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!focus) setTxt(String(value));
   }, [value, focus]);
   return (

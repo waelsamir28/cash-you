@@ -82,7 +82,7 @@ export function PrintDocumentModal({ doc, shop, onClose }: { doc: PrintDoc; shop
           {doc.notes && <p className="mt-2">{doc.notes}</p>}
           <div className="border-t border-dashed border-slate-400 mt-3 pt-2 text-center font-bold">الدعم الفني : م / وائل الجمال<br /><span className="cy-num">01222355769</span></div>
         </div>
-        <div className="p-3 pt-0 flex gap-2 cy-no-print"><button onClick={() => window.print()} className={`${btnCls} flex-1 bg-ink-800 text-white flex items-center justify-center gap-2`}><IcoPrint /> طباعة</button><button onClick={onClose} className={`${btnCls} bg-slate-200 text-ink-800`}>إغلاق</button></div>
+        <div className="p-3 pt-0 flex gap-2 cy-no-print"><button onClick={() => window.print()} className={`${btnCls} flex-1 bg-ink-800 text-white flex items-center justify-center gap-2`}><IcoPrint /> طباعة</button><button onClick={onClose} className={`${btnCls} bg-slate-200 text-ink-800`}>إلغاء</button></div>
       </div>
     </div>
   );

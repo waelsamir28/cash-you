@@ -39,6 +39,7 @@ export type InvoiceRow = {
   remaining: number;
   itemsCount: number;
   createdAt: string;
+  printed?: boolean;
 };
 
 export type PurchaseRow = {
@@ -200,6 +201,7 @@ export type SavedInvoice = {
   newCustomerBalance: number;
   nextInvoiceNumber: number;
   installmentPlanId?: number;
+  installmentIds?: number[];
 };
 
 export type ModuleKind =

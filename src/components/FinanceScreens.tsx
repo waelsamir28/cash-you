@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/offline-sync";
 import { useMemo, useState } from "react";
 import type { Bootstrap } from "@/lib/types";
 import { money, shortStamp } from "@/lib/format";
@@ -28,7 +29,7 @@ export function InstallmentsScreen({ data, refresh, notify }: Common) {
   const collect = async (id: number) => {
     const d = data.installments.find((x) => x.id === id);
     if (!d || !window.confirm(`تأكيد تحصيل القسط رقم ${d.sequence} بمبلغ ${money(d.amount)} من ${d.customerName}؟`)) return;
-    const res = await fetch("/api/installments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    const res = await apiFetch("/api/installments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
     const json = await res.json();
     if (!res.ok) { notify("err", json.error); sfxError(); return; }
     await refresh();
@@ -54,7 +55,7 @@ export function ExpensesScreen({ data, refresh, notify }: Common) {
   const [notes, setNotes] = useState("");
   const [doc, setDoc] = useState<PrintDoc | null>(null);
   const save = async () => {
-    const res = await fetch("/api/treasury", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category, amount: Number(amount), notes }) });
+    const res = await apiFetch("/api/treasury", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category, amount: Number(amount), notes }) });
     const json = await res.json();
     if (!res.ok) { notify("err", json.error); sfxError(); return; }
     setDoc({ title: "سند مصروفات", number: String(json.number), party: category, date: shortStamp(new Date().toISOString()), amount: Number(amount), notes });
@@ -80,7 +81,7 @@ export function TreasuryScreen({ data, refresh, notify }: Common) {
   const close = async () => {
     if (!window.confirm("سيتم إغلاق الوردية الحالية وفتح وردية جديدة بالرصيد الختامي. هل تريد المتابعة؟")) return;
     setClosing(true);
-    const res = await fetch("/api/treasury", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "closeShift", notes: "إغلاق ومراجعة درج النقدية" }) });
+    const res = await apiFetch("/api/treasury", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "closeShift", notes: "إغلاق ومراجعة درج النقدية" }) });
     const json = await res.json(); setClosing(false);
     if (!res.ok) { notify("err", json.error); return; }
     await refresh(); setDoc({ title: "تقرير إغلاق وردية", number: String(json.number), party: "م. وائل الجمال", date: shortStamp(new Date().toISOString()), amount: json.closingCash, lines: [

@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/offline-sync";
 import { useMemo, useState } from "react";
 import type { Bootstrap, Party, Product } from "@/lib/types";
 import { money, qtyText, shortStamp, uid } from "@/lib/format";
@@ -25,7 +26,7 @@ export function ProductsScreen({ data, refresh, notify }: Common) {
   const save = async () => {
     setBusy(true);
     try {
-      const res = await fetch("/api/products", { method: form.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      const res = await apiFetch("/api/products", { method: form.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
       await refresh();
@@ -38,7 +39,7 @@ export function ProductsScreen({ data, refresh, notify }: Common) {
 
   const remove = async (p: Product) => {
     if (!window.confirm(`هل تريد حذف الصنف «${p.name}» نهائياً؟`)) return;
-    const res = await fetch("/api/products", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) });
+    const res = await apiFetch("/api/products", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) });
     if (!res.ok) { notify("err", "تعذر حذف الصنف"); return; }
     await refresh(); notify("warn", `تم حذف الصنف «${p.name}»`);
   };
@@ -83,7 +84,7 @@ export function PartiesScreen({ data, refresh, notify, initialKind = "customer" 
   const set = (k: string, v: string | number) => setForm((f) => ({ ...f, [k]: v }));
 
   const save = async () => {
-    const res = await fetch("/api/parties", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, kind }) });
+    const res = await apiFetch("/api/parties", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, kind }) });
     const json = await res.json();
     if (!res.ok) { notify("err", json.error); return; }
     await refresh(); setForm(blankParty); notify("ok", "تم حفظ البيانات والرصيد بنجاح"); sfxSave();
@@ -91,7 +92,7 @@ export function PartiesScreen({ data, refresh, notify, initialKind = "customer" 
 
   const saveVoucher = async () => {
     if (!voucher) return;
-    const res = await fetch("/api/vouchers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: kind === "customer" ? "receipt" : "payment", partyId: voucher.id, amount: Number(amount), notes }) });
+    const res = await apiFetch("/api/vouchers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: kind === "customer" ? "receipt" : "payment", partyId: voucher.id, amount: Number(amount), notes }) });
     const json = await res.json();
     if (!res.ok) { notify("err", json.error); sfxError(); return; }
     setDoc({ title: kind === "customer" ? "سند قبض من عميل" : "سند صرف لمورد", number: String(json.number), party: voucher.name, date: shortStamp(new Date().toISOString()), amount: Number(amount), notes });

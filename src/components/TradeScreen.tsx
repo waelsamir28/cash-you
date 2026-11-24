@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/offline-sync";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Bootstrap, ModuleKind, Product } from "@/lib/types";
 import { money, qtyText, shortStamp, uid } from "@/lib/format";
@@ -224,7 +225,7 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
     }
     setBusy(true);
     try {
-      const res = await fetch("/api/trade", {
+      const res = await apiFetch("/api/trade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -240,22 +241,20 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
       await refresh();
-      if (print) {
-        setDoc({
-          title: cfg.title,
-          number: String(json.number),
-          party: json.partyName,
-          date: shortStamp(new Date().toISOString()),
-          amount: json.total,
-          lines: [
-            ...lines.map((l) => ({ label: `${l.product.name} × ${qtyText(l.qty)}`, value: money(l.qty * l.price) })),
-            ...(discountPercent > 0 ? [{ label: `الخصم (${discountPercent}%)`, value: money(discountValue) }] : []),
-            { label: cfg.cash, value: money(json.paid) },
-            { label: cfg.rest, value: money(json.remaining) },
-          ],
-          notes: notes || (isPurchase ? "تم تحديث سعر الشراء ورصيد المخزن وحساب المورد" : "تم عكس الكميات وتسوية الحساب بدقة"),
-        });
-      }
+      setDoc({
+        title: cfg.title,
+        number: String(json.number),
+        party: json.partyName,
+        date: shortStamp(new Date().toISOString()),
+        amount: json.total,
+        lines: [
+          ...lines.map((l) => ({ label: `${l.product.name} × ${qtyText(l.qty)}`, value: money(l.qty * l.price) })),
+          ...(discountPercent > 0 ? [{ label: `الخصم (${discountPercent}%)`, value: money(discountValue) }] : []),
+          { label: cfg.cash, value: money(json.paid) },
+          { label: cfg.rest, value: money(json.remaining) },
+        ],
+        notes: notes || (isPurchase ? "تم تحديث سعر الشراء ورصيد المخزن وحساب المورد" : "تم عكس الكميات وتسوية الحساب بدقة"),
+      });
       resetDoc();
       sfxSave();
       notify("ok", `تم حفظ ${cfg.title} رقم ${json.number} وتحديث المخزون والحسابات`);
@@ -306,7 +305,7 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
   }, [lastUid]);
 
   const submitParty = async (v: Record<string, string>) => {
-    const res = await fetch("/api/parties", {
+    const res = await apiFetch("/api/parties", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
