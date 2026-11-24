@@ -16,7 +16,7 @@ function getDeviceCode() {
   const match = result.match(/MachineGuid\s+REG_SZ\s+([^\r\n]+)/i);
   if (!match?.[1]) throw new Error("تعذر قراءة معرّف Windows للجهاز");
   const digest = createHash("sha256").update(`cash-you-device-v1:${match[1].trim()}`).digest("hex").slice(0, 24).toUpperCase();
-  return `CYD-${digest.match(/.{1,4}/g).join("-")}`;
+  return `CY-${digest.match(/.{1,4}/g).join("-")}`;
 }
 
 function readConfig() {

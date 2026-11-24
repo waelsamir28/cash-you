@@ -44,7 +44,7 @@ function fallbackDeviceCode(): string {
     value = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("").toUpperCase();
     localStorage.setItem(DEVICE_STORAGE_KEY, value);
   }
-  return `CYD-${value.match(/.{1,4}/g)?.join("-") ?? value}`;
+  return `CY-${value.match(/.{1,4}/g)?.join("-") ?? value}`;
 }
 
 export async function getDeviceIdentity(): Promise<DeviceIdentity> {

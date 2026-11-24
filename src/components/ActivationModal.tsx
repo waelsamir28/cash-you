@@ -30,16 +30,16 @@ export function ActivationModal({ required, onClose, onActivated }: { required: 
     if (!device) return;
     try {
       await navigator.clipboard.writeText(device.code);
-      setError("تم نسخ كود الجهاز");
+      setError("تم نسخ كود الجهاز؛ أرسله إلى الدعم لإصدار التفعيل.");
     } catch {
-      setError("تعذر النسخ تلقائيًا؛ حدّد كود الجهاز وانسخه يدويًا");
+      setError("تعذر النسخ تلقائيًا؛ حدّد كود الجهاز وانسخه يدويًا.");
     }
   };
 
   const submit = async () => {
     if (!device) return;
     if (!device.isWindowsDesktop) {
-      setError("التفعيل المرتبط بهاردوير Windows متاح من تطبيق Windows فقط");
+      setError("التفعيل المرتبط بجهازك متاح من تطبيق Windows فقط.");
       return;
     }
     setBusy(true);
@@ -59,30 +59,40 @@ export function ActivationModal({ required, onClose, onActivated }: { required: 
 
   if (!required && !active) return null;
   const isBlocking = required && !active;
+  const copied = error.startsWith("تم نسخ");
 
   return (
-    <div className={`fixed inset-0 ${isBlocking ? "z-[200]" : "z-[100]"} grid place-items-center bg-ink-950/80 backdrop-blur-sm p-3`} dir="rtl">
-      <section className="w-full max-w-lg overflow-hidden rounded-[22px] border border-white/15 bg-ink-800 shadow-[0_35px_100px_-25px_rgba(0,0,0,.8)]">
-        <header className="border-b border-white/10 bg-gradient-to-l from-amber-brand/15 via-cash-cyan/10 to-cash-violet/15 px-5 py-5">
-          <div className="flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-amber-brand to-orange-600 font-black text-ink-900">CY</div><div><p className="text-[10px] font-black tracking-[.2em] text-cash-cyan">CASH YOU · LICENSE</p><h2 className="mt-1 text-[18px] font-black text-white">{active ? "النسخة مفعّلة" : "تفعيل نسخة كاش يو"}</h2></div>
-            {!isBlocking && <button onClick={onClose} className="mr-auto rounded-lg px-3 py-2 text-[12px] font-bold text-slate-300 hover:bg-white/10">إغلاق</button>}
-          </div>
-          <p className="mt-3 text-[12px] leading-6 text-slate-300">{active ? `نوع الترخيص: ${planTitle(active.payload.plan)}${active.expiresAt ? ` · ينتهي ${new Date(active.expiresAt).toLocaleDateString("ar-EG")}` : ""}` : "أرسل كود الجهاز إلى الدعم، ثم أدخل كود التفعيل الذي يصدره لك."}</p>
+    <div className={`fixed inset-0 ${isBlocking ? "z-[200]" : "z-[100]"} grid place-items-center bg-[#10265b]/90 p-4 backdrop-blur-sm`} dir="rtl">
+      <section className="w-full max-w-[430px] overflow-hidden rounded-[22px] bg-white text-[#182b5c] shadow-[0_30px_90px_rgba(0,0,0,.38)]">
+        <header className="px-7 pb-1 pt-7 text-center">
+          <div className="mx-auto mb-2 grid h-10 w-10 place-items-center rounded-xl bg-[#214fe0] text-sm font-black text-white">CY</div>
+          <p className="text-[21px] font-black leading-tight text-[#173c9c]">CASH YOU - تفعيل البرنامج</p>
+          <p className="mt-2 text-[12px] text-slate-500">أداة خاصة بالدعم الفني لتفعيل نسخ العملاء</p>
+          <p className="mt-5 text-right text-[13px] font-bold leading-6 text-[#273b68]">
+            {active ? `النسخة مفعّلة · ${planTitle(active.payload.plan)}${active.expiresAt ? ` · تنتهي ${new Date(active.expiresAt).toLocaleDateString("ar-EG")}` : ""}` : "لإصدار كود التفعيل، أرسل كود جهازك إلى الدعم الفني."}
+          </p>
         </header>
-        <div className="space-y-4 p-5">
+
+        <div className="space-y-4 px-7 pb-7 pt-2">
           <div>
-            <label className="mb-2 block text-[11px] font-black text-slate-300">كود الجهاز</label>
-            <div className="flex gap-2"><code dir="ltr" className="min-w-0 flex-1 break-all rounded-xl border border-white/10 bg-ink-950 px-3 py-3 text-left font-mono text-[12px] text-amber-200">{device?.code ?? "جارٍ إنشاء كود الجهاز..."}</code><button onClick={() => void copyDeviceCode()} disabled={!device} className="rounded-xl bg-slate-700 px-3 text-[11px] font-black text-white disabled:opacity-50">نسخ</button></div>
-            {device && !device.isWindowsDesktop && <p className="mt-2 text-[10.5px] leading-5 text-amber-200">تنبيه: هذه نسخة متصفح؛ الكود مرتبط بملف المتصفح وليس ببصمة Windows. استخدم تطبيق Windows المرفق للحصول على قفل الجهاز المطلوب.</p>}
+            <label className="mb-1.5 block text-[13px] font-bold text-[#26395f]">كود جهاز العميل (Machine ID):</label>
+            <div className="flex h-[52px] items-center gap-2 rounded-xl border-2 border-slate-300 px-3 focus-within:border-[#214fe0]">
+              <code dir="ltr" className="min-w-0 flex-1 select-all break-all text-center font-mono text-[16px] font-black tracking-[.08em] text-slate-600">
+                {device?.code ?? "جارٍ إنشاء كود الجهاز..."}
+              </code>
+              <button type="button" onClick={() => void copyDeviceCode()} disabled={!device} aria-label="نسخ كود الجهاز" className="shrink-0 rounded-lg bg-slate-100 px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-200 disabled:opacity-50">نسخ</button>
+            </div>
+            {device && !device.isWindowsDesktop && <p className="mt-2 text-[11px] leading-5 text-amber-700">هذه نسخة متصفح؛ استخدم تطبيق Windows للحصول على كود ثابت مرتبط بالجهاز.</p>}
           </div>
+
           {!active && <div>
-            <label className="mb-2 block text-[11px] font-black text-slate-300" htmlFor="cy-license-input">كود التفعيل</label>
-            <textarea id="cy-license-input" value={key} onChange={(event) => setKey(event.target.value)} dir="ltr" rows={4} spellCheck={false} className="w-full resize-y rounded-xl border border-white/10 bg-ink-950 px-3 py-3 font-mono text-[11px] text-white outline-none focus:border-amber-brand" placeholder="الصق كود التفعيل هنا" />
-            <button onClick={() => void submit()} disabled={busy || !device?.isWindowsDesktop || !key.trim()} className="mt-3 h-11 w-full rounded-xl bg-gradient-to-l from-amber-brand to-orange-500 font-black text-ink-900 disabled:cursor-not-allowed disabled:opacity-50">{busy ? "جارٍ التحقق..." : "تحقق وفعّل النسخة"}</button>
+            <label className="mb-1.5 block text-[13px] font-bold text-[#26395f]" htmlFor="cy-license-input">كود التفعيل:</label>
+            <textarea id="cy-license-input" value={key} onChange={(event) => setKey(event.target.value)} dir="ltr" rows={3} spellCheck={false} className="w-full resize-y rounded-xl border-2 border-slate-300 px-3 py-3 font-mono text-[12px] text-slate-800 outline-none focus:border-[#214fe0]" placeholder="الصق كود التفعيل الذي أرسله لك الدعم" />
+            <button onClick={() => void submit()} disabled={busy || !device?.isWindowsDesktop || !key.trim()} className="mt-3 h-[48px] w-full rounded-xl bg-[#214fe0] text-[15px] font-black text-white transition hover:bg-[#193fbd] disabled:cursor-not-allowed disabled:opacity-50">{busy ? "جارٍ التحقق..." : "تفعيل البرنامج"}</button>
           </div>}
-          {error && <p role="status" className={`rounded-lg border px-3 py-2 text-[11px] leading-5 ${error.startsWith("تم نسخ") ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200" : "border-red-400/30 bg-red-400/10 text-red-200"}`}>{error}</p>}
-          {active && <button onClick={onClose} className="h-11 w-full rounded-xl bg-emerald-500 font-black text-ink-950">متابعة إلى البرنامج</button>}
-          {isBlocking && <p className="text-center text-[10px] leading-5 text-slate-500">التحقق يتم محليًا بالتوقيع الرقمي؛ لا يلزم اتصال بالإنترنت لإدخال الترخيص.</p>}
+          {error && <p role="status" className={`rounded-lg px-3 py-2 text-[11px] leading-5 ${copied ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{error}</p>}
+          {active && <button onClick={onClose} className="h-11 w-full rounded-xl bg-emerald-600 font-black text-white">متابعة إلى البرنامج</button>}
+          {isBlocking && <p className="text-center text-[10px] leading-5 text-slate-500">كود الجهاز خاص بهذا الجهاز. أرسله للدعم فقط؛ لا تشارك بيانات حساسة أخرى. التحقق والتفعيل يعملان دون إنترنت.</p>}
         </div>
       </section>
     </div>
