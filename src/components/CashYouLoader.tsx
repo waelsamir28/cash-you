@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Bootstrap } from "@/lib/types";
+import { readOfflineBootstrap, saveOfflineBootstrap } from "@/lib/offline-cache";
+import { ActivationModal } from "@/components/ActivationModal";
+import { getDeviceIdentity, readActiveLicense } from "@/lib/license";
 import CashYouApp from "@/components/CashYouApp";
 import { IcoLogo } from "@/components/icons";
 
@@ -10,6 +13,8 @@ export default function CashYouLoader() {
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
+  const grantAccess = useCallback(() => setAuthorized(true), []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -30,9 +35,16 @@ export default function CashYouLoader() {
         throw new Error("استجابة قاعدة البيانات غير مكتملة");
       }
       setData(result as Bootstrap);
+      void saveOfflineBootstrap(result as Bootstrap).catch(() => undefined);
       setError("");
     } catch (reason) {
-      setData(null);
+      const cached = await readOfflineBootstrap().catch(() => null);
+      if (cached) {
+        setData(cached);
+        setError("");
+      } else {
+        setData(null);
+      }
       setError(
         reason instanceof Error && reason.name === "AbortError"
           ? "استغرق الاتصال بقاعدة البيانات وقتاً أطول من المعتاد. تحقق من الاتصال ثم أعد المحاولة."
@@ -47,9 +59,33 @@ export default function CashYouLoader() {
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load, attempt]);
+    if ("serviceWorker" in navigator) {
+      void navigator.serviceWorker.register("/cash-you-sw.js").catch(() => undefined);
+    }
+    if (!authorized) return;
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load, attempt, authorized]);
 
+  useEffect(() => {
+    if (!authorized) return;
+    let alive = true;
+    const check = async () => {
+      const device = await getDeviceIdentity().catch(() => null);
+      const license = device ? await readActiveLicense(device.code) : null;
+      if (alive && !license) setAuthorized(false);
+    };
+    const timer = window.setInterval(() => void check(), 60_000);
+    return () => { alive = false; window.clearInterval(timer); };
+  }, [authorized]);
+
+  if (!authorized) {
+    return (
+      <main className="relative min-h-[100dvh] w-full overflow-hidden cy-mesh cy-grain" dir="rtl">
+        <ActivationModal required onClose={() => undefined} onActivated={grantAccess} />
+      </main>
+    );
+  }
   if (data) return <CashYouApp initial={data} />;
 
   return (

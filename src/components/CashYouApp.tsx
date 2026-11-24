@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch, flushOfflineQueue, pendingOfflineCount } from "@/lib/offline-sync";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Bootstrap, Customer, InstallmentInput, InvoiceRow, ModuleKind, PaymentMethod, Product } from "@/lib/types";
 import { computeTotals, emptyDraft, lineTotal, newLine, type Draft } from "@/lib/draft";
@@ -23,6 +24,8 @@ import { ProductsScreen, PartiesScreen } from "@/components/ManagementScreens";
 import { TradeScreen } from "@/components/TradeScreen";
 import { ExpensesScreen, InstallmentsScreen, ReportsScreen, TreasuryScreen } from "@/components/FinanceScreens";
 import { InstallmentDialog } from "@/components/InstallmentDialog";
+import { ActivationModal } from "@/components/ActivationModal";
+import { readOfflineBootstrap, saveOfflineBootstrap } from "@/lib/offline-cache";
 import {
   CloseConfirm,
   CustomerDisplay,
@@ -65,6 +68,10 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
   const [minimized, setMinimized] = useState(false);
   const [shutdown, setShutdown] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [licenseActive, setLicenseActive] = useState(false);
+  const [licenseOpen, setLicenseOpen] = useState(true);
+  const [syncPending, setSyncPending] = useState(0);
+  const [online, setOnline] = useState(true);
   const [now, setNow] = useState(() => new Date());
 
   const barcodeRef = useRef<HTMLInputElement | null>(null);
@@ -75,8 +82,9 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
     const t = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(t);
   }, []);
-
-
+  useEffect(() => {
+    void saveOfflineBootstrap(data).catch(() => undefined);
+  }, [data]);
 
   /* ---------------- التنبيهات ---------------- */
   const toast = useCallback(
@@ -89,6 +97,10 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
   );
   const dismiss = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+  const markLicenseActive = useCallback(() => {
+    setLicenseActive(true);
+    setLicenseOpen(false);
   }, []);
 
   /* ---------------- التبويب النشط ---------------- */
@@ -152,11 +164,47 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
   }, [openInvoiceTab, openSourceTab]);
 
   const refreshData = useCallback(async () => {
-    const res = await fetch("/api/bootstrap", { cache: "no-store" });
-    if (!res.ok) throw new Error("تعذر تحديث البيانات من قاعدة البيانات");
-    const fresh = (await res.json()) as Bootstrap;
-    setData(fresh);
+    try {
+      const res = await fetch("/api/bootstrap", { cache: "no-store" });
+      if (!res.ok) throw new Error("تعذر تحديث البيانات من قاعدة البيانات");
+      const fresh = (await res.json()) as Bootstrap;
+      setData(fresh);
+      void saveOfflineBootstrap(fresh).catch(() => undefined);
+    } catch (error) {
+      const cached = await readOfflineBootstrap().catch(() => null);
+      if (!cached) throw error;
+      setData(cached);
+    }
   }, []);
+
+  useEffect(() => {
+    let alive = true;
+    const updateOnline = () => setOnline(navigator.onLine);
+    const updatePending = (event: Event) => {
+      const count = (event as CustomEvent<{ pending: number }>).detail?.pending;
+      if (typeof count === "number") setSyncPending(count);
+    };
+    const sync = async () => {
+      updateOnline();
+      const initialPending = await pendingOfflineCount().catch(() => 0);
+      if (alive) setSyncPending(initialPending);
+      if (!navigator.onLine) return;
+      const result = await flushOfflineQueue().catch(() => ({ synced: 0, pending: initialPending }));
+      if (!alive) return;
+      setSyncPending(result.pending);
+      if (result.synced > 0) await refreshData().catch(() => undefined);
+    };
+    window.addEventListener("online", sync);
+    window.addEventListener("offline", updateOnline);
+    window.addEventListener("cash-you:sync-state", updatePending);
+    void sync();
+    return () => {
+      alive = false;
+      window.removeEventListener("online", sync);
+      window.removeEventListener("offline", updateOnline);
+      window.removeEventListener("cash-you:sync-state", updatePending);
+    };
+  }, [refreshData]);
 
   const closeTab = useCallback(
     (id: string) => {
@@ -318,7 +366,7 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
       const snapshot = draft;
       const t = computeTotals(snapshot);
       try {
-        const res = await fetch("/api/invoices", {
+        const res = await apiFetch("/api/invoices", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -328,7 +376,7 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
             saleType: snapshot.saleType,
             discountPercent: snapshot.discountPercent,
             paid: t.paid,
-            printed: print,
+            printed: false,
             installment,
             items: snapshot.items.map((li) => ({
               productId: li.productId,
@@ -410,13 +458,9 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
         }));
 
         await refreshData();
-        if (print) {
-          sfxSave();
-          setOverlay({ kind: "receipt", receipt });
-        } else {
-          sfxSave();
-          toast("ok", installment ? `تم حفظ الفاتورة ${json.number} وإنشاء جدول الأقساط` : `تم حفظ الفاتورة رقم ${json.number} بمبلغ ${money(json.total)} جنيه`);
-        }
+        sfxSave();
+        // Both save actions show the saved receipt so the user can print or cancel.
+        setOverlay({ kind: "receipt", receipt });
         window.setTimeout(() => barcodeRef.current?.focus(), 80);
       } catch (err) {
         sfxError();
@@ -524,7 +568,7 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
   /* ---------------- إضافة عميل / طريقة دفع ---------------- */
   const submitCustomer = async (v: Record<string, string>) => {
     try {
-      const res = await fetch("/api/customers", {
+      const res = await apiFetch("/api/customers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: v.name, phone: v.phone, balance: Number(v.balance) || 0 }),
@@ -545,7 +589,7 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
 
   const submitPayment = async (v: Record<string, string>) => {
     try {
-      const res = await fetch("/api/payment-methods", {
+      const res = await apiFetch("/api/payment-methods", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: v.name }),
@@ -603,7 +647,15 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
         onPickInvoice={(i) => setOverlay({ kind: "invoice", invoice: i })}
         onWindowAction={onWindowAction}
         minimized={minimized}
+        licenseActive={licenseActive}
+        onOpenLicense={() => setLicenseOpen(true)}
       />
+      {(!online || syncPending > 0) && (
+        <div className={`flex items-center gap-2 px-3 py-1.5 text-[11px] font-black ${online ? "bg-amber-100 text-amber-900" : "bg-cash-red text-white"}`}>
+          <span className={`h-2 w-2 rounded-full ${online ? "bg-amber-600" : "bg-white animate-pulse"}`} />
+          <span>{online ? `عمليات محفوظة محليًا بانتظار المزامنة: ${syncPending}` : `غير متصل بالإنترنت — سيُزامن تلقائيًا عند عودة الاتصال${syncPending ? ` · ${syncPending} عملية معلقة` : ""}`}</span>
+        </div>
+      )}
 
       <TabStrip
         tabs={tabs}
@@ -750,6 +802,13 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
       {minimized && <MinimizedBar data={data} onRestore={() => setMinimized(false)} />}
 
       <Toasts toasts={toasts} onDismiss={dismiss} />
+      {(licenseOpen || !licenseActive) && (
+        <ActivationModal
+          required={!licenseActive}
+          onClose={() => setLicenseOpen(false)}
+          onActivated={markLicenseActive}
+        />
+      )}
     </div>
   );
 }

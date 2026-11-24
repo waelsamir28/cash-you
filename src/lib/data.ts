@@ -145,6 +145,7 @@ export async function saveInvoice(p: SavePayload): Promise<SavedInvoice> {
 
   let interestValue = 0;
   let installmentPlanId: number | undefined;
+  let installmentIds: number[] = [];
   if (p.installment && p.customerId) {
     const cfg = p.installment;
     const months = Math.max(1, Math.min(60, Math.floor(cfg.months)));
@@ -165,7 +166,7 @@ export async function saveInvoice(p: SavePayload): Promise<SavedInvoice> {
       allocated = r2(allocated + amount);
       return { planId: plan[0].id, customerId: p.customerId!, customerName: p.customerName, sequence: i + 1, dueDate: addMonths(cfg.firstDueDate, i), amount };
     });
-    await db.insert(installments).values(dues);
+    installmentIds = (await db.insert(installments).values(dues).returning({ id: installments.id })).map((row) => row.id);
   }
 
   let newCustomerBalance = 0;
@@ -176,7 +177,11 @@ export async function saveInvoice(p: SavePayload): Promise<SavedInvoice> {
   }
   if (paid > 0) await db.insert(treasuryMovements).values({ direction: "وارد", source: "مبيعات", reference: `بيع-${number}`, partyName: p.customerName || "عميل نقدي", amount: paid, notes: p.saleType === "تقسيط" ? "مقدم تعاقد تقسيط" : "مدفوع فاتورة مبيعات" });
   await setSetting("next_invoice", String(number + 1));
-  return { id: invoiceId, number, total, paid, remaining, customerName: p.customerName || "عميل نقدي", createdAt: inserted[0].createdAt.toISOString(), newCustomerBalance, nextInvoiceNumber: number + 1, installmentPlanId };
+  return { id: invoiceId, number, total, paid, remaining, customerName: p.customerName || "عميل نقدي", createdAt: inserted[0].createdAt.toISOString(), newCustomerBalance, nextInvoiceNumber: number + 1, installmentPlanId, installmentIds };
+}
+
+export async function markInvoicePrinted(number: number): Promise<void> {
+  await db.update(invoices).set({ printed: true }).where(eq(invoices.number, number));
 }
 
 export async function getInvoiceWithItems(number: number) {

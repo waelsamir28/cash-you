@@ -31,6 +31,8 @@ export function TitleBar({
   onPickInvoice,
   onWindowAction,
   minimized,
+  licenseActive,
+  onOpenLicense,
 }: {
   data: Bootstrap;
   muted: boolean;
@@ -39,6 +41,8 @@ export function TitleBar({
   onPickInvoice: (i: InvoiceRow) => void;
   onWindowAction: (a: "min" | "max" | "close") => void;
   minimized: boolean;
+  licenseActive: boolean;
+  onOpenLicense: () => void;
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -232,10 +236,10 @@ export function TitleBar({
             <span className="text-[12px] font-bold text-slate-200">م. وائل الجمال</span>
           </div>
 
-          <div className="hidden sm:flex items-center gap-1.5 h-9 rounded-xl bg-cash-green/15 border border-cash-green/45 px-2.5">
-            <span className="w-2 h-2 rounded-full bg-cash-green cy-ring" />
-            <span className="text-[12px] font-bold text-cash-green">تفعيل · نسخة مرخصة</span>
-          </div>
+          <button onClick={onOpenLicense} className={`hidden sm:flex items-center gap-1.5 h-9 rounded-xl border px-2.5 ${licenseActive ? "bg-cash-green/15 border-cash-green/45 text-cash-green" : "bg-amber-brand/15 border-amber-brand/45 text-amber-brand"}`} title="عرض كود الجهاز وحالة التفعيل">
+            <span className={`w-2 h-2 rounded-full ${licenseActive ? "bg-cash-green cy-ring" : "bg-amber-brand animate-pulse"}`} />
+            <span className="text-[12px] font-bold">{licenseActive ? "النسخة مفعّلة" : "تفعيل النسخة"}</span>
+          </button>
 
           <div className="flex items-center gap-1 mr-1">
             <WinBtn label="تصغير" onClick={() => onWindowAction("min")} tone="slate">

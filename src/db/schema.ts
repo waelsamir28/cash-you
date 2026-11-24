@@ -9,6 +9,13 @@ import {
   date,
 } from "drizzle-orm/pg-core";
 
+export const offlineSyncReceipts = pgTable("offline_sync_receipts", {
+  operationId: text("operation_id").primaryKey(),
+  responseBody: text("response_body").notNull(),
+  status: integer("status").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const categories = pgTable("categories", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Bootstrap, InvoiceRow } from "@/lib/types";
 import type { Draft, Totals } from "@/lib/draft";
 import { lineTotal } from "@/lib/draft";
+import { apiFetch } from "@/lib/offline-sync";
 import { money, qtyText, shortStamp } from "@/lib/format";
 import {
   IcoCheck,
@@ -370,6 +371,11 @@ export function ReceiptModal({
         <button
           onClick={() => {
             setPrinted(true);
+            void apiFetch("/api/invoices", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ number: receipt.number }),
+            }).catch(() => undefined);
             window.print();
           }}
           className="flex-1 h-11 rounded-xl bg-ink-800 text-white font-black cy-press flex items-center justify-center gap-2 hover:bg-ink-900"
@@ -381,7 +387,7 @@ export function ReceiptModal({
           onClick={onClose}
           className="h-11 px-5 rounded-xl bg-slate-200 text-ink-800 font-black cy-press hover:bg-slate-300"
         >
-          إغلاق
+          إلغاء
         </button>
       </div>
     </Modal>
@@ -719,7 +725,6 @@ export function SourceScreen() {
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
     fetch(active.path)
       .then((r) => (r.ok ? r.text() : Promise.reject(new Error("404"))))
       .then((t) => alive && setCode(t))
