@@ -15,7 +15,7 @@
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "desktop": "electron electron/main.cjs",
-    "desktop:dist": "electron-builder --win nsis --publish never"
+    "desktop:dist": "node tools/make-icon.cjs && node tools/make-installer-art.cjs && electron-builder --win nsis --publish never"
   },
   "dependencies": {
     "dotenv": "17.3.1",
@@ -62,12 +62,18 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "include": "electron/installer.nsh",
+      "installerHeader": "installer-header.bmp",
+      "installerSidebar": "installer-sidebar.bmp",
+      "uninstallerSidebar": "uninstaller-sidebar.bmp",
       "installerIcon": "assets/branding/icon.ico",
       "uninstallerIcon": "assets/branding/icon.ico",
       "installerHeaderIcon": "assets/branding/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "CASH YOU"
+      "shortcutName": "CASH YOU",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "CASH-YOU-Setup-${version}.${ext}"
     }
   }
 }
