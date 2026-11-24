@@ -2,7 +2,7 @@
 
 import { apiFetch, flushOfflineQueue, pendingOfflineCount } from "@/lib/offline-sync";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Bootstrap, Customer, InstallmentInput, InvoiceRow, ModuleKind, PaymentMethod, Product } from "@/lib/types";
+import type { Bootstrap, Customer, InstallmentInput, InvoiceRow, ModuleKind, PaymentMethod, Product, SessionUser, TrialStatus } from "@/lib/types";
 import { computeTotals, emptyDraft, lineTotal, newLine, type Draft } from "@/lib/draft";
 import { arDate, arTime, money, uid } from "@/lib/format";
 import {
@@ -24,7 +24,7 @@ import { ProductsScreen, PartiesScreen } from "@/components/ManagementScreens";
 import { TradeScreen } from "@/components/TradeScreen";
 import { ExpensesScreen, InstallmentsScreen, ReportsScreen, TreasuryScreen } from "@/components/FinanceScreens";
 import { InstallmentDialog } from "@/components/InstallmentDialog";
-import { ActivationModal } from "@/components/ActivationModal";
+import { UsersScreen } from "@/components/UsersScreen";
 import { readOfflineBootstrap, saveOfflineBootstrap } from "@/lib/offline-cache";
 import {
   CloseConfirm,
@@ -37,6 +37,7 @@ import {
   ShutdownScreen,
   SourceScreen,
   Toasts,
+  WelcomeToast,
   type ReceiptData,
   type Toast,
 } from "@/components/Overlays";
@@ -52,7 +53,15 @@ type Overlay =
   | { kind: "invoice"; invoice: InvoiceRow }
   | { kind: "installment"; print: boolean };
 
-export default function CashYouApp({ initial }: { initial: Bootstrap }) {
+export default function CashYouApp({
+  initial,
+  user,
+  onLogout,
+}: {
+  initial: Bootstrap;
+  user: SessionUser | null;
+  onLogout: () => Promise<void> | void;
+}) {
   const [data, setData] = useState<Bootstrap>(initial);
   const [tabs, setTabs] = useState<Tab[]>([
     { id: "home", kind: "home", title: "الرئيسية" },
@@ -68,8 +77,9 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
   const [minimized, setMinimized] = useState(false);
   const [shutdown, setShutdown] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [licenseActive, setLicenseActive] = useState(false);
-  const [licenseOpen, setLicenseOpen] = useState(true);
+  const [trial, setTrial] = useState<TrialStatus | null>(initial.trial ?? null);
+  const [welcome, setWelcome] = useState(true);
+  const [trialOpen, setTrialOpen] = useState(false);
   const [syncPending, setSyncPending] = useState(0);
   const [online, setOnline] = useState(true);
   const [now, setNow] = useState(() => new Date());
@@ -97,10 +107,6 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
   );
   const dismiss = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
-  const markLicenseActive = useCallback(() => {
-    setLicenseActive(true);
-    setLicenseOpen(false);
   }, []);
 
   /* ---------------- التبويب النشط ---------------- */
@@ -647,8 +653,9 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
         onPickInvoice={(i) => setOverlay({ kind: "invoice", invoice: i })}
         onWindowAction={onWindowAction}
         minimized={minimized}
-        licenseActive={licenseActive}
-        onOpenLicense={() => setLicenseOpen(true)}
+        user={user}
+        trial={trial}
+        onLogout={() => void onLogout()}
       />
       {(!online || syncPending > 0) && (
         <div className={`flex items-center gap-2 px-3 py-1.5 text-[11px] font-black ${online ? "bg-amber-100 text-amber-900" : "bg-cash-red text-white"}`}>
@@ -694,6 +701,7 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
           {activeTab?.kind === "expenses" && <ExpensesScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "treasury" && <TreasuryScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "reports" && <ReportsScreen data={data} />}
+          {activeTab?.kind === "users" && user && <UsersScreen user={user} notify={toast} />}
 
           {activeTab?.kind === "invoice" && (
             <PosScreen
@@ -716,6 +724,7 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
         timeText={stamp.time}
         invoiceNumber={draft.number}
         itemsCount={draft.items.length}
+        user={user}
       />
 
       {/* ---------------- الطبقات العلوية ---------------- */}
@@ -802,12 +811,19 @@ export default function CashYouApp({ initial }: { initial: Bootstrap }) {
       {minimized && <MinimizedBar data={data} onRestore={() => setMinimized(false)} />}
 
       <Toasts toasts={toasts} onDismiss={dismiss} />
-      {(licenseOpen || !licenseActive) && (
-        <ActivationModal
-          required={!licenseActive}
-          onClose={() => setLicenseOpen(false)}
-          onActivated={markLicenseActive}
+
+      {welcome && (
+        <WelcomeToast
+          name={user?.fullName ?? "بك"}
+          detail={`تم تسجيل الدخول بنجاح — نسخة تجريبية${trial ? ` · متبقٍ ${trial.daysLeft} يوم` : ""}`}
+          onDone={() => setWelcome(false)}
         />
+      )}
+
+      {trial?.expired && (
+        <div className="fixed inset-x-0 top-0 z-[110] bg-cash-red px-4 py-1.5 text-center text-[11.5px] font-black text-white cy-no-print">
+          انتهت الفترة التجريبية — لا يمكن إضافة أصناف أو فواتير جديدة. للتفعيل تواصل مع الدعم الفني.
+        </div>
       )}
     </div>
   );

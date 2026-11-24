@@ -160,6 +160,25 @@ export type LineItem = {
   discount: number;
 };
 
+export type SessionUser = {
+  id: number;
+  username: string;
+  fullName: string;
+  role: "owner" | "cashier";
+};
+
+export type TrialLimitKey = "products" | "invoices" | "customers" | "suppliers";
+
+export type TrialStatus = {
+  trial: boolean;
+  startedAt: string | null;
+  endsAt: string | null;
+  daysLeft: number;
+  expired: boolean;
+  usage: Record<TrialLimitKey, number>;
+  limits: Record<TrialLimitKey, number>;
+};
+
 export type Bootstrap = {
   categories: Category[];
   products: Product[];
@@ -179,6 +198,7 @@ export type Bootstrap = {
   nextInvoiceNumber: number;
   nextPurchaseNumber: number;
   shop: { name: string; phone: string };
+  trial?: TrialStatus;
 };
 
 export type InstallmentInput = {
@@ -216,4 +236,5 @@ export type ModuleKind =
   | "installments"
   | "expenses"
   | "treasury"
-  | "reports";
+  | "reports"
+  | "users";

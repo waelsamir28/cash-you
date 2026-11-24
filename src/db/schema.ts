@@ -224,3 +224,29 @@ export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+/* ============================ حسابات المستخدمين والفترة التجريبية ============================ */
+
+export const appUsers = pgTable("app_users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  fullName: text("full_name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  role: text("role").notNull().default("owner"), // owner | cashier
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  lastLoginAt: timestamp("last_login_at"),
+});
+
+export const appSessions = pgTable("app_sessions", {
+  token: text("token").primaryKey(),
+  userId: integer("user_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+
+/** عداد الاستخدام الطبقي للفترة التجريبية (صنف/عميل/مورد/فاتورة...) */
+export const usageCounters = pgTable("usage_counters", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull().default(0),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
