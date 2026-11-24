@@ -8,6 +8,8 @@ on:
     paths:
       - "electron/**"
       - "assets/branding/**"
+      - "electron/installer.nsh"
+      - "tools/make-installer-art.cjs"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/build-windows-exe.yml"
@@ -16,6 +18,8 @@ on:
     paths:
       - "electron/**"
       - "assets/branding/**"
+      - "electron/installer.nsh"
+      - "tools/make-installer-art.cjs"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/build-windows-exe.yml"
@@ -45,8 +49,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Prepare the app + installer icon (ICO)
+      - name: Prepare the app icon (ICO)
         run: node tools/make-icon.cjs
+
+      - name: Generate the Windows 11 dark installer artwork
+        run: node tools/make-installer-art.cjs
 
       - name: Package the NSIS installer
         run: npm run desktop:dist
@@ -58,8 +65,11 @@ jobs:
         run: |
           set -euo pipefail
           test -f assets/branding/icon.ico
+          test -f assets/branding/installer-header.bmp
+          test -f assets/branding/installer-sidebar.bmp
+          test -f assets/branding/uninstaller-sidebar.bmp
           compgen -G "release/*.exe" > /dev/null
-          ls -lh release
+          ls -lh assets/branding release
 
       - name: Upload the installer as a workflow artifact
         uses: actions/upload-artifact@v4
