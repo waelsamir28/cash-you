@@ -1,5 +1,6 @@
 {
-  "name": "nextjs-postgresql-template",
+  "name": "cash-you",
+  "version": "1.0.0",
   "private": true,
   "main": "electron/main.cjs",
   "scripts": {
