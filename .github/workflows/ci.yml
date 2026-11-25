@@ -43,6 +43,8 @@ jobs:
         run: |
           node --check electron/main.cjs
           node --check electron/preload.cjs
+          node --check electron/db-config.cjs
+          node --check electron/local-server.cjs
           node --check public/cash-you-sw.js
           node --input-type=commonjs -e "const fs=require('node:fs');const vm=require('node:vm');const html=fs.readFileSync('tools/license-generator.html','utf8');const script=html.match(/<script>([\\s\\S]*?)<\\/script>/);if(!script)throw new Error('license generator script not found');new vm.Script(script[1]);"
 

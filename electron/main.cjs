@@ -1,4 +1,6 @@
 const { app, BrowserWindow, ipcMain, shell, safeStorage } = require("electron");
+const { registerDbHandlers, readLocalDbConfig } = require("./db-config.cjs");
+const { startLocalServer, hasLocalServer, stopLocalServer } = require("./local-server.cjs");
 const { execFileSync } = require("node:child_process");
 const { createHash } = require("node:crypto");
 const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -46,7 +48,26 @@ ipcMain.handle("cash-you:save-activation-record", (_event, record) => {
   return true;
 });
 
-function createWindow() {
+/**
+ * تحديد عنوان التطبيق:
+ *  - إن حُفظت قاعدة بيانات محلية على جهاز العميل، شغّل خادم Next محلياً
+ *    يستخدمها (بيانات العميل تبقى على جهازه).
+ *  - وإلا فاستخدم الموقع المنشور كالمعتاد.
+ */
+async function resolveAppUrl(config) {
+  const dbConfig = readLocalDbConfig();
+  if (dbConfig && dbConfig.mode === "local" && hasLocalServer()) {
+    const localUrl = await startLocalServer(dbConfig.url);
+    if (localUrl) {
+      process.stdout.write(`[cash-you] using local server at ${localUrl}\n`);
+      return localUrl;
+    }
+    process.stdout.write("[cash-you] local server failed to start — falling back to the published site\n");
+  }
+  return config.url;
+}
+
+async function createWindow() {
   const config = readConfig();
   const win = new BrowserWindow({
     width: 1440,
@@ -73,7 +94,8 @@ function createWindow() {
     return;
   }
 
-  win.loadURL(config.url);
+  const appUrl = await resolveAppUrl(config);
+  win.loadURL(appUrl);
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https://") || url.startsWith("http://")) void shell.openExternal(url);
     return { action: "deny" };
@@ -82,12 +104,18 @@ function createWindow() {
 
 app.whenReady().then(() => {
   app.setAppUserModelId("com.cashyou.pos");
-  createWindow();
+  registerDbHandlers();
+  void createWindow();
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) void createWindow();
   });
 });
 
 app.on("window-all-closed", () => {
+  stopLocalServer();
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", () => {
+  stopLocalServer();
 });
