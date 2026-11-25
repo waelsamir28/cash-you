@@ -54,3 +54,12 @@ jobs:
 
       - name: Smoke test the bundled PostgreSQL
         run: npm run test:embedded
+
+      # انحدار الإصدار 1.3.0: الثنائيات داخل app.asar غير قابلة للتنفيذ.
+      - name: Start PostgreSQL from inside the packaged app.asar layout
+        run: npm run test:asar
+
+      - name: Verify the desktop bundle (asarUnpack + runtime dependencies)
+        run: npm run test:desktop-bundle
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/cash_you?sslmode=disable

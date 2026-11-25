@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, safeStorage } = require("electron");
 const { registerDbHandlers, readLocalDbConfig, writeLocalDbConfig } = require("./db-config.cjs");
 const { startLocalServer, hasLocalServer, stopLocalServer } = require("./local-server.cjs");
 const {
+  embeddedDatabaseError,
   ensureDatabaseExists,
   hasRunningEmbeddedInstance,
   startEmbeddedPostgres,
@@ -208,7 +209,15 @@ async function createWindow() {
   if (!appUrl) {
     /* لم نتمكن من تجهيز قاعدة بيانات محلية — نعرض تعليمات واضحة بدل شاشة مكسورة */
     const iconDataUrl = `data:image/png;base64,${readFileSync(windowIcon).toString("base64")}`;
-    const html = `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><body style="margin:0;background:#0b1220;color:#e2e8f0;font:16px Tahoma;display:grid;place-items:center;height:100vh"><main style="max-width:640px;padding:36px;border:1px solid #334155;border-radius:22px;background:#111c31"><img src="${iconDataUrl}" alt="CASH YOU" width="96" height="96" style="border-radius:22px;margin-bottom:16px"><h1 style="color:#fbbf24">CASH YOU</h1><p style="line-height:1.9">لم نتمكن من إنشاء قاعدة البيانات المحلية على هذا الجهاز تلقائياً.</p><p style="line-height:1.9;color:#94a3b8">شغّل PostgreSQL على جهازك (منفذ 5432) ثم أعد تشغيل البرنامج — أو ثبّت نسخة جديدة من CASH YOU تحتوي قاعدة بيانات مدمجة.</p></main></body></html>`;
+    /* نعرض السبب الحقيقي بدل رسالة عامة — يوفّر على العميل جولة تشخيص */
+    const reason = embeddedDatabaseError();
+    const reasonHtml = reason
+      ? `<details style="margin:0 0 18px"><summary style="cursor:pointer;color:#fbbf24;line-height:2">تفاصيل تقنية</summary><pre dir="ltr" style="white-space:pre-wrap;word-break:break-word;background:#0b1220;border:1px solid #334155;border-radius:12px;padding:12px;color:#94a3b8;font:12px/1.7 monospace;margin:8px 0 0">${reason
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")}</pre></details>`
+      : "";
+    const html = `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><body style="margin:0;background:#0b1220;color:#e2e8f0;font:16px Tahoma;display:grid;place-items:center;height:100vh"><main style="max-width:640px;padding:36px;border:1px solid #334155;border-radius:22px;background:#111c31"><img src="${iconDataUrl}" alt="CASH YOU" width="96" height="96" style="border-radius:22px;margin-bottom:16px"><h1 style="color:#fbbf24">CASH YOU</h1><p style="line-height:1.9">لم نتمكن من إنشاء قاعدة البيانات المحلية على هذا الجهاز تلقائياً.</p>${reasonHtml}<p style="line-height:1.9;color:#94a3b8">شغّل PostgreSQL على جهازك (منفذ 5432) ثم أعد تشغيل البرنامج — أو ثبّت نسخة جديدة من CASH YOU تحتوي قاعدة بيانات مدمجة.</p></main></body></html>`;
     win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
     return;
   }

@@ -103,6 +103,60 @@
 كل تثبيت له مجلد بياناته الخاص على جهازه (`%APPDATA%`), ولا تتقاطع بيانات
 أي عميل مع عميل آخر.
 
+### كيف يشغّل البرنامج PostgreSQL المدمج (تفصيل تقني)
+
+هذا القسم يشرح الخطأ الذي أوقف الإصدار 1.3.0 وكيف عولج، حتى لا يعود.
+
+**1) مسار الثنائيات بعد التغليف.** بعد `electron-builder` تصبح وحدات البرنامج
+داخل `resources/app.asar`، أما الملفات التنفيذية فتنتقل إلى
+`resources/app.asar.unpacked` (بسبب `build.asarUnpack`). وحزمة
+`@embedded-postgres/<system>` تحسب مسار ثنائياتها من موقع وحدتها:
+
+```js
+path.resolve(__dirname, "..", "native", "bin", "initdb.exe")
+```
+
+فتنتج مساراً داخل `app.asar` **غير موجود على القرص**، ويظهر الخطأ:
+
+```
+spawn ...\resources\app.asar\node_modules\@embedded-postgres\windows-x64\...\initdb.exe ENOENT
+```
+
+لذلك `electron/local-db.cjs` لا يستخدم `EmbeddedPostgres.initialise()` ولا
+`start()`، بل يحوّل أي مسار يمرّ بـ `app.asar` إلى `app.asar.unpacked`
+(دالة `unpackedPath`) ثم يُشغّل `initdb` و`pg_ctl` بنفسه.
+
+**2) الترميز واللغة.** PostgreSQL 19 أزال الاستثناء القديم على ويندوز الذي كان
+يسمح بـ `UTF8` مع أي لغة، فصار لا بد من تطابق اللغة والترميز. أسماء لغات ويندوز
+التقليدية (`en-US`, `English_United States.1252`) ترميزها صفحة ترميز أحادية/ثنائية
+البايت، فترفض `--encoding=UTF8` بخطأ `initdb: encoding mismatch`.
+
+الحل المستخدم للعربية بلا الاعتماد على لغة النظام:
+
+```
+--encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8 --lc-messages=C
+```
+
+مزوّد `builtin` مدمج في PostgreSQL 19 نفسه فلا يحتاج حزمة لغة من ويندوز. وإن كان
+الإصدار لا يعرف `--locale-provider` يعيد الكود المحاولة بـ `--no-locale`.
+
+**3) التشغيل عبر `pg_ctl`.** `postgres.exe` يرفض العمل داخل جلسة إدارية
+(«Execution of PostgreSQL by a user with administrative permissions is not
+permitted»)، وهو شائع عند العملاء. لذلك يُشغَّل الخادم بـ `pg_ctl start -w`
+ويُوقف بـ `pg_ctl stop -m fast`.
+
+**4) اعتماديات التشغيل.** كل حزمة يحتاجها `pg` وقت التحميل يجب أن تكون في
+`build.files` — ومنها `xtend` التي تطلبها `pg-types`/`postgres-interval`.
+
+**فحوص تمنع تكرار العطل:**
+
+| الأمر | ماذا يتحقق |
+| --- | --- |
+| `npm run test:embedded` | تهيئة وتشغيل PostgreSQL من `node_modules` |
+| `npm run test:asar` | تشغيل الكود **من داخل بنية `app.asar`** (نفس ظرف العميل) |
+| `npm run test:desktop-bundle` | صحة `asarUnpack` وشجرة اعتماديات التشغيل |
+| `npm run test:packaged` | تشغيل المدمج من **الحزمة النهائية** (بعد `electron-builder`) |
+
 ## مزامنة القاعدة المحلية مع السحابية
 
 في صفحة «ربط قاعدة البيانات» يوجد قسم **«مزامنة بين القاعدة المحلية والسحابية»**:
@@ -160,7 +214,9 @@
 
 للاختبار الآلي: `npm run test:tenant` (عزل عبر HTTP) و`npm run test:tenant-unit`
 (عزل قواعد/مخططات) و`npm run test:local-db` (القاعدة المحلية التلقائية — مستقل
-تماماً عن أي PostgreSQL مثبّت) و`npm run test:embedded` (فحص PostgreSQL المدمج).
+تماماً عن أي PostgreSQL مثبّت) و`npm run test:embedded` (فحص PostgreSQL المدمج)
+و`npm run test:asar` (تشغيله من داخل بنية `app.asar`) و`npm run test:desktop-bundle`
+(صحة الحزمة واعتمادياتها) و`npm run test:packaged` (الحزمة النهائية).
 
 ## الاستخدام دون إنترنت والمزامنة
 

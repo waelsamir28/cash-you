@@ -1,6 +1,6 @@
 {
   "name": "cash-you",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "description": "CASH YOU — نظام مبيعات ونقاط بيع عربي (سطح مكتب + ويب)",
   "author": "CASH YOU",
@@ -23,7 +23,10 @@
     "test:tenant": "node tools/test-tenant-http.cjs",
     "test:tenant-unit": "node tools/test-tenant-isolation.cjs",
     "test:local-db": "node tools/test-local-db.cjs",
-    "test:embedded": "node tools/test-embedded-postgres.cjs"
+    "test:embedded": "node tools/test-embedded-postgres.cjs",
+    "test:asar": "node tools/test-asar-paths.cjs",
+    "test:packaged": "node tools/test-packaged-postgres.cjs",
+    "test:desktop-bundle": "node tools/check-desktop-bundle.cjs"
   },
   "dependencies": {
     "dotenv": "17.3.1",
@@ -73,6 +76,7 @@
       "node_modules/postgres-bytea/**/*",
       "node_modules/postgres-date/**/*",
       "node_modules/postgres-interval/**/*",
+      "node_modules/xtend/**/*",
       "node_modules/split2/**/*",
       "node_modules/embedded-postgres/**/*",
       "node_modules/@embedded-postgres/**/*",
@@ -115,6 +119,7 @@
       "node_modules/postgres-bytea/**/*",
       "node_modules/postgres-date/**/*",
       "node_modules/postgres-interval/**/*",
+      "node_modules/xtend/**/*",
       "node_modules/split2/**/*",
       "node_modules/@embedded-postgres/**/*",
       "node_modules/embedded-postgres/**/*"
