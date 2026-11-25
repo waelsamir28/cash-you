@@ -12,3 +12,6 @@ next-env.d.ts
 
 # electron-builder output
 release/
+
+# إعدادات ربط قاعدة البيانات المحلية (لا تُرفع)
+.cash-you-db.json

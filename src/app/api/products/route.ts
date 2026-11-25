@@ -19,7 +19,15 @@ async function handle(req: Request) {
       return Response.json(saved);
     } catch (e) {
       const raw = e instanceof Error ? e.message : "";
-      const message = raw.toLowerCase().includes("duplicate") ? "هذا الباركود مستخدم لصنف آخر" : raw || "تعذر تنفيذ العملية";
+      /* 23505 = unique_violation في Postgres (الباركود مكرر) */
+      const code = (e as { cause?: { code?: string } })?.cause?.code;
+      const duplicate =
+        code === "23505" ||
+        /duplicate key|23505|unique_violation/i.test(raw) ||
+        raw.toLowerCase().includes("duplicate");
+      const message = duplicate
+        ? "هذا الباركود مستخدم لصنف آخر"
+        : raw || "تعذر تنفيذ العملية";
       return Response.json({ error: message }, { status: 400 });
     }
   });

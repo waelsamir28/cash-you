@@ -208,6 +208,8 @@ export type Bootstrap = {
   nextInvoiceNumber: number;
   nextPurchaseNumber: number;
   shop: { name: string; phone: string };
+  /** إعدادات المتجر والثيم والفاتورة (تُحمَّل مع بيانات النظام) */
+  settings?: ShopSettings;
   trial?: TrialStatus;
 };
 
@@ -234,6 +236,8 @@ export type SavedInvoice = {
   installmentIds?: number[];
 };
 
+export type ShopSettings = import("@/lib/settings").ShopSettings;
+
 export type ModuleKind =
   | "home"
   | "invoice"
@@ -248,4 +252,5 @@ export type ModuleKind =
   | "treasury"
   | "reports"
   | "users"
-  | "activation";
+  | "activation"
+  | "settings";

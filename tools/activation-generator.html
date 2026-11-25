@@ -272,10 +272,9 @@
       <div class="field">
         <label for="plan">مدة التفعيل المطلوبة:</label>
         <select id="plan" name="plan" aria-describedby="planHint">
-          <option value="30">شهر (30 يومًا)</option>
-          <option value="90">3 شهور (90 يومًا)</option>
-          <option value="180">6 شهور (180 يومًا)</option>
-          <option value="365" selected>سنة (365 يومًا)</option>
+          <option value="365">سنة (365 يومًا) — 1000 ج</option>
+          <option value="730" selected>سنتان (730 يومًا) — 1500 ج</option>
+          <option value="36500">مدى الحياة — 2500 ج</option>
         </select>
         <p id="planHint" class="hint">يجب اختيار نفس المدة داخل صفحة التفعيل في البرنامج.</p>
       </div>
@@ -389,7 +388,7 @@
     generateBtn.textContent = "جارٍ التوليد...";
 
     try {
-      const days = Number(planSelect.value) || 365;
+      const days = Number(planSelect.value) || 730;
       const code = await generateActivationCode(machineId, days);
       codeEl.textContent = code;
       resultBox.classList.remove("show");

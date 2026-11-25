@@ -9,26 +9,27 @@
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { getSetting, setSetting } from "@/lib/data";
+import {
+  ACTIVATION_PLANS,
+  DEFAULT_ACTIVATION_PLAN,
+  PLAN_CATALOG,
+  PLAN_LABEL,
+  isActivationPlan,
+  type ActivationPlan,
+} from "@/lib/activation-plans";
+
+/* إعادة تصدير الثوابت حتى لا تتغير طريقة الاستيراد في باقي المشروع */
+export {
+  ACTIVATION_PLANS,
+  DEFAULT_ACTIVATION_PLAN,
+  PLAN_CATALOG,
+  PLAN_LABEL,
+  isActivationPlan,
+};
+export type { ActivationPlan, PlanInfo } from "@/lib/activation-plans";
 
 /** المفتاح السري — يجب أن يطابق المفتاح المستخدم في أداة التوليد tools/activation-generator.html */
 export const ACTIVATION_SECRET = process.env.CASH_YOU_ACTIVATION_SECRET?.trim() || "CASH_YOU_SECRET_KEY_2026_PRO";
-
-/** المدد المتاحة بالأيام */
-export const ACTIVATION_PLANS = [30, 90, 180, 365] as const;
-export type ActivationPlan = (typeof ACTIVATION_PLANS)[number];
-
-export const DEFAULT_ACTIVATION_PLAN: ActivationPlan = 365;
-
-export const PLAN_LABEL: Record<ActivationPlan, string> = {
-  30: "شهر",
-  90: "3 شهور",
-  180: "6 شهور",
-  365: "سنة",
-};
-
-export function isActivationPlan(value: unknown): value is ActivationPlan {
-  return typeof value === "number" && (ACTIVATION_PLANS as readonly number[]).includes(value);
-}
 
 /** تطبيع كود الجهاز: إزالة المسافات + أحرف كبيرة */
 export function normalizeDeviceCode(value: string): string {
