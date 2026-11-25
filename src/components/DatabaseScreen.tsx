@@ -171,12 +171,15 @@ export function DatabaseScreen({
           <div className="flex items-center gap-2 rounded-xl border border-cash-green/40 bg-cash-green/10 px-3 py-2 text-[11px] font-bold text-cash-green-deep">
             <IcoCheck className="h-4 w-4 shrink-0" />
             <span className="flex-1">
-              هناك اتصال محفوظ ({saved.mode === "cloud" ? "سحابي" : "محلي"})
-              {desktop ? " على جهازك" : " على السيرفر"}
+              {desktop && !saved.hasCloudDb
+                ? "قاعدة بيانات جهازك جاهزة — تُنشأ تلقائياً ولا يراها غيرك"
+                : `هناك اتصال محفوظ (${saved.mode === "cloud" ? "سحابي" : "محلي"})${desktop ? " على جهازك" : " على السيرفر"}`}
             </span>
-            <span className="cy-num truncate text-[10px] opacity-70" dir="ltr">
-              {saved.maskedUrl}
-            </span>
+            {saved.mode === "cloud" || !desktop ? (
+              <span className="cy-num truncate text-[10px] opacity-70" dir="ltr">
+                {saved.maskedUrl}
+              </span>
+            ) : null}
           </div>
         )}
 
