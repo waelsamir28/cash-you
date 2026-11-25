@@ -14,7 +14,7 @@
  * قاعدةه السحابية بنفسه من داخل البرنامج.
  */
 const { app } = require("electron");
-const { spawn, execFileSync } = require("node:child_process");
+const { spawn } = require("node:child_process");
 const {
   existsSync,
   mkdirSync,
@@ -43,7 +43,7 @@ try {
 
 /**
  * فحص وجود ملف/مجلد يتجاوز تعديل ASAR في Electron.
- * يجرب: existsSync العادي → statSync → original-fs → child_process.
+ * يجرب: existsSync العادي → statSync → original-fs.
  */
 function pathExists(target) {
   if (!target) return false;
@@ -63,20 +63,7 @@ function pathExists(target) {
       return true;
     } catch { /* تجاهل */ }
   }
-  /* آخر محاولة: child_process يتجاوز تعديل fs تماماً */
-  try {
-    if (process.platform === "win32") {
-      execFileSync("cmd.exe", ["/c", "if", "exist", target, "exit", "0", "else", "exit", "1"], {
-        stdio: "ignore",
-        windowsHide: true,
-      });
-      return true;
-    }
-    execFileSync("test", ["-e", target], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
+  return false;
 }
 
 /** اسم قاعدة العميل المحلية */
