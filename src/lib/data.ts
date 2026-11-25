@@ -20,7 +20,7 @@ import {
 } from "@/db/schema";
 import { ensureSeed } from "@/db/seed";
 import { ensureExtendedSeed } from "@/db/extendedSeed";
-import type { Bootstrap, InstallmentInput, SavedInvoice } from "@/lib/types";
+import type { Bootstrap, InstallmentInput, SavedInvoice, TrialStatus } from "@/lib/types";
 
 export async function getSetting(key: string, fallback = ""): Promise<string> {
   const rows = await db.select().from(settings).where(eq(settings.key, key)).limit(1);
@@ -34,6 +34,16 @@ export async function setSetting(key: string, value: string): Promise<void> {
 const iso = (d: Date | null) => d?.toISOString() ?? null;
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** حالة الفترة التجريبية من جدول الإعدادات (دون طلبات إضافية من الواجهة). */
+async function readTrial(): Promise<TrialStatus | undefined> {
+  try {
+    const { getTrialStatus } = await import("@/lib/auth");
+    return await getTrialStatus();
+  } catch {
+    return undefined;
+  }
+}
 
 export async function getBootstrap(): Promise<Bootstrap> {
   await ensureSeed();
@@ -64,11 +74,12 @@ export async function getBootstrap(): Promise<Bootstrap> {
   const productMap = new Map(prods.map((p) => [p.id, p]));
   const salesTotal = invs.reduce((s, i) => s + i.total, 0);
   const cogs = allItems.reduce((s, it) => invMap.has(it.invoiceId) ? s + it.qty * (productMap.get(it.productId ?? -1)?.cost ?? 0) : s, 0);
-  const next = Number.parseInt(await getSetting("next_invoice", "4016"), 10);
+  const next = Number.parseInt(await getSetting("next_invoice", "1"), 10);
   const nextPurchase = Number.parseInt(await getSetting("next_purchase", "7001"), 10);
   const stripParty = <T extends { createdAt: Date }>(p: T) => { const { createdAt: _createdAt, ...rest } = p; void _createdAt; return rest; };
 
   return {
+    trial: await readTrial(),
     categories: cats,
     products: prods,
     customers: custs.map(stripParty),
@@ -92,7 +103,7 @@ export async function getBootstrap(): Promise<Bootstrap> {
       dueInstallments: dues.filter((d) => d.status !== "مدفوع" && d.dueDate <= today).length,
       grossProfit: r2(salesTotal - cogs),
     },
-    nextInvoiceNumber: Number.isFinite(next) ? next : 4016,
+    nextInvoiceNumber: Number.isFinite(next) ? next : 1,
     nextPurchaseNumber: Number.isFinite(nextPurchase) ? nextPurchase : 7001,
     shop: { name: await getSetting("shop_name", "كاش يو للتجارة والتوريدات المكتبية"), phone: await getSetting("shop_phone", "01222355769") },
   };
@@ -132,7 +143,7 @@ export async function saveInvoice(p: SavePayload): Promise<SavedInvoice> {
   const total = r2(subtotal - discountValue);
   const paid = r2(Math.max(0, p.installment ? p.installment.downPayment : p.paid || 0));
   const remaining = r2(total - paid);
-  const number = Number.parseInt(await getSetting("next_invoice", "4016"), 10);
+  const number = Number.parseInt(await getSetting("next_invoice", "1"), 10);
   const inserted = await db.insert(invoices).values({
     number, customerId: p.customerId, customerName: p.customerName || "عميل نقدي",
     paymentMethod: p.paymentMethod || "نقدي", saleType: p.saleType || "نقدي",

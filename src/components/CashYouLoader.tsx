@@ -1,21 +1,50 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Bootstrap } from "@/lib/types";
+import type { Bootstrap, SessionUser, TrialStatus } from "@/lib/types";
 import { readOfflineBootstrap, saveOfflineBootstrap } from "@/lib/offline-cache";
-import { ActivationModal } from "@/components/ActivationModal";
-import { getDeviceIdentity, readActiveLicense } from "@/lib/license";
 import CashYouApp from "@/components/CashYouApp";
+import { AuthScreen } from "@/components/AuthScreen";
 import { IcoLogo } from "@/components/icons";
 
+type AuthState = {
+  loading: boolean;
+  user: SessionUser | null;
+  /** true عندما لا يوجد أي مستخدم في قاعدة البيانات بعد */
+  needSetup: boolean;
+  trial: TrialStatus | null;
+};
+
+const SESSION_CACHE = "cash-you.session.v1";
+
 export default function CashYouLoader() {
+  const [auth, setAuth] = useState<AuthState>({ loading: true, user: null, needSetup: false, trial: null });
   const [data, setData] = useState<Bootstrap | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
-  const grantAccess = useCallback(() => setAuthorized(true), []);
 
+  /* ---------------- قراءة الجلسة الحالية ---------------- */
+  const readSession = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/auth/me?t=${Date.now()}`, { cache: "no-store" });
+      const result = (await response.json()) as {
+        user: SessionUser | null;
+        trial: TrialStatus | null;
+        users?: SessionUser[];
+      };
+      const needSetup = !result.user && (result.users?.length ?? 0) === 0;
+      setAuth({ loading: false, user: result.user, needSetup, trial: result.trial });
+      return result.user;
+    } catch {
+      /* وضع عدم الاتصال: نستخدم آخر مستخدم مسجل دخوله محلياً */
+      const cached = readCachedUser();
+      setAuth({ loading: false, user: cached, needSetup: false, trial: null });
+      return cached;
+    }
+  }, []);
+
+  /* ---------------- تحميل بيانات النظام ---------------- */
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -34,8 +63,10 @@ export default function CashYouLoader() {
       if (!Array.isArray(result.categories) || !Array.isArray(result.products) || !Array.isArray(result.customers)) {
         throw new Error("استجابة قاعدة البيانات غير مكتملة");
       }
-      setData(result as Bootstrap);
-      void saveOfflineBootstrap(result as Bootstrap).catch(() => undefined);
+      const bootstrap = result as Bootstrap;
+      setData(bootstrap);
+      void saveOfflineBootstrap(bootstrap).catch(() => undefined);
+      if (bootstrap.trial) setAuth((prev) => ({ ...prev, trial: bootstrap.trial ?? prev.trial }));
       setError("");
     } catch (reason) {
       const cached = await readOfflineBootstrap().catch(() => null);
@@ -62,31 +93,71 @@ export default function CashYouLoader() {
     if ("serviceWorker" in navigator) {
       void navigator.serviceWorker.register("/cash-you-sw.js").catch(() => undefined);
     }
-    if (!authorized) return;
-    const timer = window.setTimeout(() => void load(), 0);
+    const timer = window.setTimeout(() => void readSession(), 0);
     return () => window.clearTimeout(timer);
-  }, [load, attempt, authorized]);
+  }, [readSession]);
 
   useEffect(() => {
-    if (!authorized) return;
-    let alive = true;
-    const check = async () => {
-      const device = await getDeviceIdentity().catch(() => null);
-      const license = device ? await readActiveLicense(device.code) : null;
-      if (alive && !license) setAuthorized(false);
-    };
-    const timer = window.setInterval(() => void check(), 60_000);
-    return () => { alive = false; window.clearInterval(timer); };
-  }, [authorized]);
+    if (!auth.user) return;
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [auth.user, load, attempt]);
 
-  if (!authorized) {
+  /* فحص دوري: الجلسة قد تنتهي، والفترة التجريبية تتغير يوماً بيوم */
+  useEffect(() => {
+    if (!auth.user) return;
+    let alive = true;
+    const timer = window.setInterval(async () => {
+      try {
+        const response = await fetch(`/api/auth/me?t=${Date.now()}`, { cache: "no-store" });
+        const result = (await response.json()) as { user: SessionUser | null; trial: TrialStatus | null };
+        if (!alive) return;
+        if (!result.user) {
+          clearCachedUser();
+          setAuth({ loading: false, user: null, needSetup: false, trial: null });
+          setData(null);
+          return;
+        }
+        setAuth((prev) => ({ ...prev, trial: result.trial }));
+      } catch {
+        /* نتجاهل انقطاع الشبكة المؤقت */
+      }
+    }, 60_000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [auth.user]);
+
+  const handleAuthenticated = (user: SessionUser) => {
+    cacheUser(user);
+    setAuth((prev) => ({ ...prev, user, needSetup: false }));
+    setAttempt((n) => n + 1);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      /* الخروج محلياً حتى لو تعذر الوصول للخادم */
+    }
+    clearCachedUser();
+    setAuth({ loading: false, user: null, needSetup: false, trial: null });
+    setData(null);
+  };
+
+  if (auth.loading) return <Splash text="جارٍ التحقق من الجلسة" />;
+  if (!auth.user) return <AuthScreen needSetup={auth.needSetup} onAuthenticated={handleAuthenticated} />;
+  if (data) {
     return (
-      <main className="relative min-h-[100dvh] w-full overflow-hidden cy-mesh cy-grain" dir="rtl">
-        <ActivationModal required onClose={() => undefined} onActivated={grantAccess} />
-      </main>
+      <CashYouApp
+        key={auth.user.id}
+        initial={data}
+        user={auth.user}
+        onLogout={handleLogout}
+      />
     );
   }
-  if (data) return <CashYouApp initial={data} />;
 
   return (
     <main className="relative min-h-[100dvh] w-full overflow-hidden cy-mesh cy-grain grid place-items-center p-5" dir="rtl">
@@ -99,7 +170,7 @@ export default function CashYouLoader() {
           <h1 className="mt-1 text-[30px] font-black tracking-[0.16em] text-white sm:text-[36px]" dir="ltr">
             CASH<span className="text-amber-brand"> YOU</span>
           </h1>
-          <p className="mt-1 text-[15px] font-bold text-slate-300">كاش يو — إدارة البيع والمخزون والحسابات</p>
+          <p className="mt-1 text-[15px] font-bold text-slate-300">مرحباً {auth.user.fullName}</p>
 
           <div className="mt-7 rounded-2xl border border-white/10 bg-ink-950/45 px-4 py-4">
             {loading ? (
@@ -134,4 +205,46 @@ export default function CashYouLoader() {
       <div className="absolute bottom-5 text-[10px] font-semibold text-slate-600" dir="ltr">CASH YOU · POS 1.0</div>
     </main>
   );
+}
+
+/* ============================ أدوات مساعدة ============================ */
+
+function Splash({ text }: { text: string }) {
+  return (
+    <main className="relative min-h-[100dvh] w-full overflow-hidden cy-mesh cy-grain grid place-items-center p-5" dir="rtl">
+      <div className="text-center">
+        <IcoLogo className="mx-auto h-20 w-20 rounded-2xl" />
+        <p className="mt-4 text-[12px] font-black tracking-[0.28em] text-cash-cyan">CASH YOU</p>
+        <span className="mx-auto mt-5 block h-8 w-8 animate-spin rounded-full border-[3px] border-white/15 border-t-amber-brand" />
+        <p className="mt-3 text-[12.5px] font-bold text-slate-400">{text}</p>
+      </div>
+    </main>
+  );
+}
+
+function cacheUser(user: SessionUser) {
+  try {
+    window.localStorage.setItem(SESSION_CACHE, JSON.stringify(user));
+  } catch {
+    /* التخزين غير متاح */
+  }
+}
+
+function readCachedUser(): SessionUser | null {
+  try {
+    const raw = window.localStorage.getItem(SESSION_CACHE);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SessionUser;
+    return parsed?.id ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearCachedUser() {
+  try {
+    window.localStorage.removeItem(SESSION_CACHE);
+  } catch {
+    /* ignore */
+  }
 }

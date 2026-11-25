@@ -82,6 +82,62 @@ export function Modal({
   );
 }
 
+/* ============================ رسالة الترحيب الوسطية ============================ */
+
+/**
+ * رسالة عائمة في منتصف الشاشة ترحب بالمستخدم بعد تسجيل الدخول،
+ * وتختفي تلقائياً بعد ثلاث ثوانٍ (أو بالضغط عليها).
+ */
+export function WelcomeToast({
+  name,
+  detail,
+  onDone,
+}: {
+  name: string;
+  detail?: string;
+  onDone: () => void;
+}) {
+  useEffect(() => {
+    const timer = window.setTimeout(onDone, 3000);
+    return () => window.clearTimeout(timer);
+  }, [onDone]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[120] grid place-items-center pointer-events-none cy-no-print"
+      dir="rtl"
+      role="status"
+      aria-live="polite"
+    >
+      <button
+        type="button"
+        onClick={onDone}
+        className="cy-toast-pop pointer-events-auto relative w-[min(92vw,380px)] overflow-hidden rounded-[26px] border border-white/15 bg-ink-900/95 px-6 py-7 text-center shadow-[0_40px_120px_-30px_rgba(0,0,0,.95)] backdrop-blur-xl"
+      >
+        <span className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-cash-cyan/20 blur-3xl" />
+        <span className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-amber-brand/20 blur-3xl" />
+
+        <span className="relative mx-auto grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-amber-brand to-orange-500 shadow-[0_12px_30px_-10px_rgba(245,158,11,.9)]">
+          <span className="text-[26px] font-black text-ink-900">✓</span>
+        </span>
+
+        <p className="relative mt-4 text-[11px] font-black tracking-[0.24em] text-cash-cyan">CASH YOU</p>
+        <h2 className="relative mt-1.5 text-[21px] font-black leading-snug text-white">
+          أهلاً بك، {name}
+        </h2>
+        <p className="relative mt-2 text-[12.5px] font-bold leading-6 text-slate-300">
+          {detail ?? "تم تسجيل الدخول بنجاح — نتمنى لك يوماً موفقاً"}
+        </p>
+
+        <span className="relative mt-5 block h-1 w-full overflow-hidden rounded-full bg-white/10">
+          <span className="cy-toast-bar block h-full rounded-full bg-gradient-to-l from-amber-brand to-cash-cyan" />
+        </span>
+        <p className="relative mt-2 text-[10px] font-bold text-slate-500">تختفي تلقائياً بعد 3 ثوانٍ</p>
+      </button>
+    </div>
+  );
+}
+
 /* ============================ التنبيهات ============================ */
 
 export type Toast = {
