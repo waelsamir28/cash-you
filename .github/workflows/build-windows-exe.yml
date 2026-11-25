@@ -73,6 +73,9 @@ jobs:
       - name: Verify the desktop bundle patterns
         run: node tools/check-desktop-bundle.cjs
 
+      - name: Verify the standalone bundle survives the copy
+        run: node tools/test-bundle-copy.cjs
+
       - name: Package the NSIS installer
         run: npm run desktop:dist
         env:

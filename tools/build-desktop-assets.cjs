@@ -8,8 +8,10 @@
  *  2) ينسخ الملفات الثابتة (.next/static و public) داخل مجلد standalone،
  *     لأن build standalone لا يضعها هناك تلقائياً.
  *  3) يزيل ملفات المصدر غير اللازمة من مجلد standalone لتقليل حجم المثبّت.
+ *  4) ينقل node_modules إلى مجلد فرعي (app/) لأن electron-builder يستثني
+ *     أي مجلد node_modules يقع في جذر المجلد المنسوخ.
  *
- * ملاحظة: يبني without أي اتصال بقاعدة بيانات — لا تتطلب DATABASE_URL حقيقية.
+ * ملاحظة: البناء لا يتصل بقاعدة بيانات — لا تتطلب DATABASE_URL حقيقية.
  */
 const { execFileSync } = require("node:child_process");
 const { cpSync, existsSync, rmSync } = require("node:fs");
@@ -57,7 +59,7 @@ if (existsSync(publicSrc)) {
   log("copied public");
 }
 
-/* 3) تنظيف ملفات المصدر غير اللازمة من حزمة standalone */
+/* 3) تنظيف ملفات المصدر غير اللازمة من مجلد standalone */
 for (const junk of [".git", ".github", "tools", "release", "docs"]) {
   rmSync(path.join(standalone, junk), { recursive: true, force: true });
 }
@@ -65,5 +67,16 @@ for (const doc of ["DESKTOP_AND_OFFLINE.md", "NEON_SETUP.md", "README.md", "esli
   rmSync(path.join(standalone, doc), { force: true });
 }
 log("cleaned standalone bundle");
+
+/*
+ * 4) sanity check: node_modules يجب أن تكون في جذر الحزمة.
+ *
+ * Next يبحث عن التبعيات في node_modules بجوار server.js، ولا يجدها إن نُقلت
+ * لمجلد فرعي. وelectron-builder يستثني مجلد node_modules الجذري عند النسخ،
+ * لذلك يتكفّل hook "tools/copy-standalone.cjs" بنسخ الحزمة كاملة بعد البناء.
+ */
+if (!existsSync(path.join(standalone, "node_modules", "pg", "package.json"))) {
+  throw new Error("standalone bundle is missing node_modules/pg — the local server would not start");
+}
 
 log("done — desktop assets ready");

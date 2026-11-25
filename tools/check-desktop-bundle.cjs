@@ -5,6 +5,7 @@
  * نستخدم FileMatcher الحقيقي من app-builder-lib بدل التخمين.
  */
 const path = require("node:path");
+const fs = require("node:fs");
 const { FileMatcher } = require("app-builder-lib/out/fileMatcher");
 const { expandMacro } = require("app-builder-lib/out/util/macroExpander");
 
@@ -55,19 +56,25 @@ const appSamples = [
   "package.json",
 ];
 
-/* حزمة standalone المنسوخة إلى resources عبر extraResources */
-const resourceSamples = [
-  "server.js",
-  "package.json",
-  "node_modules/pg/package.json",
-  "node_modules/next/dist/server/next.js",
-  "node_modules/pg-pool/index.js",
-  ".next/static/chunks/main.js",
-];
+/*
+ * حزمة standalone تُنسخ عبر hook "tools/copy-standalone.cjs" بعد البناء
+ * (خارج mechanisms electron-builder، لأنها تستثني node_modules الجذري).
+ * هنا نتحقق فقط من أن hook مسجّل وأن أدواته موجودة.
+ */
+const resourceSamples = [];
 
 console.log("files:", JSON.stringify(pkg.build.files));
-console.log("extraResources:", JSON.stringify(pkg.build.extraResources));
+console.log("afterPack:", pkg.build.afterPack);
 console.log("asarUnpack:", JSON.stringify(pkg.build.asarUnpack));
+
+/* hook النسخ يجب أن يكون موجوداً */
+const hookPath = path.join(appDir, pkg.build.afterPack || "");
+const hookOk = fs.existsSync(hookPath);
+console.log(`\n[hook النسخ] ${hookOk ? "✓" : "✗"} ${pkg.build.afterPack}`);
+if (!hookOk) {
+  console.log("\n✗ hook نسخ حزمة standalone مفقود");
+  process.exit(1);
+}
 
 console.log("\n[ملفات التطبيق]");
 const appResults = check(pkg.build.files, appSamples);
