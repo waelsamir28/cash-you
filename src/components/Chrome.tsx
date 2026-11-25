@@ -20,6 +20,8 @@ import {
   IcoSliders,
   IcoSound,
   IcoSquare,
+  IcoPhone,
+  IcoSync,
   IcoUsers,
   IcoWallet,
   IcoX,
@@ -429,13 +431,15 @@ export const NAV_ITEMS: { kind: ModuleKind; label: string; icon: React.ReactNode
   { kind: "reports", label: "التقارير والأرباح", icon: <IcoChart />, tone: "text-cash-cyan" },
   { kind: "users", label: "المستخدمون", icon: <IcoUsers />, tone: "text-amber-brand" },
   { kind: "activation", label: "تفعيل النسخة", icon: <IcoCheck />, tone: "text-cash-green" },
+  { kind: "support", label: "الدعم الفني", icon: <IcoPhone />, tone: "text-cash-cyan" },
   { kind: "settings", label: "إعدادات البرنامج", icon: <IcoSliders />, tone: "text-amber-brand" },
 ];
 
 /**
- * زر ☰ صغير يُعرض بجانب تبويب «الرئيسية».
- * عند الضغط تنسدل قائمة عائمة بأسماء كل الوحدات وأيقوناتها،
- * وتُغلق تلقائياً بالنقر خارجها أو باختيار أي بند منها.
+ * زر ☰ بجانب تبويب «الرئيسية».
+ * عند الضغط تنزلق قائمة عائمة تغطي الشاشة من اليمين (مع تعتيم الخلفية)،
+ * وتعرض كل وحدات البرنامج — بلا سكرول داخلي.
+ * تُغلق بالنقر خارجها أو بمفتاح Escape أو باختيار أي بند منها.
  */
 export function NavMenuButton({
   activeKind,
@@ -449,12 +453,16 @@ export function NavMenuButton({
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   /* الإغلاق بالنقر خارج القائمة أو بمفتاح Escape */
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent | TouchEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (panelRef.current?.contains(target)) return;
+      if (wrapRef.current?.contains(target)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -466,6 +474,16 @@ export function NavMenuButton({
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("touchstart", onDown);
       document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  /* منع تمرير الصفحة خلف القائمة */
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
     };
   }, [open]);
 
@@ -486,36 +504,56 @@ export function NavMenuButton({
       </button>
 
       {open && (
-        <div
-          className="cy-menu-pop absolute left-0 top-[calc(100%+6px)] z-[120] w-[236px] overflow-hidden rounded-xl border border-white/10 shadow-[0_20px_50px_-14px_rgba(2,10,30,0.75)]"
-          style={{ background: "var(--cy-menu-bg)", color: "var(--cy-menu-text)" }}
-          role="menu"
-        >
-          <div className="border-b border-white/10 px-2.5 py-1.5 text-[9.5px] font-black tracking-wide opacity-60">
-            وحدات البرنامج
-          </div>
-          <div className="max-h-[62vh] overflow-y-auto cy-scroll-dark p-1">
-            {NAV_ITEMS.map((item) => {
-              const active = activeKind === item.kind;
-              return (
-                <button
-                  key={`${item.kind}-${item.label}`}
-                  role="menuitem"
-                  onClick={() => {
-                    onPick(item.kind, item.label);
-                    setOpen(false);
-                  }}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-right transition-colors hover:bg-white/10"
-                  style={active ? { background: "var(--cy-menu-accent)", color: "#0f172a" } : undefined}
-                >
-                  <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md ${active ? "bg-black/10" : "bg-white/10"}`}>
-                    <span className={active ? "" : item.tone}>{item.icon}</span>
-                  </span>
-                  {labels && <span className="flex-1 truncate text-[11.5px] font-bold">{item.label}</span>}
-                  {active && <span className="h-1.5 w-1.5 rounded-full bg-black/40" />}
-                </button>
-              );
-            })}
+        /* طبقة تغطي الشاشة: تعتيم + لوحة منزلقة من اليمين */
+        <div className="fixed inset-0 z-[120] flex justify-start" dir="rtl">
+          <button
+            aria-label="إغلاق القائمة"
+            onClick={() => setOpen(false)}
+            className="absolute inset-0 h-full w-full cursor-default bg-ink-950/55 backdrop-blur-[2px]"
+          />
+          <div
+            ref={panelRef}
+            role="menu"
+            className="relative flex h-full w-[290px] max-w-[86vw] flex-col overflow-hidden shadow-[0_0_60px_-10px_rgba(2,10,30,0.9)] cy-drawer-in"
+            style={{ background: "var(--cy-menu-bg)", color: "var(--cy-menu-text)" }}
+          >
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-2" style={{ background: "var(--cy-menu-bg)" }}>
+              <span className="text-[10px] font-black tracking-wide opacity-70">وحدات البرنامج</span>
+              <button
+                onClick={() => setOpen(false)}
+                aria-label="إغلاق"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/10 text-[13px] font-black transition hover:bg-white/20"
+              >
+                ✕
+              </button>
+            </div>
+            {/* شبكة: كل بند يملأ صفاً متساوياً — لا سكرول داخلي إطلاقاً */}
+            <div
+              className="grid min-h-0 flex-1 gap-0.5 overflow-hidden px-1.5 py-1.5"
+              style={{ gridTemplateRows: `repeat(${NAV_ITEMS.length}, minmax(0, 1fr))` }}
+            >
+              {NAV_ITEMS.map((item) => {
+                const active = activeKind === item.kind;
+                return (
+                  <button
+                    key={`${item.kind}-${item.label}`}
+                    role="menuitem"
+                    onClick={() => {
+                      onPick(item.kind, item.label);
+                      setOpen(false);
+                    }}
+                    className="flex min-h-0 w-full items-center gap-2.5 overflow-hidden rounded-lg px-2.5 text-right transition-colors hover:bg-white/10"
+                    style={active ? { background: "var(--cy-menu-accent)", color: "#0f172a" } : undefined}
+                  >
+                    <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md ${active ? "bg-black/10" : "bg-white/10"}`}>
+                      <span className={active ? "" : item.tone}>{item.icon}</span>
+                    </span>
+                    {labels && <span className="flex-1 truncate text-[12.5px] font-bold leading-none">{item.label}</span>}
+                    {active && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-black/40" />}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -546,7 +584,7 @@ export function TabStrip({
   showMenu?: boolean;
 }) {
   return (
-    <div className="shrink-0 flex items-stretch bg-paper border-b border-line" dir="rtl">
+    <div className="shrink-0 min-w-0 flex items-stretch bg-paper border-b border-line overflow-hidden" dir="rtl">
       {/* زر القائمة المنسدلة — بجانب تبويب الرئيسية */}
       {onPickModule && showMenu && (
         <div className="flex items-center pr-2 pl-1 pt-0.5">
@@ -624,6 +662,8 @@ export function StatusBar({
   onOpenActivation,
   showBadge = true,
   onOpenDatabase,
+  onOpenSync,
+  syncPending,
 }: {
   clock: Date;
   dateText: string;
@@ -637,6 +677,10 @@ export function StatusBar({
   showBadge?: boolean;
   /** فتح صفحة ربط قاعدة البيانات */
   onOpenDatabase?: () => void;
+  /** فتح صفحة المزامنة بين القاعدتين */
+  onOpenSync?: () => void;
+  /** عدد العمليات المعلّقة للمزامنة */
+  syncPending?: number;
 }) {
   void clock;
   return (
@@ -685,6 +729,21 @@ export function StatusBar({
               {trial.licensed ? `مفعّلة · ${trial.license?.daysLeft ?? 0} يوم` : trial.expired ? "انتهت التجربة · فعّل" : `تجريبي · ${trial.daysLeft} يوم`}
             </button>
           </>
+        )}
+        {onOpenSync && (
+          <button
+            onClick={onOpenSync}
+            title="مزامنة البيانات بين القاعدة المحلية والسحابية"
+            className="mr-1 hidden items-center gap-1 rounded px-1.5 py-0.5 font-bold text-slate-300 transition hover:bg-white/10 hover:text-white sm:inline-flex"
+          >
+            <IcoSync className="h-3 w-3" />
+            <span className="text-[10px]">مزامنة</span>
+            {syncPending ? (
+              <span className="rounded bg-amber-brand px-1 text-[9px] font-black text-ink-900 cy-num">
+                {syncPending}
+              </span>
+            ) : null}
+          </button>
         )}
         {onOpenDatabase && (
           <button

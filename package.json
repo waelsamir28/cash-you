@@ -18,7 +18,8 @@
     "desktop:dist": "electron-builder --win nsis --publish never",
     "desktop:build": "node tools/make-icon.cjs && node tools/make-installer-art.cjs && node tools/build-desktop-assets.cjs",
     "test:db-bridge": "node tools/test-db-config.cjs",
-    "test:local-server": "node tools/test-local-server.cjs"
+    "test:local-server": "node tools/test-local-server.cjs",
+    "test:db-sync": "node tools/test-db-sync.cjs"
   },
   "dependencies": {
     "dotenv": "17.3.1",

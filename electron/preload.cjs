@@ -9,4 +9,7 @@ contextBridge.exposeInMainWorld("cashYou", Object.freeze({
   getDbConfig: () => ipcRenderer.invoke("cash-you:get-db-config"),
   saveDbConfig: (config) => ipcRenderer.invoke("cash-you:save-db-config", config),
   testDbConnection: (config) => ipcRenderer.invoke("cash-you:test-db-connection", config),
+
+  /* ---------- مزامنة القاعدة المحلية مع السحابية (من جهاز العميل) ---------- */
+  syncDatabases: (config) => ipcRenderer.invoke("cash-you:sync-databases", config),
 }));

@@ -26,10 +26,41 @@ export type DbTestResult = {
   saved?: boolean;
 };
 
+export type SyncDirection = "push" | "pull" | "both";
+
+export type SyncTableDetail = {
+  table: string;
+  copied: number;
+  /** السجلات التي تعذّر ربطها بسبب مرجع مفقود */
+  skipped?: number;
+  /** اتجاه النسخ: push = من المحلية إلى السحابية، pull = من السحابية إلى المحلية */
+  direction: "push" | "pull";
+  error?: string;
+};
+
+export type SyncReport = {
+  ok: boolean;
+  message: string;
+  /** إجمالي السجلات المنسوخة */
+  copied: number;
+  /** عدد السجلات المرفوعة إلى السحابية */
+  pushed: number;
+  /** عدد السجلات المسحوبة إلى القاعدة المحلية */
+  pulled: number;
+  /** تفاصيل لكل جدول مع اتجاهه */
+  details: SyncTableDetail[];
+  durationMs?: number;
+};
+
 type DbBridge = {
   getDbConfig?: () => Promise<DbConfigState>;
   saveDbConfig?: (config: { mode: DbMode; url: string }) => Promise<{ ok: boolean; message: string }>;
   testDbConnection?: (config: { url: string }) => Promise<DbTestResult>;
+  syncDatabases?: (config: {
+    direction: SyncDirection;
+    localUrl: string;
+    cloudUrl: string;
+  }) => Promise<SyncReport>;
 };
 
 type CashYouWindow = Window & { cashYou?: DbBridge };
@@ -112,5 +143,52 @@ export async function saveDbConfig(mode: DbMode, url: string): Promise<DbTestRes
     return (await res.json()) as DbTestResult;
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "تعذر الحفظ" };
+  }
+}
+
+/**
+ * مزامنة البيانات بين القاعدة المحلية والسحابية.
+ *
+ * في نسخة ويندوز تُنفَّذ على جهاز العميل (لأن القاعدة المحلية هناك)،
+ * وفي نسخة الويب تُنفَّذ على الخادم.
+ */
+export async function syncDatabases(
+  localUrl: string,
+  cloudUrl: string,
+  direction: SyncDirection = "both",
+): Promise<SyncReport> {
+  const bridge = typeof window !== "undefined" ? (window as CashYouWindow).cashYou : undefined;
+  if (bridge?.syncDatabases) {
+    try {
+      return await bridge.syncDatabases({ direction, localUrl, cloudUrl });
+    } catch (err) {
+      return {
+        ok: false,
+        message: err instanceof Error ? err.message : "تعذر تنفيذ المزامنة",
+        copied: 0,
+        pushed: 0,
+        pulled: 0,
+        details: [],
+      };
+    }
+  }
+
+  try {
+    const res = await fetch("/api/db-sync", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ direction, localUrl, cloudUrl }),
+    });
+    const json = (await res.json()) as SyncReport;
+    return json;
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : "تعذر تنفيذ المزامنة",
+      copied: 0,
+      pushed: 0,
+      pulled: 0,
+      details: [],
+    };
   }
 }

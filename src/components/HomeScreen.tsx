@@ -62,7 +62,7 @@ export function HomeScreen({
   );
 
   return (
-    <section className="flex-1 min-h-0 overflow-y-auto cy-scroll bg-paper p-2.5" dir="rtl">
+    <section className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden cy-scroll bg-paper p-2.5" dir="rtl">
       <div className="relative overflow-hidden rounded-2xl cy-mesh cy-grain border border-black/40 px-4 py-4 sm:px-6 sm:py-5">
         <div className="pointer-events-none absolute inset-0 cy-aurora opacity-90" />
         <div className="relative flex flex-wrap items-center gap-4">
@@ -132,7 +132,7 @@ export function HomeScreen({
         {/* الفواتير الأخيرة */}
         <div className="rounded-2xl bg-white border border-line overflow-hidden shadow-sm">
           <Head title="آخر الفواتير" hint="اضغط على الفاتورة لعرض تفاصيلها" />
-          <div className="grid grid-cols-[70px_1fr_96px_100px_100px_96px] bg-ink-800 text-white text-[11.5px] font-black">
+          <div className="grid grid-cols-[64px_minmax(0,1fr)_84px_92px_92px_88px] bg-ink-800 text-white text-[11.5px] font-black">
             {["الرقم", "العميل", "النوع", "الإجمالي", "المدفوع", "التاريخ"].map((h) => (
               <div key={h} className="px-2 py-2 text-center border-l border-white/10 last:border-l-0">
                 {h}
@@ -149,7 +149,7 @@ export function HomeScreen({
                 <button
                   key={i.id}
                   onClick={() => onOpenInvoice(i)}
-                  className={`w-full grid grid-cols-[70px_1fr_96px_100px_100px_96px] text-[12.5px] border-b border-slate-200 text-right hover:bg-amber-50 transition-colors ${
+                  className={`w-full grid grid-cols-[64px_minmax(0,1fr)_84px_92px_92px_88px] text-[12.5px] border-b border-slate-200 text-right hover:bg-amber-50 transition-colors ${
                     idx % 2 ? "bg-paper-2" : "bg-white"
                   }`}
                 >

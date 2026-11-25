@@ -65,35 +65,39 @@ export async function ensureSeed(): Promise<void> {
     .limit(1);
   if (flag.length > 0) return;
 
-  await db.insert(categories).values(
-    CATS.map((c, i) => ({ name: c.name, hue: c.hue, sortOrder: i })),
-  );
+  /* التهيئة داخل معاملة واحدة: إن فشل أي جزء فلا تبقى بيانات ناقصة،
+     وتُعاد المحاولة في التشغيل التالي بشكل سليم. */
+  await db.transaction(async (tx) => {
+    await tx.insert(categories).values(
+      CATS.map((c, i) => ({ name: c.name, hue: c.hue, sortOrder: i })),
+    );
 
-  await db.insert(products).values(
-    PRODS.map((p, i) => ({
-      code: p[0],
-      name: p[1],
-      categoryId: p[2],
-      unit: p[3],
-      price: p[4],
-      cost: Math.round(p[4] * 0.72 * 100) / 100,
-      stock: p[5],
-      sortOrder: i,
-    })),
-  );
+    await tx.insert(products).values(
+      PRODS.map((p, i) => ({
+        code: p[0],
+        name: p[1],
+        categoryId: p[2],
+        unit: p[3],
+        price: p[4],
+        cost: Math.round(p[4] * 0.72 * 100) / 100,
+        stock: p[5],
+        sortOrder: i,
+      })),
+    );
 
-  await db.insert(customers).values(
-    CUSTOMERS.map((c) => ({ name: c[0], phone: c[1], balance: c[2] })),
-  );
+    await tx.insert(customers).values(
+      CUSTOMERS.map((c) => ({ name: c[0], phone: c[1], balance: c[2] })),
+    );
 
-  await db.insert(paymentMethods).values(PAYMENTS.map((n) => ({ name: n })));
+    await tx.insert(paymentMethods).values(PAYMENTS.map((n) => ({ name: n })));
 
-  // النسخة تبدأ بلا فواتير تاريخية: كل رقم يُنشئه العميل فعلياً
+    // النسخة تبدأ بلا فواتير تاريخية: كل رقم يُنشئه العميل فعلياً
 
-  await db.insert(settings).values([
-    { key: "seeded_v1", value: new Date().toISOString() },
-    { key: "next_invoice", value: "1" },
-    { key: "shop_name", value: "كاش يو للتجارة والتوريدات المكتبية" },
-    { key: "shop_phone", value: "01222355769" },
-  ]);
+    await tx.insert(settings).values([
+      { key: "seeded_v1", value: new Date().toISOString() },
+      { key: "next_invoice", value: "1" },
+      { key: "shop_name", value: "كاش يو للتجارة والتوريدات المكتبية" },
+      { key: "shop_phone", value: "01222355769" },
+    ]);
+  });
 }

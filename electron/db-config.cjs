@@ -164,6 +164,94 @@ function registerDbHandlers() {
     await shell.openExternal("https://github.com/waelsamir28/cash-you");
     return true;
   });
+
+  /*
+   * مزامنة بين القاعدة المحلية والسحابية — تُنفَّذ من جهاز العميل.
+   * السبب: القاعدة المحلية على جهاز العميل لا يراها السيرفر البعيد.
+   */
+  ipcMain.handle("cash-you:sync-databases", async (_event, payload) => {
+    const localUrl = String((payload && payload.localUrl) || "").trim();
+    const cloudUrl = String((payload && payload.cloudUrl) || "").trim();
+    const direction =
+      payload && payload.direction === "push"
+        ? "push"
+        : payload && payload.direction === "pull"
+          ? "pull"
+          : "both";
+
+    if (!localUrl || !cloudUrl) {
+      return { ok: false, message: "يلزم رابط القاعدتين: المحلية والسحابية", copied: 0, details: [] };
+    }
+    if (localUrl === cloudUrl) {
+      return { ok: false, message: "الرابطان متطابقان — لا حاجة للمزامنة", copied: 0, details: [] };
+    }
+    for (const url of [localUrl, cloudUrl]) {
+      if (!/^postgres(ql)?:\/\//i.test(url)) {
+        return { ok: false, message: "الرابط يجب أن يبدأ بـ postgresql://", copied: 0, details: [] };
+      }
+    }
+
+    const started = Date.now();
+    const details = [];
+    let localClient;
+    let cloudClient;
+    try {
+      const { Client } = require("pg");
+      localClient = new Client({ connectionString: localUrl, connectionTimeoutMillis: 10000 });
+      cloudClient = new Client({ connectionString: cloudUrl, connectionTimeoutMillis: 10000 });
+      await localClient.connect();
+      await cloudClient.connect();
+    } catch (err) {
+      if (localClient) await localClient.end().catch(() => undefined);
+      if (cloudClient) await cloudClient.end().catch(() => undefined);
+      return {
+        ok: false,
+        message: describeDbError(err),
+        copied: 0,
+        pushed: 0,
+        pulled: 0,
+        details: [],
+        durationMs: Date.now() - started,
+      };
+    }
+
+    /* نستخدم نفس منطق المزامنة الموجود في src/lib/db-sync.ts — لكن نسخة
+       CommonJS هنا لأن ملف المصدر TypeScript لا يمكن استيراده مباشرة. */
+    let syncModule;
+    try {
+      syncModule = require("./db-sync.cjs");
+    } catch {
+      await localClient.end().catch(() => undefined);
+      await cloudClient.end().catch(() => undefined);
+      return {
+        ok: false,
+        message: "وحدة المزامنة غير متاحة في هذه النسخة",
+        copied: 0,
+        pushed: 0,
+        pulled: 0,
+        details: [],
+        durationMs: Date.now() - started,
+      };
+    }
+
+    try {
+      const report = await syncModule.syncDatabases(localClient, cloudClient, direction);
+      return { ...report, durationMs: Date.now() - started };
+    } catch (err) {
+      return {
+        ok: false,
+        message: err instanceof Error ? err.message : "تعذر تنفيذ المزامنة",
+        copied: 0,
+        pushed: 0,
+        pulled: 0,
+        details: [],
+        durationMs: Date.now() - started,
+      };
+    } finally {
+      await localClient.end().catch(() => undefined);
+      await cloudClient.end().catch(() => undefined);
+    }
+  });
 }
 
 module.exports = {

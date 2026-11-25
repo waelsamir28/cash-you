@@ -119,19 +119,20 @@ export function AuthScreen({ needSetup, onAuthenticated, settings: rawSettings }
               <div className="pointer-events-none absolute bottom-0 -left-16 h-56 w-56 rounded-full bg-cash-violet/15 blur-3xl" />
             </>
           )}
-          <div className="relative text-center">
+          {/* اللوجو في الوسط — والكلام متوسّط أسفله مباشرة */}
+          <div className="relative flex flex-col items-center text-center">
             {showLogin(s, "logo") &&
               (s.shopLogo ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={s.shopLogo} alt={s.loginTitle} className="mx-auto h-16 w-16 rounded-2xl object-contain" />
+                <img src={s.shopLogo} alt={s.loginTitle} className="mx-auto h-28 w-28 rounded-[26px] object-contain shadow-[0_18px_45px_-12px_rgba(0,0,0,0.75)]" />
               ) : (
-                <IcoLogo className="mx-auto h-16 w-16 rounded-2xl" />
+                <IcoLogo className="mx-auto h-28 w-28 rounded-[26px] shadow-[0_18px_45px_-12px_rgba(0,0,0,0.75)]" />
               ))}
             {showLogin(s, "brand") && (
-              <p className="mt-5 text-[11px] font-black tracking-[0.3em] text-cash-cyan">{s.loginTitle}</p>
+              <p className="mt-5 text-[12px] font-black tracking-[0.3em] text-cash-cyan">{s.loginTitle}</p>
             )}
             {showLogin(s, "tagline") && (
-              <h1 className="mt-2 text-[28px] font-black leading-snug text-white">{s.loginTagline}</h1>
+              <h1 className="mt-2 text-[30px] font-black leading-snug text-white">{s.loginTagline}</h1>
             )}
             {showLogin(s, "welcomeMessage") && (
               <p className="mx-auto mt-3 max-w-sm text-[13px] font-semibold leading-7 text-slate-300">
@@ -309,6 +310,13 @@ export function AuthScreen({ needSetup, onAuthenticated, settings: rawSettings }
           </p>
         </div>
       </section>
+
+      {/* توقيع المصمّم — أسفل الشاشة */}
+      <p className="relative mt-4 text-center text-[12px] font-bold leading-6 text-slate-400">
+        <span>تصميم وتنفيذ م/وائل الجمال</span>
+        <span className="mx-2 text-slate-600">·</span>
+        <span className="cy-num text-slate-300">01222355769</span>
+      </p>
     </main>
   );
 }
