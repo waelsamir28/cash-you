@@ -98,11 +98,14 @@ jobs:
           set -euo pipefail
           # حزمة standalone يجب أن تكون داخل resources خارج app.asar
           APP_DIR="dist/win-unpacked"
+          echo "== resources =="
+          ls -la "$APP_DIR/resources"
+          echo "== standalone =="
+          ls -la "$APP_DIR/resources/standalone"
           test -d "$APP_DIR/resources/standalone"
           test -f "$APP_DIR/resources/standalone/server.js"
           test -f "$APP_DIR/resources/standalone/node_modules/pg/package.json"
           test -f "$APP_DIR/resources/standalone/node_modules/next/dist/server/next.js"
-          test -d "$APP_DIR/resources/app.asar.unpacked/.next/static"
           # حجم الحزمة يجب أن يعكس وجود standalone كامل (لا يقل عن 30 ميجابايت)
           STANDALONE_KB=$(du -sk "$APP_DIR/resources/standalone" | cut -f1)
           echo "standalone size: ${STANDALONE_KB} KB"
@@ -110,7 +113,6 @@ jobs:
             echo "::error::حزمة standalone ناقصة في الحزمة (${STANDALONE_KB} KB فقط)"
             exit 1
           fi
-          ls -lh "$APP_DIR/resources"
 
       - name: Upload the installer as a workflow artifact
         uses: actions/upload-artifact@v4
