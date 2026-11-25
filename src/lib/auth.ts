@@ -24,7 +24,7 @@ export type PublicUser = {
   id: number;
   username: string;
   fullName: string;
-  role: "owner" | "cashier";
+  role: "owner" | "manager" | "cashier";
 };
 
 const SESSION_DAYS = 30;

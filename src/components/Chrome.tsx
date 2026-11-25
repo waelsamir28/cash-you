@@ -5,6 +5,7 @@ import type { Bootstrap, InvoiceRow, ModuleKind, Product, SessionUser, TrialStat
 import { money } from "@/lib/format";
 import {
   IcoBox,
+  IcoCalc,
   IcoChart,
   IcoCheck,
   IcoCode,
@@ -16,12 +17,14 @@ import {
   IcoLogo,
   IcoMinus,
   IcoMute,
+  IcoPrint,
   IcoSearch,
   IcoSliders,
   IcoSound,
   IcoSquare,
   IcoPhone,
   IcoSync,
+  IcoTrash,
   IcoUsers,
   IcoWallet,
   IcoX,
@@ -41,6 +44,7 @@ export function TitleBar({
   trial,
   onLogout,
   onOpenActivation,
+  onOpenCalculator,
 }: {
   data: Bootstrap;
   muted: boolean;
@@ -53,6 +57,7 @@ export function TitleBar({
   trial: TrialStatus | null;
   onLogout: () => void;
   onOpenActivation: () => void;
+  onOpenCalculator?: () => void;
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -134,6 +139,16 @@ export function TitleBar({
 
         {/* يسار: الصوت + المستخدم + الترخيص + أزرار النافذة */}
         <div className="flex items-center gap-1.5 sm:gap-2 mr-auto shrink-0">
+          {onOpenCalculator && (
+            <button
+              onClick={onOpenCalculator}
+              title="آلة حاسبة"
+              aria-label="آلة حاسبة"
+              className="h-8 w-8 rounded-full border bg-white/5 border-white/15 text-slate-300 hover:text-amber-brand cy-press cy-focus grid place-items-center"
+            >
+              <IcoCalc className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             onClick={onToggleMute}
             title={muted ? "تشغيل أصوات النظام" : "كتم كل الأصوات"}
@@ -422,6 +437,8 @@ export type Tab = { id: string; kind: ModuleKind; title: string; badge?: string 
 export const NAV_ITEMS: { kind: ModuleKind; label: string; icon: React.ReactNode; tone: string }[] = [
   { kind: "home", label: "الرئيسية", icon: <IcoHome />, tone: "text-amber-brand" },
   { kind: "invoice", label: "فاتورة مبيعات", icon: <IcoCart />, tone: "text-cash-green" },
+  { kind: "invoiceHistory", label: "سجل الفواتير", icon: <IcoChart />, tone: "text-cash-cyan" },
+  { kind: "suspended", label: "الفواتير المعلقة", icon: <IcoCart />, tone: "text-amber-brand" },
   { kind: "products", label: "الأصناف والمخازن", icon: <IcoBox />, tone: "text-cash-cyan" },
   { kind: "purchase", label: "فاتورة مشتريات", icon: <IcoCart />, tone: "text-cash-cyan" },
   { kind: "parties", label: "العملاء والموردون", icon: <IcoUsers />, tone: "text-cash-violet" },
@@ -429,6 +446,18 @@ export const NAV_ITEMS: { kind: ModuleKind; label: string; icon: React.ReactNode
   { kind: "expenses", label: "المصروفات", icon: <IcoGear />, tone: "text-cash-red" },
   { kind: "treasury", label: "الخزينة", icon: <IcoWallet />, tone: "text-emerald-400" },
   { kind: "reports", label: "التقارير والأرباح", icon: <IcoChart />, tone: "text-cash-cyan" },
+  { kind: "dashboard", label: "لوحة المالك", icon: <IcoChart />, tone: "text-amber-brand" },
+  { kind: "shortages", label: "الأصناف الناقصة", icon: <IcoBox />, tone: "text-cash-red" },
+  { kind: "stockMovements", label: "حركات المخزون", icon: <IcoBox />, tone: "text-cash-cyan" },
+  { kind: "itemCard", label: "كارت الصنف", icon: <IcoBox />, tone: "text-cash-violet" },
+  { kind: "stocktake", label: "جرد المخزون", icon: <IcoBox />, tone: "text-emerald-400" },
+  { kind: "barcodePrint", label: "طباعة الباركود", icon: <IcoPrint />, tone: "text-cash-cyan" },
+  { kind: "smartPurchase", label: "الشراء الذكي", icon: <IcoCart />, tone: "text-amber-brand" },
+  { kind: "priceKiosk", label: "كشك السعر", icon: <IcoCart />, tone: "text-cash-green" },
+  { kind: "activityLog", label: "سجل النشاط", icon: <IcoChart />, tone: "text-slate-500" },
+  { kind: "deletedInvoices", label: "سجل المحذوفات", icon: <IcoTrash />, tone: "text-cash-red" },
+  { kind: "backup", label: "النسخ الاحتياطي", icon: <IcoCheck />, tone: "text-cash-green" },
+  { kind: "health", label: "صحة البرنامج", icon: <IcoCheck />, tone: "text-emerald-400" },
   { kind: "users", label: "المستخدمون", icon: <IcoUsers />, tone: "text-amber-brand" },
   { kind: "activation", label: "تفعيل النسخة", icon: <IcoCheck />, tone: "text-cash-green" },
   { kind: "support", label: "الدعم الفني", icon: <IcoPhone />, tone: "text-cash-cyan" },
@@ -683,12 +712,20 @@ export function StatusBar({
   syncPending?: number;
 }) {
   void clock;
+  const hijri = (() => {
+    try {
+      return new Intl.DateTimeFormat("ar-SA-u-ca-islamic", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
+    } catch {
+      return "";
+    }
+  })();
   return (
     <footer
       className="shrink-0 h-[34px] border-t border-black/40 text-slate-300 flex items-center px-3 gap-3 text-[11.5px] overflow-hidden"
       style={{ background: "var(--cy-header)" }}
       dir="rtl"
     >
+      {hijri && <span className="hidden md:inline shrink-0 text-slate-400 font-bold">{hijri}</span>}
       <div className="flex items-center gap-2 shrink-0">
         <span className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-brand to-cash-orange grid place-items-center text-[10px] font-black text-ink-900">
           {(user?.fullName?.trim()?.[0] ?? "؟").toUpperCase()}

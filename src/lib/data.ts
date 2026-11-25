@@ -183,6 +183,7 @@ export type SavePayload = {
   discountPercent: number;
   paid: number;
   printed: boolean;
+  userName?: string;
   installment?: InstallmentInput;
   items: { productId: number | null; code: string; name: string; unit: string; qty: number; price: number; discount: number }[];
 };
@@ -220,7 +221,23 @@ export async function saveInvoice(p: SavePayload): Promise<SavedInvoice> {
   }).returning({ id: invoices.id, createdAt: invoices.createdAt });
   const invoiceId = inserted[0].id;
   if (rows.length) await db.insert(invoiceItems).values(rows.map((r) => ({ ...r, invoiceId })));
-  for (const r of rows) if (r.productId) await db.update(products).set({ stock: sql`${products.stock} - ${r.qty}` }).where(eq(products.id, r.productId));
+  for (const r of rows) if (r.productId) {
+    await db.update(products).set({ stock: sql`${products.stock} - ${r.qty}` }).where(eq(products.id, r.productId));
+    const prod = await db.select().from(products).where(eq(products.id, r.productId)).limit(1);
+    if (prod[0]) {
+      await recordStockMovement({
+        productId: r.productId,
+        productCode: r.code,
+        productName: r.name,
+        movementType: "بيع",
+        qty: -r.qty,
+        balanceAfter: prod[0].stock,
+        referenceType: "فاتورة",
+        referenceNumber: number,
+        userName: p.userName ?? "",
+      });
+    }
+  }
 
   let interestValue = 0;
   let installmentPlanId: number | undefined;
@@ -308,4 +325,181 @@ export async function getInvoiceWithItems(number: number) {
   if (!inv[0]) return null;
   const items = await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, inv[0].id));
   return { invoice: inv[0], items };
+}
+
+/* ============================ مميزات FATORA المضافة ============================ */
+
+import {
+  activityLog,
+  deletedInvoices,
+  screenPermissions,
+  stockMovements,
+  suspendedInvoices,
+} from "@/db/schema";
+import type { ActivityEntry, DeletedInvoice, StockMovement, SuspendedInvoice } from "@/lib/types";
+
+/** تسجيل حركة مخزون */
+export async function recordStockMovement(input: {
+  productId: number;
+  productCode: string;
+  productName: string;
+  movementType: string;
+  qty: number;
+  balanceAfter: number;
+  referenceType?: string;
+  referenceNumber?: number | null;
+  userName?: string;
+  notes?: string;
+}): Promise<void> {
+  await ensureDatabaseSchema();
+  await db.insert(stockMovements).values({
+    productId: input.productId,
+    productCode: input.productCode,
+    productName: input.productName,
+    movementType: input.movementType,
+    qty: input.qty,
+    balanceAfter: input.balanceAfter,
+    referenceType: input.referenceType ?? "",
+    referenceNumber: input.referenceNumber ?? null,
+    userName: input.userName ?? "",
+    notes: input.notes ?? "",
+  });
+}
+
+/** قائمة حركات المخزون (مع فلتر اختياري لصنف) */
+export async function listStockMovements(productId?: number, limit = 200): Promise<StockMovement[]> {
+  await ensureDatabaseSchema();
+  const rows = productId
+    ? await db.select().from(stockMovements).where(eq(stockMovements.productId, productId)).orderBy(desc(stockMovements.createdAt)).limit(limit)
+    : await db.select().from(stockMovements).orderBy(desc(stockMovements.createdAt)).limit(limit);
+  return rows.map((r) => ({ ...r, createdAt: iso(r.createdAt) ?? "" }));
+}
+
+/** تسجيل نشاط في سجل الرقابة */
+export async function recordActivity(input: {
+  userId?: number | null;
+  userName?: string;
+  action: string;
+  entityType?: string;
+  entityId?: number | null;
+  details?: string;
+}): Promise<void> {
+  await ensureDatabaseSchema();
+  await db.insert(activityLog).values({
+    userId: input.userId ?? null,
+    userName: input.userName ?? "",
+    action: input.action,
+    entityType: input.entityType ?? "",
+    entityId: input.entityId ?? null,
+    details: input.details ?? "",
+  });
+}
+
+/** قائمة سجل النشاط */
+export async function listActivity(limit = 200): Promise<ActivityEntry[]> {
+  await ensureDatabaseSchema();
+  const rows = await db.select().from(activityLog).orderBy(desc(activityLog.createdAt)).limit(limit);
+  return rows.map((r) => ({ ...r, createdAt: iso(r.createdAt) ?? "" }));
+}
+
+/** حذف فاتورة بأمان: ينقلها لسجل المحذوفات ويعكس أثرها */
+export async function deleteInvoiceSafely(number: number, reason: string, deletedBy: string): Promise<{ ok: boolean; error?: string }> {
+  await ensureDatabaseSchema();
+  const data = await getInvoiceWithItems(number);
+  if (!data) return { ok: false, error: "الفاتورة غير موجودة" };
+  const { invoice, items } = data;
+
+  /* حفظ نسخة في سجل المحذوفات */
+  await db.insert(deletedInvoices).values({
+    invoiceNumber: invoice.number,
+    customerName: invoice.customerName,
+    total: invoice.total,
+    itemsJson: JSON.stringify(items),
+    deleteReason: reason,
+    deletedBy,
+  });
+
+  /* عكس أثر الفاتورة: إعادة الرصيد للعميل وإعادة المخزون */
+  if (invoice.customerId) {
+    await db.update(customers).set({
+      balance: sql`${customers.balance} - ${invoice.remaining}`,
+    }).where(eq(customers.id, invoice.customerId));
+  }
+  for (const item of items) {
+    if (item.productId) {
+      await db.update(products).set({
+        stock: sql`${products.stock} + ${item.qty}`,
+      }).where(eq(products.id, item.productId));
+      const prod = await db.select().from(products).where(eq(products.id, item.productId)).limit(1);
+      if (prod[0]) {
+        await recordStockMovement({
+          productId: item.productId,
+          productCode: item.code,
+          productName: item.name,
+          movementType: "عكس بيع",
+          qty: item.qty,
+          balanceAfter: prod[0].stock,
+          referenceType: "فاتورة محذوفة",
+          referenceNumber: invoice.number,
+          userName: deletedBy,
+          notes: reason,
+        });
+      }
+    }
+  }
+
+  await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, invoice.id));
+  await db.delete(invoices).where(eq(invoices.id, invoice.id));
+  await recordActivity({
+    userName: deletedBy,
+    action: "حذف فاتورة",
+    entityType: "invoice",
+    entityId: invoice.id,
+    details: `فاتورة رقم ${invoice.number} — السبب: ${reason}`,
+  });
+  return { ok: true };
+}
+
+/** قائمة الفواتير المحذوفة */
+export async function listDeletedInvoices(limit = 100): Promise<DeletedInvoice[]> {
+  await ensureDatabaseSchema();
+  const rows = await db.select().from(deletedInvoices).orderBy(desc(deletedInvoices.deletedAt)).limit(limit);
+  return rows.map((r) => ({ ...r, deletedAt: iso(r.deletedAt) ?? "" }));
+}
+
+/** إنشاء فاتورة معلقة */
+export async function createSuspended(title: string, draftJson: string, userName: string): Promise<SuspendedInvoice> {
+  await ensureDatabaseSchema();
+  const rows = await db.insert(suspendedInvoices).values({ title, draftJson, userName }).returning();
+  const r = rows[0];
+  return { ...r, createdAt: iso(r.createdAt) ?? "", updatedAt: iso(r.updatedAt) ?? "" };
+}
+
+/** قائمة الفواتير المعلقة */
+export async function listSuspended(): Promise<SuspendedInvoice[]> {
+  await ensureDatabaseSchema();
+  const rows = await db.select().from(suspendedInvoices).orderBy(desc(suspendedInvoices.updatedAt));
+  return rows.map((r) => ({ ...r, createdAt: iso(r.createdAt) ?? "", updatedAt: iso(r.updatedAt) ?? "" }));
+}
+
+/** حذف فاتورة معلقة */
+export async function deleteSuspended(id: number): Promise<void> {
+  await ensureDatabaseSchema();
+  await db.delete(suspendedInvoices).where(eq(suspendedInvoices.id, id));
+}
+
+/** صلاحيات الشاشات لمستخدم */
+export async function getScreenPermissions(userId: number): Promise<string[]> {
+  await ensureDatabaseSchema();
+  const rows = await db.select().from(screenPermissions).where(eq(screenPermissions.userId, userId));
+  return rows.filter((r) => r.allowed).map((r) => r.screenKind);
+}
+
+/** تعيين صلاحيات الشاشات لمستخدم */
+export async function setScreenPermissions(userId: number, kinds: string[]): Promise<void> {
+  await ensureDatabaseSchema();
+  await db.delete(screenPermissions).where(eq(screenPermissions.userId, userId));
+  for (const kind of kinds) {
+    await db.insert(screenPermissions).values({ userId, screenKind: kind, allowed: true });
+  }
 }

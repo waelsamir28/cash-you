@@ -164,7 +164,7 @@ export type SessionUser = {
   id: number;
   username: string;
   fullName: string;
-  role: "owner" | "cashier";
+  role: "owner" | "manager" | "cashier";
 };
 
 export type TrialLimitKey = "products" | "invoices" | "customers" | "suppliers";
@@ -258,4 +258,67 @@ export type ModuleKind =
   | "users"
   | "activation"
   | "support"
-  | "settings";
+  | "settings"
+  /* شاشات مضافة (مستوحاة من FATORA) */
+  | "invoiceHistory"
+  | "suspended"
+  | "shortages"
+  | "stockMovements"
+  | "activityLog"
+  | "deletedInvoices"
+  | "backup"
+  | "dashboard"
+  | "itemCard"
+  | "stocktake"
+  | "barcodePrint"
+  | "smartPurchase"
+  | "priceKiosk"
+  | "health";
+
+/* ============================ أنواع المميزات المضافة ============================ */
+
+export type StockMovement = {
+  id: number;
+  productId: number;
+  productCode: string;
+  productName: string;
+  movementType: string;
+  qty: number;
+  balanceAfter: number;
+  referenceType: string;
+  referenceNumber: number | null;
+  userName: string;
+  notes: string;
+  createdAt: string;
+};
+
+export type ActivityEntry = {
+  id: number;
+  userId: number | null;
+  userName: string;
+  action: string;
+  entityType: string;
+  entityId: number | null;
+  details: string;
+  createdAt: string;
+};
+
+export type DeletedInvoice = {
+  id: number;
+  invoiceNumber: number;
+  customerName: string;
+  total: number;
+  itemsJson: string;
+  deleteReason: string;
+  deletedBy: string;
+  deletedAt: string;
+};
+
+export type SuspendedInvoice = {
+  id: number;
+  title: string;
+  draftJson: string;
+  userName: string;
+  createdAt: string;
+  updatedAt: string;
+};

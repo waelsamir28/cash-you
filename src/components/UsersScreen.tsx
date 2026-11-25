@@ -19,8 +19,49 @@ export function UsersScreen({
 }) {
   const [users, setUsers] = useState<SessionUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ fullName: "", username: "", password: "", role: "cashier" as "owner" | "cashier" });
+  const [form, setForm] = useState({ fullName: "", username: "", password: "", role: "cashier" as "owner" | "manager" | "cashier" });
   const [busy, setBusy] = useState(false);
+  const [permUser, setPermUser] = useState<SessionUser | null>(null);
+  const [permKinds, setPermKinds] = useState<string[]>([]);
+  const [permBusy, setPermBusy] = useState(false);
+
+  const ALL_SCREENS = [
+    { kind: "invoice", label: "فاتورة مبيعات" },
+    { kind: "invoiceHistory", label: "سجل الفواتير" },
+    { kind: "purchase", label: "فاتورة مشتريات" },
+    { kind: "products", label: "الأصناف والمخازن" },
+    { kind: "parties", label: "العملاء والموردون" },
+    { kind: "installments", label: "نظام التقسيط" },
+    { kind: "expenses", label: "المصروفات" },
+    { kind: "treasury", label: "الخزينة" },
+    { kind: "reports", label: "التقارير والأرباح" },
+    { kind: "dashboard", label: "لوحة المالك" },
+    { kind: "backup", label: "النسخ الاحتياطي" },
+    { kind: "settings", label: "الإعدادات" },
+    { kind: "users", label: "المستخدمون" },
+  ];
+
+  useEffect(() => {
+    if (!permUser) return;
+    (async () => {
+      const res = await fetch(`/api/permissions?userId=${permUser.id}`);
+      const json = await res.json();
+      setPermKinds(json.permissions?.length ? json.permissions : ALL_SCREENS.map((s) => s.kind));
+    })();
+  }, [permUser]);
+
+  const savePerms = async () => {
+    if (!permUser) return;
+    setPermBusy(true);
+    const res = await fetch("/api/permissions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: permUser.id, kinds: permKinds }),
+    });
+    setPermBusy(false);
+    if (res.ok) { notify("ok", `تم حفظ صلاحيات ${permUser.fullName}`); setPermUser(null); }
+    else notify("err", "تعذر الحفظ");
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -115,7 +156,7 @@ export function UsersScreen({
               </Field>
               <Field label="نوع الحساب">
                 <div className="flex gap-2">
-                  {(["cashier", "owner"] as const).map((role) => (
+                  {(["cashier", "manager", "owner"] as const).map((role) => (
                     <button
                       key={role}
                       type="button"
@@ -126,7 +167,7 @@ export function UsersScreen({
                           : "border-line bg-paper-2 text-slate-500"
                       }`}
                     >
-                      {role === "owner" ? "مالك" : "كاشير"}
+                      {role === "owner" ? "مالك" : role === "manager" ? "مدير" : "كاشير"}
                     </button>
                   ))}
                 </div>
@@ -177,16 +218,19 @@ export function UsersScreen({
                     <td className="p-1.5 text-center">
                       <span
                         className={`rounded px-2 py-1 text-[10.5px] font-black ${
-                          row.role === "owner" ? "bg-amber-soft text-amber-800" : "bg-slate-100 text-slate-600"
+                          row.role === "owner" ? "bg-amber-soft text-amber-800" : row.role === "manager" ? "bg-cash-cyan/15 text-cash-cyan" : "bg-slate-100 text-slate-600"
                         }`}
                       >
-                        {row.role === "owner" ? "مالك" : "كاشير"}
+                        {row.role === "owner" ? "مالك" : row.role === "manager" ? "مدير" : "كاشير"}
                       </span>
                     </td>
                     <td className="p-1.5 text-center font-mono text-amber-800" dir="ltr">
                       {row.username}
                     </td>
                     <td className="px-2 py-1.5 font-bold text-ink-800">{row.fullName}</td>
+                    <td className="p-1.5 text-center">
+                      <button onClick={() => setPermUser(row)} className="h-7 px-2 rounded bg-ink-700 text-white font-bold text-[11px]">الصلاحيات</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -196,6 +240,30 @@ export function UsersScreen({
           </div>
         </Panel>
       </div>
+      {permUser && (
+        <div className="fixed inset-0 z-[80] bg-ink-950/70 grid place-items-center p-3" dir="rtl" onClick={(e) => e.target === e.currentTarget && setPermUser(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white overflow-hidden cy-pop">
+            <div className="bg-ink-800 text-white px-4 py-3 font-black">صلاحيات الشاشات — {permUser.fullName}</div>
+            <div className="p-4 grid grid-cols-2 gap-2 max-h-[50vh] overflow-auto cy-scroll">
+              {ALL_SCREENS.map((s) => (
+                <label key={s.kind} className="flex items-center gap-2 rounded-lg bg-paper-2 border border-line px-3 py-2.5 cursor-pointer font-bold text-[12.5px]">
+                  <input
+                    type="checkbox"
+                    checked={permKinds.includes(s.kind)}
+                    onChange={(e) => setPermKinds((k) => e.target.checked ? [...k, s.kind] : k.filter((x) => x !== s.kind))}
+                    className="h-4 w-4 accent-amber-500"
+                  />
+                  {s.label}
+                </label>
+              ))}
+            </div>
+            <div className="p-4 pt-0 flex gap-2">
+              <button onClick={() => void savePerms()} disabled={permBusy} className={`${btnCls} flex-1 bg-ink-800 text-white`}>{permBusy ? "جاري الحفظ..." : "حفظ الصلاحيات"}</button>
+              <button onClick={() => setPermUser(null)} className={`${btnCls} flex-1 bg-slate-200 text-ink-700`}>إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
     </ModuleShell>
   );
 }

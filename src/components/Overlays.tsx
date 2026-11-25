@@ -12,6 +12,7 @@ import {
   IcoCheck,
   IcoCopy,
   IcoDownload,
+  IcoLock,
   IcoLogo,
   IcoMute,
   IcoPrint,
@@ -572,6 +573,30 @@ export function ReceiptModal({
         >
           <IcoPrint className="h-4 w-4" />
           {printed ? "إعادة الطباعة" : "طباعة الإيصال"}
+        </button>
+        <button
+          onClick={() => {
+            const lines = receipt.items.map((it) => `• ${it.name} × ${qtyText(it.qty)} = ${money(it.total)}`).join("\n");
+            const text = `فاتورة ${shop.name} رقم ${receipt.number}\n${lines}\nالإجمالي: ${money(receipt.total)}\nالمدفوع: ${money(receipt.paid)} · المتبقي: ${money(receipt.remaining)}\nشكراً لكم`;
+            window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+          }}
+          className="h-11 rounded-xl bg-[#25D366] px-4 font-black text-white cy-press hover:brightness-110"
+          title="إرسال عبر واتساب"
+        >
+          واتساب
+        </button>
+        <button
+          onClick={() => {
+            const w = window.open("", "_blank");
+            if (!w) return;
+            const rows = receipt.items.map((it) => `<tr><td>${it.name}</td><td>${qtyText(it.qty)}</td><td>${money(it.price)}</td><td>${money(it.total)}</td></tr>`).join("");
+            w.document.write(`<html dir="rtl"><head><title>فاتورة ${receipt.number}</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ddd;padding:6px;text-align:right}</style></head><body><h2>${shop.name} — فاتورة رقم ${receipt.number}</h2><p>العميل: ${receipt.customerName} · ${shortStamp(receipt.createdAt)}</p><table><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr>${rows}</table><p><b>الإجمالي: ${money(receipt.total)}</b> · المدفوع: ${money(receipt.paid)} · المتبقي: ${money(receipt.remaining)}</p><script>window.onload=()=>window.print()<\/script></body></html>`);
+            w.document.close();
+          }}
+          className="h-11 rounded-xl bg-slate-200 px-4 font-black text-ink-800 cy-press hover:bg-slate-300"
+          title="حفظ كـ PDF"
+        >
+          PDF
         </button>
         <button
           onClick={onClose}
@@ -1450,6 +1475,181 @@ export function QuickProductModal({
             <IcoX className="h-4 w-4" />
             إلغاء
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================ آلة حاسبة عائمة ============================ */
+
+export function CalculatorOverlay({ onClose }: { onClose: () => void }) {
+  const [display, setDisplay] = useState("0");
+  const [prev, setPrev] = useState<number | null>(null);
+  const [op, setOp] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState(false);
+
+  const calc = (a: number, b: number, o: string) => {
+    switch (o) {
+      case "+": return a + b;
+      case "-": return a - b;
+      case "×": return a * b;
+      case "÷": return b === 0 ? NaN : a / b;
+      default: return b;
+    }
+  };
+
+  const inputDigit = (d: string) => {
+    if (waiting) { setDisplay(d); setWaiting(false); }
+    else setDisplay(display === "0" ? d : display + d);
+  };
+
+  const inputOp = (o: string) => {
+    const val = parseFloat(display);
+    if (prev !== null && op && !waiting) {
+      const result = calc(prev, val, op);
+      setDisplay(String(Math.round(result * 100) / 100));
+      setPrev(result);
+    } else {
+      setPrev(val);
+    }
+    setOp(o);
+    setWaiting(true);
+  };
+
+  const equals = () => {
+    if (prev === null || !op) return;
+    const result = calc(prev, parseFloat(display), op);
+    setDisplay(String(Math.round(result * 100) / 100));
+    setPrev(null);
+    setOp(null);
+    setWaiting(true);
+  };
+
+  const clear = () => { setDisplay("0"); setPrev(null); setOp(null); setWaiting(false); };
+
+  const btn = "h-12 rounded-xl font-black text-[16px] cy-press transition-all";
+  const numBtn = "bg-paper-2 text-ink-900 hover:bg-slate-200";
+  const opBtn = "bg-amber-brand text-ink-950 hover:brightness-110";
+  const eqBtn = "bg-cash-green text-white hover:brightness-110";
+
+  return (
+    <div className="fixed inset-0 z-[90] bg-ink-950/60 grid place-items-center p-3" dir="rtl" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-[280px] rounded-2xl bg-white overflow-hidden cy-pop shadow-2xl">
+        <div className="bg-ink-800 text-white px-4 py-3 flex items-center justify-between">
+          <span className="font-black text-[14px]">آلة حاسبة</span>
+          <button onClick={onClose} className="h-7 w-7 rounded-lg bg-white/10 grid place-items-center hover:bg-white/20" aria-label="إغلاق"><IcoX className="w-4 h-4" /></button>
+        </div>
+        <div className="p-3">
+          <div className="bg-ink-950 text-white rounded-xl px-3 py-3 text-left mb-3 min-h-[52px] flex items-center justify-end">
+            <span className="text-[24px] font-black cy-num break-all">{display}</span>
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            <button onClick={clear} className={`${btn} ${numBtn} col-span-2`}>C</button>
+            <button onClick={() => setDisplay(String(parseFloat(display) / 100))} className={`${btn} ${numBtn}`}>%</button>
+            <button onClick={() => inputOp("÷")} className={`${btn} ${opBtn}`}>÷</button>
+            {["7", "8", "9"].map((d) => <button key={d} onClick={() => inputDigit(d)} className={`${btn} ${numBtn}`}>{d}</button>)}
+            <button onClick={() => inputOp("×")} className={`${btn} ${opBtn}`}>×</button>
+            {["4", "5", "6"].map((d) => <button key={d} onClick={() => inputDigit(d)} className={`${btn} ${numBtn}`}>{d}</button>)}
+            <button onClick={() => inputOp("-")} className={`${btn} ${opBtn}`}>−</button>
+            {["1", "2", "3"].map((d) => <button key={d} onClick={() => inputDigit(d)} className={`${btn} ${numBtn}`}>{d}</button>)}
+            <button onClick={() => inputOp("+")} className={`${btn} ${opBtn}`}>+</button>
+            <button onClick={() => inputDigit("0")} className={`${btn} ${numBtn} col-span-2`}>0</button>
+            <button onClick={() => { if (!display.includes(".")) setDisplay(display + "."); }} className={`${btn} ${numBtn}`}>.</button>
+            <button onClick={equals} className={`${btn} ${eqBtn}`}>=</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================ قفل الشاشة ============================ */
+
+export function LockScreenOverlay({ userName, onUnlock }: { userName: string; onUnlock: () => void }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const unlock = async () => {
+    if (!pin) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/auth/unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? "رمز غير صحيح"); setPin(""); return; }
+      onUnlock();
+    } catch {
+      setError("تعذر التحقق");
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-ink-950/95 backdrop-blur-sm grid place-items-center p-3" dir="rtl">
+      <div className="w-full max-w-sm text-center cy-pop">
+        <div className="mx-auto h-20 w-20 rounded-full bg-amber-brand/20 border-2 border-amber-brand grid place-items-center mb-4">
+          <IcoLock className="w-9 h-9 text-amber-brand" />
+        </div>
+        <h2 className="text-white text-[22px] font-black">الشاشة مقفلة</h2>
+        <p className="text-white/60 font-bold text-[13px] mt-1">أدخل كلمة المرور للمتابعة — {userName}</p>
+        <div className="mt-5 flex gap-2">
+          <input
+            type="password"
+            autoFocus
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void unlock(); }}
+            className="flex-1 h-12 rounded-xl bg-white/10 border border-white/20 text-white text-center text-[16px] font-black outline-none focus:border-amber-brand placeholder:text-white/30"
+            placeholder="كلمة المرور"
+          />
+          <button onClick={() => void unlock()} disabled={busy || !pin} className="h-12 px-5 rounded-xl bg-amber-brand text-ink-950 font-black disabled:opacity-50 cy-press">
+            {busy ? "..." : "فتح"}
+          </button>
+        </div>
+        {error && <p className="mt-3 text-red-400 font-bold text-[12.5px]">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ============================ دليل الاختصارات ============================ */
+
+const SHORTCUTS: { keys: string; action: string }[] = [
+  { keys: "Ctrl + B", action: "فتح / إغلاق القائمة الجانبية" },
+  { keys: "Ctrl + K", action: "البحث والانتقال السريع" },
+  { keys: "Ctrl + L", action: "قفل الشاشة" },
+  { keys: "Ctrl + D", action: "تعليق الفاتورة" },
+  { keys: "F1", action: "دليل الاختصارات" },
+  { keys: "F3", action: "تركيز على خانة الباركود" },
+  { keys: "F4", action: "فاتورة جديدة" },
+  { keys: "F5", action: "حفظ الفاتورة" },
+  { keys: "F10", action: "حفظ وطباعة الفاتورة" },
+  { keys: "F12", action: "دفع كامل" },
+  { keys: "F11", action: "ملء الشاشة" },
+  { keys: "Esc", action: "إغلاق النوافذ المنبثقة" },
+];
+
+export function ShortcutsOverlay({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[90] bg-ink-950/70 grid place-items-center p-3" dir="rtl" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-md rounded-2xl bg-white overflow-hidden cy-pop">
+        <div className="bg-ink-800 text-white px-4 py-3 flex items-center justify-between">
+          <span className="font-black text-[14px]">دليل اختصارات لوحة المفاتيح</span>
+          <button onClick={onClose} className="h-7 w-7 rounded-lg bg-white/10 grid place-items-center hover:bg-white/20" aria-label="إغلاق"><IcoX className="w-4 h-4" /></button>
+        </div>
+        <div className="p-3 max-h-[60vh] overflow-auto cy-scroll divide-y divide-line">
+          {SHORTCUTS.map((s) => (
+            <div key={s.keys} className="py-2.5 flex items-center justify-between gap-3">
+              <span className="font-bold text-[12.5px] text-ink-800">{s.action}</span>
+              <kbd className="shrink-0 rounded-lg bg-ink-800 text-white px-2.5 py-1 text-[11px] font-black cy-num">{s.keys}</kbd>
+            </div>
+          ))}
         </div>
       </div>
     </div>
