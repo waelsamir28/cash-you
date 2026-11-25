@@ -11,18 +11,25 @@ import {
   THEMES,
   UI_PARTS,
   FN_BUTTONS_DEFAULT,
+  LOGIN_BGS,
+  LOGIN_PARTS,
+  MENU_PALETTES,
+  PAGE_MOTIONS,
+  menuColors,
+  pageMotionOf,
   fontOf,
   mergeSettings,
   themeOf,
   type FnButton,
   type InvoicePaper,
   type ShopSettings,
+  type LoginPartId,
   type UiPartId,
 } from "@/lib/settings";
-import { IcoCheck, IcoPalette, IcoPrint, IcoSliders, IcoTrash, IcoX } from "@/components/icons";
+import { IcoCheck, IcoLock, IcoMenu, IcoPalette, IcoPrint, IcoSliders, IcoTrash, IcoX } from "@/components/icons";
 import { btnCls, Field, inputCls, ModuleShell, ModuleTitle, Panel } from "@/components/ModuleUI";
 
-type TabId = "shop" | "theme" | "font" | "buttons" | "invoice" | "visibility";
+type TabId = "shop" | "theme" | "font" | "buttons" | "invoice" | "login" | "menu" | "visibility";
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "shop", label: "بيانات المحل", icon: <IcoCheck className="h-3.5 w-3.5" /> },
@@ -30,6 +37,8 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "font", label: "الخطوط والحركة", icon: <IcoSliders className="h-3.5 w-3.5" /> },
   { id: "buttons", label: "الأزرار", icon: <IcoSliders className="h-3.5 w-3.5" /> },
   { id: "invoice", label: "الفاتورة", icon: <IcoPrint className="h-3.5 w-3.5" /> },
+  { id: "login", label: "شاشة الدخول", icon: <IcoLock className="h-3.5 w-3.5" /> },
+  { id: "menu", label: "القائمة والحركة", icon: <IcoMenu className="h-3.5 w-3.5" /> },
   { id: "visibility", label: "إخفاء العناصر", icon: <IcoX className="h-3.5 w-3.5" /> },
 ];
 
@@ -114,6 +123,7 @@ export function SettingsScreen({
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const loginBgRef = useRef<HTMLInputElement | null>(null);
   const isOwner = user.role === "owner";
 
   const patch = useCallback(
@@ -193,6 +203,18 @@ export function SettingsScreen({
 
   const togglePart = (id: UiPartId) =>
     patch({ ui: { ...form.ui, [id]: form.ui[id] === false } });
+
+  const toggleLoginPart = (id: LoginPartId) =>
+    patch({ loginParts: { ...form.loginParts, [id]: form.loginParts[id] === false } });
+
+  const pickLoginBg = (file: File) => {
+    if (!file.type.startsWith("image/")) return notify("err", "الملف المختار ليس صورة");
+    if (file.size > 800 * 1024) return notify("err", "حجم الصورة أكبر من 800 كيلوبايت");
+    const reader = new FileReader();
+    reader.onload = () => patch({ loginBgImage: String(reader.result ?? ""), loginBg: "image" });
+    reader.onerror = () => notify("err", "تعذر قراءة الصورة");
+    reader.readAsDataURL(file);
+  };
 
   const theme = themeOf(form.theme);
   const font = fontOf(form.font);
@@ -512,6 +534,221 @@ export function SettingsScreen({
                   <Field label="نص الرسالة">
                     <input value={form.invoiceFooter} onChange={(e) => patch({ invoiceFooter: e.target.value })} className={inputCls} />
                   </Field>
+                </div>
+              </Panel>
+            </>
+          )}
+
+          {/* ==================== شاشة الدخول ==================== */}
+          {tab === "login" && (
+            <>
+              <Panel title="نصوص شاشة الدخول" hint="تظهر على الشاشة الأولى قبل تسجيل الدخول">
+                <div className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2">
+                  <Field label="اسم البرنامج" className="sm:col-span-2">
+                    <input
+                      value={form.loginTitle}
+                      onChange={(e) => patch({ loginTitle: e.target.value })}
+                      className={inputCls}
+                      placeholder="CASH YOU · POS"
+                    />
+                  </Field>
+                  <Field label="العنوان التعريفي" className="sm:col-span-2">
+                    <input
+                      value={form.loginTagline}
+                      onChange={(e) => patch({ loginTagline: e.target.value })}
+                      className={inputCls}
+                      placeholder="نظام نقاط البيع المتكامل"
+                    />
+                  </Field>
+                  <Field label="رسالة الترحيب" className="sm:col-span-2">
+                    <textarea
+                      value={form.loginMessage}
+                      onChange={(e) => patch({ loginMessage: e.target.value })}
+                      rows={2}
+                      className={`${inputCls} h-auto resize-none py-1.5`}
+                    />
+                  </Field>
+                </div>
+              </Panel>
+
+              <Panel title="خلفية شاشة الدخول">
+                <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3">
+                  {LOGIN_BGS.map((b) => (
+                    <PickCard
+                      key={b.id}
+                      active={form.loginBg === b.id}
+                      title={b.name}
+                      onClick={() => patch({ loginBg: b.id })}
+                    >
+                      <span className="mx-auto block h-8 w-full overflow-hidden rounded-md border border-white/10">
+                        {b.id === "image" && form.loginBgImage ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={form.loginBgImage} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <span
+                            className="block h-full w-full"
+                            style={{
+                              background:
+                                b.id === "mesh"
+                                  ? "linear-gradient(135deg,#0f172a,#1e293b 60%,#334155)"
+                                  : b.id === "aurora"
+                                    ? "linear-gradient(135deg,#0891b2,#8b5cf6 60%,#0f172a)"
+                                    : b.id === "gradient"
+                                      ? `linear-gradient(135deg,${form.loginBgColor},#0f172a)`
+                                      : b.id === "solid"
+                                        ? form.loginBgColor
+                                        : "repeating-linear-gradient(45deg,#1e293b,#1e293b 6px,#334155 6px,#334155 12px)",
+                            }}
+                          />
+                        )}
+                      </span>
+                    </PickCard>
+                  ))}
+                </div>
+                {form.loginBg === "solid" && (
+                  <div className="px-3 pb-3">
+                    <Field label="لون الخلفية">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={form.loginBgColor}
+                          onChange={(e) => patch({ loginBgColor: e.target.value })}
+                          className="h-9 w-14 cursor-pointer rounded border border-line bg-white p-0.5"
+                          aria-label="لون الخلفية"
+                        />
+                        <input
+                          value={form.loginBgColor}
+                          onChange={(e) => patch({ loginBgColor: e.target.value })}
+                          dir="ltr"
+                          className={`${inputCls} flex-1 font-mono text-[11px]`}
+                        />
+                      </div>
+                    </Field>
+                  </div>
+                )}
+                {form.loginBg === "image" && (
+                  <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
+                    <button onClick={() => loginBgRef.current?.click()} className={`${btnCls} bg-ink-800 text-white`}>
+                      اختيار صورة خلفية
+                    </button>
+                    {form.loginBgImage && (
+                      <button
+                        onClick={() => patch({ loginBgImage: "", loginBg: "mesh" })}
+                        className={`${btnCls} flex items-center gap-1.5 bg-cash-red text-white`}
+                      >
+                        <IcoTrash className="h-3.5 w-3.5" />
+                        حذف
+                      </button>
+                    )}
+                    <input
+                      ref={loginBgRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) pickLoginBg(f);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                  </div>
+                )}
+              </Panel>
+
+              <Panel title="إظهار/إخفاء عناصر شاشة الدخول" hint={`${Object.values(form.loginParts).filter(Boolean).length} / ${LOGIN_PARTS.length} ظاهر`}>
+                <div className="grid grid-cols-1 gap-1.5 p-3 sm:grid-cols-2">
+                  {LOGIN_PARTS.map((p) => (
+                    <Toggle
+                      key={p.id}
+                      checked={form.loginParts[p.id] !== false}
+                      onChange={() => toggleLoginPart(p.id)}
+                      label={p.name}
+                      hint={p.hint}
+                    />
+                  ))}
+                </div>
+              </Panel>
+            </>
+          )}
+
+          {/* ==================== القائمة والحركة ==================== */}
+          {tab === "menu" && (
+            <>
+              <Panel title="ألوان القائمة المنسدلة" hint="القائمة التي تفتح من زر ☰ بجانب الرئيسية">
+                <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3">
+                  {MENU_PALETTES.filter((p) => p.id !== "custom").map((p) => (
+                    <PickCard
+                      key={p.id}
+                      active={form.menuPalette === p.id}
+                      title={p.name}
+                      onClick={() => patch({ menuPalette: p.id })}
+                    >
+                      <span
+                        className="mx-auto block w-full rounded-md px-1.5 py-1 text-center text-[9px] font-black"
+                        style={{ background: p.bg, color: p.text }}
+                      >
+                        وحدة تجريبية
+                      </span>
+                    </PickCard>
+                  ))}
+                </div>
+              </Panel>
+
+              <Panel title="ألوان حرة" hint="اختر لون القائمة ولون الكلام بنفسك">
+                <div className="space-y-2 p-3">
+                  <Toggle
+                    checked={form.menuPalette === "custom"}
+                    onChange={(v) => patch({ menuPalette: v ? "custom" : "dark" })}
+                    label="استخدام ألوان مخصصة"
+                    hint="يتجاوز القوالب الجاهزة أعلاه"
+                  />
+                  <div className={`grid grid-cols-1 gap-2 sm:grid-cols-3 ${form.menuPalette === "custom" ? "" : "opacity-50"}`}>
+                    {([
+                      { k: "menuBg" as const, label: "لون القائمة" },
+                      { k: "menuText" as const, label: "لون الكلام" },
+                      { k: "menuAccent" as const, label: "لون التمييز" },
+                    ]).map((c) => (
+                      <Field key={c.k} label={c.label}>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="color"
+                            value={form[c.k]}
+                            onChange={(e) => patch({ [c.k]: e.target.value, menuPalette: "custom" })}
+                            className="h-9 w-12 shrink-0 cursor-pointer rounded border border-line bg-white p-0.5"
+                            aria-label={c.label}
+                          />
+                          <input
+                            value={form[c.k]}
+                            onChange={(e) => patch({ [c.k]: e.target.value, menuPalette: "custom" })}
+                            dir="ltr"
+                            className={`${inputCls} font-mono text-[10.5px]`}
+                          />
+                        </div>
+                      </Field>
+                    ))}
+                  </div>
+                  <Toggle
+                    checked={form.menuShowLabels}
+                    onChange={(v) => patch({ menuShowLabels: v })}
+                    label="إظهار أسماء الوحدات بجانب الأيقونات"
+                    hint="إيقافه يعرض أيقونات فقط"
+                  />
+                </div>
+              </Panel>
+
+              <Panel title="حركة انتقال الصفحات" hint="تأثير عند فتح أي صفحة جديدة">
+                <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-4">
+                  {PAGE_MOTIONS.map((m) => (
+                    <PickCard
+                      key={m.id}
+                      active={form.pageMotion === m.id}
+                      title={m.name}
+                      hint={m.hint}
+                      onClick={() => patch({ pageMotion: m.id })}
+                    >
+                      <span className="mx-auto mt-1 block h-6 w-10 rounded border-2 border-ink-700 bg-paper-2" />
+                    </PickCard>
+                  ))}
                 </div>
               </Panel>
             </>

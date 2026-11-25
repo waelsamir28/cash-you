@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { IcoLogo } from "@/components/icons";
 import { TRIAL_DAYS, TRIAL_LIMITS } from "@/lib/trial";
+import { DEFAULT_SETTINGS, mergeSettings, showLogin, type ShopSettings } from "@/lib/settings";
 
 export type AuthUser = { id: number; username: string; fullName: string; role: "owner" | "cashier" };
 
@@ -10,11 +11,30 @@ type Props = {
   /** إن لم يوجد أي مستخدم بعد، تُفتح شاشة إنشاء حساب المالك. */
   needSetup: boolean;
   onAuthenticated: (user: AuthUser) => void;
+  /** إعدادات المحل — للتحكم في شكل شاشة الدخول */
+  settings?: ShopSettings;
 };
 
 type Tab = "login" | "register";
 
-export function AuthScreen({ needSetup, onAuthenticated }: Props) {
+export function AuthScreen({ needSetup, onAuthenticated, settings: rawSettings }: Props) {
+  /* شاشة الدخول تظهر قبل تحميل البيانات، فنجلب الإعدادات مباشرة */
+  const [remote, setRemote] = useState<ShopSettings | null>(rawSettings ?? null);
+  useEffect(() => {
+    if (rawSettings) return;
+    let alive = true;
+    void fetch("/api/settings", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j: { settings?: ShopSettings }) => {
+        if (alive && j.settings) setRemote(j.settings);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [rawSettings]);
+
+  const s = mergeSettings(remote ?? DEFAULT_SETTINGS);
   /* الحالة الافتراضية تُحسب مرة واحدة عند التحميل (لا حاجة لمزامنة في useEffect) */
   const [tab, setTab] = useState<Tab>(needSetup ? "register" : "login");
   const [fullName, setFullName] = useState("");
@@ -66,26 +86,61 @@ export function AuthScreen({ needSetup, onAuthenticated }: Props) {
     "h-11 w-full rounded-xl border border-white/10 bg-ink-950/70 px-3 text-[13px] font-semibold text-white outline-none transition placeholder:text-slate-500 focus:border-amber-brand focus:ring-2 focus:ring-amber-brand/25";
 
   return (
-    <main className="relative min-h-[100dvh] w-full overflow-hidden cy-mesh cy-grain grid place-items-center p-4" dir="rtl">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 cy-aurora" />
+    <main
+      className={`relative min-h-[100dvh] w-full overflow-hidden grid place-items-center p-4 ${
+        s.loginBg === "mesh"
+          ? "cy-mesh cy-grain"
+          : s.loginBg === "aurora"
+            ? "cy-login-aurora cy-grain"
+            : ""
+      }`}
+      dir="rtl"
+      style={
+        s.loginBg === "solid"
+          ? { background: s.loginBgColor }
+          : s.loginBg === "image" && s.loginBgImage
+            ? { backgroundImage: `url(${s.loginBgImage})`, backgroundSize: "cover", backgroundPosition: "center" }
+            : s.loginBg === "gradient"
+              ? { background: `linear-gradient(135deg, ${s.loginBgColor} 0%, #0f172a 55%, #020617 100%)` }
+              : undefined
+      }
+    >
+      {(s.loginBg === "image" || s.loginBg === "gradient") && (
+        <div className="pointer-events-none absolute inset-0 bg-ink-950/55" />
+      )}
+      {showLogin(s, "bgGlow") && <div className="pointer-events-none absolute inset-x-0 top-0 h-1 cy-aurora" />}
 
       <section className="relative grid w-full max-w-4xl overflow-hidden rounded-[26px] border border-white/15 bg-white/[0.06] shadow-[0_40px_120px_-40px_rgba(0,0,0,.85)] backdrop-blur-xl lg:grid-cols-[1.05fr_1fr]">
         {/* ---------- جانب الهوية ---------- */}
         <div className="relative hidden flex-col justify-between gap-8 p-8 lg:flex">
-          <div className="pointer-events-none absolute -top-20 -right-16 h-56 w-56 rounded-full bg-cash-cyan/15 blur-3xl" />
-          <div className="pointer-events-none absolute bottom-0 -left-16 h-56 w-56 rounded-full bg-cash-violet/15 blur-3xl" />
-          <div className="relative">
-            <IcoLogo className="h-16 w-16 rounded-2xl" />
-            <p className="mt-5 text-[11px] font-black tracking-[0.3em] text-cash-cyan">CASH YOU · POS</p>
-            <h1 className="mt-2 text-[28px] font-black leading-snug text-white">
-              نظام المبيعات <br /> ونقاط البيع
-            </h1>
-            <p className="mt-3 max-w-sm text-[13px] font-semibold leading-7 text-slate-300">
-              سجّل حسابك لتشغيل النسخة التجريبية، أو ادخل بحسابك الحالي. كل بياناتك محفوظة آمنة في قاعدة البيانات.
-            </p>
+          {showLogin(s, "bgGlow") && (
+            <>
+              <div className="pointer-events-none absolute -top-20 -right-16 h-56 w-56 rounded-full bg-cash-cyan/15 blur-3xl" />
+              <div className="pointer-events-none absolute bottom-0 -left-16 h-56 w-56 rounded-full bg-cash-violet/15 blur-3xl" />
+            </>
+          )}
+          <div className="relative text-center">
+            {showLogin(s, "logo") &&
+              (s.shopLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={s.shopLogo} alt={s.loginTitle} className="mx-auto h-16 w-16 rounded-2xl object-contain" />
+              ) : (
+                <IcoLogo className="mx-auto h-16 w-16 rounded-2xl" />
+              ))}
+            {showLogin(s, "brand") && (
+              <p className="mt-5 text-[11px] font-black tracking-[0.3em] text-cash-cyan">{s.loginTitle}</p>
+            )}
+            {showLogin(s, "tagline") && (
+              <h1 className="mt-2 text-[28px] font-black leading-snug text-white">{s.loginTagline}</h1>
+            )}
+            {showLogin(s, "welcomeMessage") && (
+              <p className="mx-auto mt-3 max-w-sm text-[13px] font-semibold leading-7 text-slate-300">
+                {s.loginMessage}
+              </p>
+            )}
           </div>
 
-          <div className="relative space-y-3 rounded-2xl border border-white/10 bg-ink-950/45 p-4">
+          {showLogin(s, "trialInfo") && <div className="relative space-y-3 rounded-2xl border border-white/10 bg-ink-950/45 p-4">
             <div className="flex items-center justify-between text-[12px] font-bold text-slate-300">
               <span>الفترة التجريبية</span>
               <span className="rounded-lg bg-amber-brand/15 px-2 py-1 font-black text-amber-brand">{TRIAL_DAYS} يوماً</span>
@@ -99,15 +154,22 @@ export function AuthScreen({ needSetup, onAuthenticated }: Props) {
             <p className="text-[10.5px] font-semibold leading-5 text-slate-500">
               بعد انتهاء التجربة يلزم تفعيل النسخة الكاملة عبر الدعم الفني.
             </p>
-          </div>
+          </div>}
 
-          <p className="relative text-[10px] font-bold text-slate-600" dir="ltr">CASH YOU · POS 1.0</p>
+          {showLogin(s, "footerNote") && (
+            <p className="relative text-[10px] font-bold text-slate-600" dir="ltr">CASH YOU · POS 1.0</p>
+          )}
         </div>
 
         {/* ---------- جانب النموذج ---------- */}
         <div className="relative border-white/10 bg-ink-900/70 p-6 sm:p-8 lg:border-r">
           <div className="flex items-center gap-3 lg:hidden">
-            <IcoLogo className="h-11 w-11 rounded-xl" />
+            {s.shopLogo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={s.shopLogo} alt="" className="h-11 w-11 rounded-xl object-contain" />
+            ) : (
+              <IcoLogo className="h-11 w-11 rounded-xl" />
+            )}
             <div>
               <p className="text-[10px] font-black tracking-[0.25em] text-cash-cyan">CASH YOU</p>
               <p className="text-[15px] font-black text-white">كاش يو — نقاط البيع</p>

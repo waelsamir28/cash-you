@@ -17,7 +17,7 @@ import {
   sfxScan,
   sfxToggle,
 } from "@/lib/sound";
-import { IconRail, StatusBar, TabStrip, TitleBar, type Tab } from "@/components/Chrome";
+import { StatusBar, TabStrip, TitleBar, type Tab } from "@/components/Chrome";
 import { PosScreen, type PosActions } from "@/components/PosScreen";
 import { HomeScreen } from "@/components/HomeScreen";
 import { ProductsScreen, PartiesScreen } from "@/components/ManagementScreens";
@@ -26,8 +26,11 @@ import { ExpensesScreen, InstallmentsScreen, ReportsScreen, TreasuryScreen } fro
 import { InstallmentDialog } from "@/components/InstallmentDialog";
 import { UsersScreen } from "@/components/UsersScreen";
 import { SettingsScreen } from "@/components/SettingsScreen";
+
+import { IcoX } from "@/components/icons";
 import { appCssVars, fontOf, mergeSettings, show, themeOf, type ShopSettings } from "@/lib/settings";
 import { ActivationScreen } from "@/components/ActivationScreen";
+import { DatabaseScreen } from "@/components/DatabaseScreen";
 import { readOfflineBootstrap, saveOfflineBootstrap } from "@/lib/offline-cache";
 import {
   CloseConfirm,
@@ -36,10 +39,10 @@ import {
   InvoiceDetail,
   MinimizedBar,
   OverpayModal,
+  QuickProductModal,
   PromptDialog,
   ReceiptModal,
   ShutdownScreen,
-  SourceScreen,
   Toasts,
   WelcomeToast,
   type ReceiptData,
@@ -55,6 +58,10 @@ type Overlay =
   | { kind: "receipt"; receipt: ReceiptData }
   /** العميل دفع أكثر من الفاتورة: تسليم الباقي أو تنزيله من الحساب */
   | { kind: "overpay"; receipt: ReceiptData; previousBalance: number }
+  /** كود ممسوح غير موجود في المخزن: نافذة إضافة صنف سريع */
+  | { kind: "quickProduct"; code: string }
+  /** صفحة ربط قاعدة البيانات */
+  | { kind: "database" }
   | { kind: "invoice"; invoice: InvoiceRow }
   | { kind: "installment"; print: boolean };
 
@@ -156,25 +163,16 @@ export default function CashYouApp({
     return id;
   }, [data.nextInvoiceNumber, tabs]);
 
-  const openSourceTab = useCallback(() => {
-    setTabs((prev) =>
-      prev.some((t) => t.id === "source")
-        ? prev
-        : [...prev, { id: "source", kind: "source", title: "كود المصدر VB.NET" }],
-    );
-    setActiveId("source");
-    sfxKey();
-  }, []);
-
   const openModule = useCallback((kind: ModuleKind, title: string) => {
     if (kind === "invoice") { openInvoiceTab(); return; }
     if (kind === "home") { setActiveId("home"); sfxKey(); return; }
-    if (kind === "source") { openSourceTab(); return; }
+    /* صفحة كود VB.NET مخفية من الواجهة نهائياً */
+    if (kind === "source") return;
     const id = `module-${kind}-${title}`;
     setTabs((prev) => prev.some((t) => t.id === id) ? prev : [...prev, { id, kind, title }]);
     setActiveId(id);
     sfxKey();
-  }, [openInvoiceTab, openSourceTab]);
+  }, [openInvoiceTab]);
 
   const refreshData = useCallback(async () => {
     try {
@@ -274,14 +272,15 @@ export default function CashYouApp({
         data.products.find((p) => p.name.includes(term));
       if (!hit) {
         sfxError();
-        toast("err", `لا يوجد صنف بالكود «${term}»`);
+        /* كود غير مسجل: نافذة إضافة صنف سريع في منتصف الشاشة */
+        setOverlay({ kind: "quickProduct", code: term });
         return false;
       }
       sfxScan();
       addProduct(hit);
       return true;
     },
-    [data.products, addProduct, toast],
+    [data.products, addProduct],
   );
 
   const updateLine = useCallback(
@@ -690,15 +689,16 @@ export default function CashYouApp({
         }}
         onClose={closeTab}
         onNew={openInvoiceTab}
+        activeKind={activeTab?.kind}
+        onPickModule={(kind, label) => openModule(kind, label)}
+        menuLabels={settings.menuShowLabels}
+        showMenu={show(settings, "rail")}
       />}
 
       <div className="flex-1 min-h-0 flex">
-        {show(settings, "rail") && <IconRail
-          activeKind={activeTab?.kind ?? "home"}
-          onRail={(kind, label) => openModule(kind, label)}
-        />}
 
         <main className="flex-1 min-w-0 flex flex-col">
+          <div key={activeId} className="cy-page flex-1 min-h-0 flex flex-col" data-motion={settings.pageMotion}>
           {activeTab?.kind === "home" && (
             <HomeScreen
               data={data}
@@ -708,7 +708,6 @@ export default function CashYouApp({
             />
           )}
 
-          {activeTab?.kind === "source" && <SourceScreen />}
           {activeTab?.kind === "products" && <ProductsScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "parties" && <PartiesScreen key={activeTab.id} initialKind={activeTab.title === "الموردون" ? "supplier" : "customer"} data={data} refresh={refreshData} notify={toast} />}
           {(activeTab?.kind === "purchase" || activeTab?.kind === "salesReturn" || activeTab?.kind === "purchaseReturn") && (
@@ -756,6 +755,7 @@ export default function CashYouApp({
               settings={settings}
             />
           )}
+          </div>
         </main>
       </div>
 
@@ -768,6 +768,7 @@ export default function CashYouApp({
         user={user}
         trial={trial}
         onOpenActivation={() => openModule("activation", "تفعيل النسخة")}
+        onOpenDatabase={() => setOverlay({ kind: "database" })}
         showBadge={show(settings, "statusBadge")}
       />}
 
@@ -815,6 +816,33 @@ export default function CashYouApp({
           onSubmit={(cfg) => {
             setOverlay({ kind: "none" });
             void save(overlay.kind === "installment" ? overlay.print : false, cfg);
+          }}
+        />
+      )}
+
+      {overlay.kind === "database" && (
+        <div className="fixed inset-0 z-[150] overflow-hidden bg-paper" dir="rtl">
+          <button
+            onClick={() => setOverlay({ kind: "none" })}
+            className="absolute left-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-lg bg-ink-800 text-white shadow hover:bg-ink-900"
+            aria-label="إغلاق"
+          >
+            <IcoX className="h-4 w-4" />
+          </button>
+          <DatabaseScreen notify={toast} />
+        </div>
+      )}
+
+      {overlay.kind === "quickProduct" && (
+        <QuickProductModal
+          initialCode={overlay.code}
+          categories={data.categories}
+          onClose={() => setOverlay({ kind: "none" })}
+          onSaved={(product) => {
+            setOverlay({ kind: "none" });
+            void refreshData();
+            addProduct(product);
+            toast("ok", `تمت إضافة «${product.name}» للفاتورة`);
           }}
         />
       )}

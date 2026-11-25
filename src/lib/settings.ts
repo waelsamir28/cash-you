@@ -219,6 +219,86 @@ export const receiptStyleOf = (id: string | undefined | null): ReceiptStyle =>
 
 export type MotionId = "none" | "lift" | "press" | "glow" | "bounce" | "shine";
 
+/* ============================ حركة انتقال الصفحات ============================ */
+
+export type PageMotionId = "slide" | "fade" | "zoom" | "none";
+
+export type PageMotion = { id: PageMotionId; name: string; hint: string };
+
+export const PAGE_MOTIONS: PageMotion[] = [
+  { id: "slide", name: "انزلاق", hint: "الأكثر سلاسة — يدخل من الجانب" },
+  { id: "fade", name: "تلاشي", hint: "الأخف والأسرع" },
+  { id: "zoom", name: "تكبير", hint: "نمو خفيف من المركز" },
+  { id: "none", name: "بدون", hint: "بدون أي حركة" },
+];
+
+export const pageMotionOf = (id: string | undefined | null): PageMotion =>
+  PAGE_MOTIONS.find((m) => m.id === id) ?? PAGE_MOTIONS[0];
+
+/* ============================ ألوان القائمة المنسدلة ============================ */
+
+export type MenuPaletteId = "dark" | "light" | "amber" | "emerald" | "navy" | "custom";
+
+export type MenuPalette = {
+  id: MenuPaletteId;
+  name: string;
+  /** خلفية القائمة */
+  bg: string;
+  /** لون الكلام */
+  text: string;
+  /** لون التمييز عند المرور */
+  hover: string;
+  /** لون الأيقونة النشطة */
+  accent: string;
+};
+
+export const MENU_PALETTES: MenuPalette[] = [
+  { id: "dark", name: "داكن كلاسيكي", bg: "#1e293b", text: "#ffffff", hover: "#334155", accent: "#f59e0b" },
+  { id: "light", name: "فاتح ناصع", bg: "#ffffff", text: "#0f172a", hover: "#f1f5f9", accent: "#f59e0b" },
+  { id: "amber", name: "عنبري دافئ", bg: "#78350f", text: "#fef3c7", hover: "#92400e", accent: "#fbbf24" },
+  { id: "emerald", name: "زمردي", bg: "#064e3b", text: "#d1fae5", hover: "#065f46", accent: "#34d399" },
+  { id: "navy", name: "كحلي عميق", bg: "#0c1a38", text: "#dbeafe", hover: "#152c56", accent: "#60a5fa" },
+  { id: "custom", name: "ألوان حرة", bg: "#1e293b", text: "#ffffff", hover: "#334155", accent: "#f59e0b" },
+];
+
+export const menuPaletteOf = (id: string | undefined | null): MenuPalette =>
+  MENU_PALETTES.find((m) => m.id === id) ?? MENU_PALETTES[0];
+
+/* ============================ شاشة الدخول ============================ */
+
+export type LoginPartId =
+  | "brand"
+  | "logo"
+  | "tagline"
+  | "welcomeMessage"
+  | "features"
+  | "trialInfo"
+  | "bgGlow"
+  | "footerNote";
+
+export type LoginPart = { id: LoginPartId; name: string; hint: string };
+
+export const LOGIN_PARTS: LoginPart[] = [
+  { id: "logo", name: "الشعار", hint: "شعار البرنامج في جانب الهوية" },
+  { id: "brand", name: "اسم البرنامج", hint: "CASH YOU · POS" },
+  { id: "tagline", name: "العنوان التعريفي", hint: "نظام نقاط البيع المتكامل" },
+  { id: "welcomeMessage", name: "رسالة الترحيب", hint: "النص أسفل العنوان" },
+  { id: "features", name: "قائمة الميزات", hint: "الفاصلة الجانبية للميزات" },
+  { id: "trialInfo", name: "معلومات النسخة التجريبية", hint: "١٥ يوم وحدود الاستخدام" },
+  { id: "bgGlow", name: "تأثير الخلفية المضيء", hint: "الدوائر الملوّنة الخلفية" },
+  { id: "footerNote", name: "سطر أسفل الشاشة", hint: "حقوق الملكية" },
+];
+
+export type LoginBgId = "mesh" | "aurora" | "solid" | "gradient" | "image";
+
+export const LOGIN_BGS: { id: LoginBgId; name: string }[] = [
+  { id: "mesh", name: "شبكي متدرّج" },
+  { id: "aurora", name: "شفق ملوّن" },
+  { id: "gradient", name: "تدرّج لوني" },
+  { id: "solid", name: "لون واحد" },
+  { id: "image", name: "صورة مرفوعة" },
+];
+
 export type MotionPreset = { id: MotionId; name: string; hint: string };
 
 export const MOTIONS: MotionPreset[] = [
@@ -257,7 +337,7 @@ export const UI_PARTS: UiPart[] = [
   { id: "categoryBar", name: "قائمة التصنيفات", hint: "القائمة المنسدلة أعلى الجدول" },
   { id: "productGrid", name: "شبكة كروت الأصناف", hint: "القائمة السريعة بجانب الجدول" },
   { id: "tableFooter", name: "إجمالي أسفل الجدول", hint: "عدد الأسطر وإجمالي الكميات" },
-  { id: "rail", name: "شريط الأيقونات الجانبي", hint: "أزرار الوحدات على اليمين" },
+  { id: "rail", name: "زر قائمة الوحدات", hint: "زر ☰ بجانب تبويب «الرئيسية»" },
   { id: "tabStrip", name: "شريط التبويبات", hint: "تبويبات الفواتير المفتوحة" },
   { id: "footer", name: "الفوتر السفلي", hint: "معلومات المستخدم والتاريخ" },
   { id: "statusBadge", name: "شارة حالة النظام والتفعيل", hint: "«النظام متصل» وحالة الترخيص" },
@@ -279,6 +359,11 @@ export const FN_BUTTONS_DEFAULT: FnButton[] = [
   { id: "savePrint", label: "حفظ وطباعة", visible: true, shortcut: "F10" },
   { id: "save", label: "حفظ", visible: true, shortcut: "F5" },
 ];
+
+/** كل عناصر شاشة الدخول ظاهرة افتراضياً */
+export function defaultLoginParts(): Record<LoginPartId, boolean> {
+  return LOGIN_PARTS.reduce((acc, p) => ({ ...acc, [p.id]: true }), {} as Record<LoginPartId, boolean>);
+}
 
 export type InvoicePaper = "80mm" | "58mm" | "a5";
 
@@ -315,6 +400,33 @@ export type ShopSettings = {
   fnButtons: FnButton[];
   /** إظهار شاشة الترحيب عند تسجيل الدخول */
   welcomeEnabled: boolean;
+
+  /* ---------- حركة انتقال الصفحات ---------- */
+  pageMotion: PageMotionId;
+
+  /* ---------- القائمة المنسدلة ---------- */
+  menuPalette: MenuPaletteId;
+  menuBg: string;
+  menuText: string;
+  menuAccent: string;
+  /** إظهار الأسماء بجانب الأيقونات في القائمة */
+  menuShowLabels: boolean;
+
+  /* ---------- شاشة الدخول ---------- */
+  /** نص اسم البرنامج على شاشة الدخول */
+  loginTitle: string;
+  /** العنوان التعريفي أسفل الاسم */
+  loginTagline: string;
+  /** رسالة الترحيب */
+  loginMessage: string;
+  /** خلفية شاشة الدخول */
+  loginBg: LoginBgId;
+  /** صورة الخلفية (data-URL) حين يكون loginBg = image */
+  loginBgImage: string;
+  /** لون الخلفية حين يكون loginBg = solid */
+  loginBgColor: string;
+  /** عناصر شاشة الدخول الظاهرة */
+  loginParts: Record<LoginPartId, boolean>;
 };
 
 export const DEFAULT_SETTINGS: ShopSettings = {
@@ -335,7 +447,24 @@ export const DEFAULT_SETTINGS: ShopSettings = {
   ui: defaultUi(),
   fnButtons: FN_BUTTONS_DEFAULT,
   welcomeEnabled: true,
+
+  pageMotion: "slide",
+
+  menuPalette: "dark",
+  menuBg: "#1e293b",
+  menuText: "#ffffff",
+  menuAccent: "#f59e0b",
+  menuShowLabels: true,
+
+  loginTitle: "CASH YOU · POS",
+  loginTagline: "نظام نقاط البيع المتكامل",
+  loginMessage: "أدر مبيعاتك ومخزونك وحساباتك من شاشة واحدة — بسرعة ودقة.",
+  loginBg: "mesh",
+  loginBgImage: "",
+  loginBgColor: "#0b1220",
+  loginParts: defaultLoginParts(),
 };
+
 
 /** دمج الإعدادات القادمة من الخادم مع الافتراضية (تحمّل القيم الناقصة) */
 export function mergeSettings(raw: unknown): ShopSettings {
@@ -356,6 +485,12 @@ export function mergeSettings(raw: unknown): ShopSettings {
     return acc;
   }, {} as Record<UiPartId, boolean>);
   const size = Number(r.fontSize);
+  const loginIn = (r.loginParts ?? {}) as Partial<Record<LoginPartId, boolean>>;
+  const loginBase = defaultLoginParts();
+  const loginParts = LOGIN_PARTS.reduce((acc, p) => {
+    acc[p.id] = typeof loginIn[p.id] === "boolean" ? (loginIn[p.id] as boolean) : loginBase[p.id];
+    return acc;
+  }, {} as Record<LoginPartId, boolean>);
   return {
     ...DEFAULT_SETTINGS,
     ...r,
@@ -376,6 +511,22 @@ export function mergeSettings(raw: unknown): ShopSettings {
     ui,
     fnButtons: buttons,
     welcomeEnabled: r.welcomeEnabled !== false,
+
+    pageMotion: pageMotionOf(r.pageMotion).id,
+
+    menuPalette: menuPaletteOf(r.menuPalette).id,
+    menuBg: r.menuBg ?? DEFAULT_SETTINGS.menuBg,
+    menuText: r.menuText ?? DEFAULT_SETTINGS.menuText,
+    menuAccent: r.menuAccent ?? DEFAULT_SETTINGS.menuAccent,
+    menuShowLabels: r.menuShowLabels !== false,
+
+    loginTitle: r.loginTitle ?? DEFAULT_SETTINGS.loginTitle,
+    loginTagline: r.loginTagline ?? DEFAULT_SETTINGS.loginTagline,
+    loginMessage: r.loginMessage ?? DEFAULT_SETTINGS.loginMessage,
+    loginBg: LOGIN_BGS.some((b) => b.id === r.loginBg) ? (r.loginBg as LoginBgId) : DEFAULT_SETTINGS.loginBg,
+    loginBgImage: r.loginBgImage ?? "",
+    loginBgColor: r.loginBgColor || DEFAULT_SETTINGS.loginBgColor,
+    loginParts,
   };
 }
 
@@ -414,10 +565,31 @@ export function appearanceCssVars(s: ShopSettings): Record<string, string> {
   };
 }
 
+/** لون القائمة الفعلي: قالب جاهز أو ألوان حرة */
+export function menuColors(s: ShopSettings): { bg: string; text: string; accent: string } {
+  if (s.menuPalette === "custom") {
+    return { bg: s.menuBg, text: s.menuText, accent: s.menuAccent };
+  }
+  const p = menuPaletteOf(s.menuPalette);
+  return { bg: p.bg, text: p.text, accent: p.accent };
+}
+
 /** كل متغيرات المظهر في مكان واحد — تُمرَّر لـ style على جذر التطبيق */
 export function appCssVars(s: ShopSettings): Record<string, string> {
-  return { ...themeCssVars(themeOf(s.theme)), ...appearanceCssVars(s), "--cy-motion": s.motion };
+  const menu = menuColors(s);
+  return {
+    ...themeCssVars(themeOf(s.theme)),
+    ...appearanceCssVars(s),
+    "--cy-motion": s.motion,
+    "--cy-menu-bg": menu.bg,
+    "--cy-menu-text": menu.text,
+    "--cy-menu-accent": menu.accent,
+  };
 }
+
+/** هل عنصر شاشة الدخول ظاهر؟ */
+export const showLogin = (s: ShopSettings, part: LoginPartId): boolean =>
+  s.loginParts?.[part] !== false;
 
 /** هل العنصر ظاهر؟ (مع افتراض الظهور عند غياب القيمة) */
 export const show = (s: ShopSettings, part: UiPartId): boolean => s.ui?.[part] !== false;

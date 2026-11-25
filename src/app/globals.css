@@ -172,6 +172,14 @@
     linear-gradient(180deg, #0f172a 0%, #111c31 55%, #0b1220 100%);
 }
 
+.cy-login-aurora {
+  background-image:
+    radial-gradient(760px 420px at 18% 12%, rgba(139, 92, 246, 0.3), transparent 60%),
+    radial-gradient(820px 460px at 82% 22%, rgba(34, 211, 238, 0.26), transparent 62%),
+    radial-gradient(900px 520px at 52% 108%, rgba(245, 158, 11, 0.22), transparent 66%),
+    linear-gradient(200deg, #0b1220 0%, #131a35 48%, #05080f 100%);
+}
+
 .cy-grain::after {
   content: "";
   position: absolute;
@@ -486,4 +494,83 @@
 /* إخفاء العناصر التي يختار المستخدم إخفاءها */
 .cy-hidden-part {
   display: none !important;
+}
+
+/* ============================ القائمة المنسدلة ============================ */
+
+/* انسدال سلس من أعلى */
+@keyframes cy-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.cy-menu-pop {
+  animation: cy-menu-in 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: top left;
+}
+
+/* ============================ حركة انتقال الصفحات ============================ */
+
+@keyframes cy-page-slide {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes cy-page-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes cy-page-zoom {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.cy-page {
+  animation-duration: 0.19s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+}
+
+.cy-page[data-motion="slide"] {
+  animation-name: cy-page-slide;
+}
+.cy-page[data-motion="fade"] {
+  animation-name: cy-page-fade;
+  animation-duration: 0.14s;
+}
+.cy-page[data-motion="zoom"] {
+  animation-name: cy-page-zoom;
+}
+.cy-page[data-motion="none"] {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cy-page,
+  .cy-menu-pop {
+    animation: none !important;
+  }
 }

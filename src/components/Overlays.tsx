@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Bootstrap, InvoiceRow } from "@/lib/types";
+import type { Bootstrap, InvoiceRow, Product } from "@/lib/types";
 import type { Draft, Totals } from "@/lib/draft";
 import { lineTotal } from "@/lib/draft";
 import { apiFetch } from "@/lib/offline-sync";
 import { money, qtyText, shortStamp } from "@/lib/format";
 import {
+  IcoBarcode,
+  IcoBox,
   IcoCheck,
   IcoCopy,
   IcoDownload,
@@ -1206,6 +1208,244 @@ export function PrintConfirmModal({
           <button
             onClick={onCancel}
             className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-slate-200 px-2 py-2.5 text-[12.5px] font-black text-ink-800 cy-press hover:bg-slate-300"
+          >
+            <IcoX className="h-4 w-4" />
+            إلغاء
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================ إضافة صنف سريع من شاشة البيع ============================ */
+
+/**
+ * نافذة عائمة في منتصف الشاشة لإضافة صنف جديد أثناء البيع.
+ * المقاسات مضبوطة لتظهر كل الحقول بلا أي شريط تمرير.
+ */
+export function QuickProductModal({
+  initialCode,
+  categories,
+  onSaved,
+  onClose,
+}: {
+  /** الكود الممسوح الذي لم يوجد في المخزن */
+  initialCode: string;
+  categories: { id: number; name: string }[];
+  onSaved: (product: Product) => void;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState({
+    code: initialCode,
+    name: "",
+    categoryId: categories[0]?.id ?? 1,
+    unit: "قطعة",
+    cost: 0,
+    price: 0,
+    wholesalePrice: 0,
+    stock: 0,
+    minStockLimit: 5,
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const nameRef = useRef<HTMLInputElement | null>(null);
+  const set = (k: keyof typeof form, v: string | number) => setForm((f) => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    window.setTimeout(() => nameRef.current?.focus(), 80);
+  }, []);
+
+  const save = async () => {
+    if (busy) return;
+    if (!form.name.trim()) {
+      setError("اسم الصنف مطلوب");
+      nameRef.current?.focus();
+      return;
+    }
+    if (!form.code.trim()) {
+      setError("الباركود مطلوب");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const res = await apiFetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const json = (await res.json()) as { error?: string } & Record<string, unknown>;
+      if (!res.ok) throw new Error(json.error ?? "تعذر حفظ الصنف");
+      onSaved(json as unknown as Product);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "تعذر حفظ الصنف");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[150] grid place-items-center overflow-hidden p-4"
+      dir="rtl"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="absolute inset-0 bg-ink-950/70 backdrop-blur-[3px]" />
+      <div className="cy-pop relative w-full max-w-[520px] overflow-hidden rounded-2xl border border-line bg-white shadow-[0_40px_90px_-30px_rgba(2,6,23,0.9)]">
+        {/* الرأس */}
+        <div className="flex items-center gap-2 bg-gradient-to-l from-emerald-600 to-emerald-500 px-3.5 py-2.5 text-white">
+          <IcoBox className="h-4 w-4 shrink-0" />
+          <div className="flex-1 text-center">
+            <h2 className="text-[13.5px] font-black leading-tight">صنف غير موجود — أضفه الآن</h2>
+            <p className="text-[10px] font-semibold text-white/85">الكود الممسوح غير مسجّل في المخزن</p>
+          </div>
+          <button onClick={onClose} className="grid h-7 w-7 place-items-center rounded-lg bg-white/20 hover:bg-white/30" aria-label="إغلاق">
+            <IcoX className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* الحقول — مقاسات ثابتة تُظهر كل شيء بلا تمرير */}
+        <div className="grid grid-cols-2 gap-2 p-3">
+          <label className="col-span-2 block">
+            <span className="mb-0.5 block text-[10px] font-black text-slate-500">الباركود</span>
+            <div className="flex gap-1.5">
+              <input
+                value={form.code}
+                onChange={(e) => set("code", e.target.value)}
+                dir="ltr"
+                className="h-9 flex-1 rounded-lg border border-line bg-paper-2 px-2 text-center font-mono text-[12px] font-bold text-ink-900 outline-none focus:border-amber-brand focus:bg-white"
+              />
+              <button
+                type="button"
+                onClick={() => set("code", `62${Date.now().toString().slice(-9)}`)}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-amber-brand text-ink-900"
+                title="توليد باركود"
+              >
+                <IcoBarcode className="h-4 w-4" />
+              </button>
+            </div>
+          </label>
+
+          <label className="col-span-2 block">
+            <span className="mb-0.5 block text-[10px] font-black text-slate-500">اسم الصنف</span>
+            <input
+              ref={nameRef}
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void save();
+              }}
+              placeholder="مثال: قلم جاف أزرق"
+              className="h-9 w-full rounded-lg border border-line bg-paper-2 px-2 text-[12.5px] font-bold text-ink-900 outline-none focus:border-amber-brand focus:bg-white"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-0.5 block text-[10px] font-black text-slate-500">التصنيف</span>
+            <select
+              value={form.categoryId}
+              onChange={(e) => set("categoryId", Number(e.target.value))}
+              className="h-9 w-full rounded-lg border border-line bg-paper-2 px-1.5 text-[11.5px] font-bold text-ink-900 outline-none focus:border-amber-brand focus:bg-white"
+            >
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-0.5 block text-[10px] font-black text-slate-500">الوحدة</span>
+            <select
+              value={form.unit}
+              onChange={(e) => set("unit", e.target.value)}
+              className="h-9 w-full rounded-lg border border-line bg-paper-2 px-1.5 text-[11.5px] font-bold text-ink-900 outline-none focus:border-amber-brand focus:bg-white"
+            >
+              {["قطعة", "علبة", "كرتونة"].map((u) => (
+                <option key={u}>{u}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-0.5 block text-[10px] font-black text-slate-500">سعر الشراء</span>
+            <input
+              type="number"
+              min="0"
+              value={form.cost}
+              onChange={(e) => set("cost", Number(e.target.value))}
+              className="h-9 w-full rounded-lg border border-line bg-paper-2 px-2 text-center text-[12px] font-black text-ink-900 cy-num outline-none focus:border-amber-brand focus:bg-white"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-0.5 block text-[10px] font-black text-slate-500">سعر البيع قطاعي</span>
+            <input
+              type="number"
+              min="0"
+              value={form.price}
+              onChange={(e) => set("price", Number(e.target.value))}
+              className="h-9 w-full rounded-lg border-2 border-cash-green/50 bg-white px-2 text-center text-[12px] font-black text-cash-green-deep cy-num outline-none focus:border-cash-green"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-0.5 block text-[10px] font-black text-slate-500">سعر الجملة</span>
+            <input
+              type="number"
+              min="0"
+              value={form.wholesalePrice}
+              onChange={(e) => set("wholesalePrice", Number(e.target.value))}
+              className="h-9 w-full rounded-lg border border-line bg-paper-2 px-2 text-center text-[12px] font-black text-ink-900 cy-num outline-none focus:border-amber-brand focus:bg-white"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-0.5 block text-[10px] font-black text-slate-500">الرصيد الافتتاحي</span>
+            <input
+              type="number"
+              value={form.stock}
+              onChange={(e) => set("stock", Number(e.target.value))}
+              className="h-9 w-full rounded-lg border border-line bg-paper-2 px-2 text-center text-[12px] font-black text-ink-900 cy-num outline-none focus:border-amber-brand focus:bg-white"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-0.5 block text-[10px] font-black text-slate-500">حد التنبيه</span>
+            <input
+              type="number"
+              min="0"
+              value={form.minStockLimit}
+              onChange={(e) => set("minStockLimit", Number(e.target.value))}
+              className="h-9 w-full rounded-lg border border-line bg-paper-2 px-2 text-center text-[12px] font-black text-ink-900 cy-num outline-none focus:border-amber-brand focus:bg-white"
+            />
+          </label>
+        </div>
+
+        {error && (
+          <p className="mx-3 mb-2 flex items-center gap-1.5 rounded-lg border border-cash-red/40 bg-cash-red/10 px-2 py-1.5 text-[10.5px] font-bold text-cash-red">
+            <IcoWarn className="h-3.5 w-3.5 shrink-0" />
+            {error}
+          </p>
+        )}
+
+        {/* الأزرار */}
+        <div className="grid grid-cols-2 gap-2 border-t border-line bg-paper-2 px-3 py-2">
+          <button
+            onClick={() => void save()}
+            disabled={busy}
+            className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-cash-green text-[12.5px] font-black text-white cy-press hover:brightness-110 disabled:opacity-60"
+          >
+            <IcoCheck className="h-4 w-4" />
+            {busy ? "جارٍ الحفظ..." : "حفظ وإضافة للفاتورة"}
+          </button>
+          <button
+            onClick={onClose}
+            className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-[12.5px] font-black text-ink-800 cy-press hover:bg-slate-100"
           >
             <IcoX className="h-4 w-4" />
             إلغاء

@@ -11,6 +11,8 @@ import {
   IcoCart,
   IcoGear,
   IcoHome,
+  IcoDatabase,
+  IcoMenu,
   IcoLogo,
   IcoMinus,
   IcoMute,
@@ -412,11 +414,114 @@ function WinBtn({
 
 export type Tab = { id: string; kind: ModuleKind; title: string; badge?: string };
 
-const RAIL: { kind: Tab["kind"]; icon: React.ReactNode; label: string }[] = [
-  { kind: "home", icon: <IcoHome />, label: "الرئيسية" },
-  { kind: "invoice", icon: <IcoCart />, label: "فاتورة مبيعات" },
-  { kind: "source", icon: <IcoCode />, label: "كود المصدر VB.NET" },
+/* ============================ زر القائمة المنسدلة ============================ */
+
+/** كل وحدات البرنامج المتاحة من القائمة */
+export const NAV_ITEMS: { kind: ModuleKind; label: string; icon: React.ReactNode; tone: string }[] = [
+  { kind: "home", label: "الرئيسية", icon: <IcoHome />, tone: "text-amber-brand" },
+  { kind: "invoice", label: "فاتورة مبيعات", icon: <IcoCart />, tone: "text-cash-green" },
+  { kind: "products", label: "الأصناف والمخازن", icon: <IcoBox />, tone: "text-cash-cyan" },
+  { kind: "purchase", label: "فاتورة مشتريات", icon: <IcoCart />, tone: "text-cash-cyan" },
+  { kind: "parties", label: "العملاء والموردون", icon: <IcoUsers />, tone: "text-cash-violet" },
+  { kind: "installments", label: "نظام التقسيط", icon: <IcoWallet />, tone: "text-fuchsia-400" },
+  { kind: "expenses", label: "المصروفات", icon: <IcoGear />, tone: "text-cash-red" },
+  { kind: "treasury", label: "الخزينة", icon: <IcoWallet />, tone: "text-emerald-400" },
+  { kind: "reports", label: "التقارير والأرباح", icon: <IcoChart />, tone: "text-cash-cyan" },
+  { kind: "users", label: "المستخدمون", icon: <IcoUsers />, tone: "text-amber-brand" },
+  { kind: "activation", label: "تفعيل النسخة", icon: <IcoCheck />, tone: "text-cash-green" },
+  { kind: "settings", label: "إعدادات البرنامج", icon: <IcoSliders />, tone: "text-amber-brand" },
 ];
+
+/**
+ * زر ☰ صغير يُعرض بجانب تبويب «الرئيسية».
+ * عند الضغط تنسدل قائمة عائمة بأسماء كل الوحدات وأيقوناتها،
+ * وتُغلق تلقائياً بالنقر خارجها أو باختيار أي بند منها.
+ */
+export function NavMenuButton({
+  activeKind,
+  onPick,
+  labels = true,
+}: {
+  activeKind: Tab["kind"];
+  onPick: (kind: ModuleKind, label: string) => void;
+  /** إظهار أسماء البنود بجانب الأيقونات */
+  labels?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  /* الإغلاق بالنقر خارج القائمة أو بمفتاح Escape */
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("touchstart", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} className="relative shrink-0">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label="قائمة الوحدات"
+        aria-expanded={open}
+        title="قائمة الوحدات"
+        className={`grid h-8 w-8 place-items-center rounded-lg border transition-colors cy-press ${
+          open
+            ? "border-[var(--cy-menu-accent)] bg-[var(--cy-menu-accent)] text-ink-900"
+            : "border-line bg-white text-ink-700 hover:border-[var(--cy-menu-accent)] hover:text-[var(--cy-menu-accent)]"
+        }`}
+      >
+        <IcoMenu className="h-4 w-4" />
+      </button>
+
+      {open && (
+        <div
+          className="cy-menu-pop absolute left-0 top-[calc(100%+6px)] z-[120] w-[236px] overflow-hidden rounded-xl border border-white/10 shadow-[0_20px_50px_-14px_rgba(2,10,30,0.75)]"
+          style={{ background: "var(--cy-menu-bg)", color: "var(--cy-menu-text)" }}
+          role="menu"
+        >
+          <div className="border-b border-white/10 px-2.5 py-1.5 text-[9.5px] font-black tracking-wide opacity-60">
+            وحدات البرنامج
+          </div>
+          <div className="max-h-[62vh] overflow-y-auto cy-scroll-dark p-1">
+            {NAV_ITEMS.map((item) => {
+              const active = activeKind === item.kind;
+              return (
+                <button
+                  key={`${item.kind}-${item.label}`}
+                  role="menuitem"
+                  onClick={() => {
+                    onPick(item.kind, item.label);
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-right transition-colors hover:bg-white/10"
+                  style={active ? { background: "var(--cy-menu-accent)", color: "#0f172a" } : undefined}
+                >
+                  <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md ${active ? "bg-black/10" : "bg-white/10"}`}>
+                    <span className={active ? "" : item.tone}>{item.icon}</span>
+                  </span>
+                  {labels && <span className="flex-1 truncate text-[11.5px] font-bold">{item.label}</span>}
+                  {active && <span className="h-1.5 w-1.5 rounded-full bg-black/40" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function TabStrip({
   tabs,
@@ -424,15 +529,30 @@ export function TabStrip({
   onSelect,
   onClose,
   onNew,
+  activeKind,
+  onPickModule,
+  menuLabels = true,
+  showMenu = true,
 }: {
   tabs: Tab[];
   activeId: string;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
   onNew: () => void;
+  activeKind?: Tab["kind"];
+  onPickModule?: (kind: ModuleKind, label: string) => void;
+  menuLabels?: boolean;
+  /** إظهار زر القائمة المنسدلة (يتحكم فيه مفتاح «rail» في الإعدادات) */
+  showMenu?: boolean;
 }) {
   return (
     <div className="shrink-0 flex items-stretch bg-paper border-b border-line" dir="rtl">
+      {/* زر القائمة المنسدلة — بجانب تبويب الرئيسية */}
+      {onPickModule && showMenu && (
+        <div className="flex items-center pr-2 pl-1 pt-0.5">
+          <NavMenuButton activeKind={activeKind ?? "home"} onPick={onPickModule} labels={menuLabels} />
+        </div>
+      )}
       <nav className="flex items-end gap-1 px-2 pt-1.5 overflow-x-auto cy-scroll flex-1 min-w-0">
         {tabs.map((t) => {
           const active = t.id === activeId;
@@ -489,88 +609,7 @@ export function TabStrip({
   );
 }
 
-export function IconRail({
-  activeKind,
-  onRail,
-}: {
-  activeKind: Tab["kind"];
-  onRail: (kind: Tab["kind"], label: string) => void;
-}) {
-  const extra: { icon: React.ReactNode; label: string; kind: ModuleKind; hover: string }[] = [
-    { icon: <IcoBox />, label: "الأصناف والمخازن", kind: "products", hover: "hover:text-cash-green" },
-    { icon: <IcoCart />, label: "فاتورة مشتريات", kind: "purchase", hover: "hover:text-cash-cyan" },
-    { icon: <IcoUsers />, label: "العملاء والموردون", kind: "parties", hover: "hover:text-cash-violet" },
-    { icon: <IcoWallet />, label: "نظام التقسيط", kind: "installments", hover: "hover:text-fuchsia-400" },
-    { icon: <IcoGear />, label: "المصروفات", kind: "expenses", hover: "hover:text-cash-red" },
-    { icon: <IcoWallet />, label: "الخزينة", kind: "treasury", hover: "hover:text-emerald-300" },
-    { icon: <IcoChart />, label: "التقارير والأرباح", kind: "reports", hover: "hover:text-cash-cyan" },
-    { icon: <IcoUsers />, label: "المستخدمون", kind: "users", hover: "hover:text-amber-brand" },
-    { icon: <IcoCheck />, label: "تفعيل النسخة", kind: "activation", hover: "hover:text-cash-green" },
-    { icon: <IcoSliders />, label: "إعدادات البرنامج", kind: "settings", hover: "hover:text-amber-brand" },
-  ];
-  return (
-    <nav
-      aria-label="شريط التنقل السريع"
-      className="shrink-0 w-[52px] bg-ink-800 border-l border-black/40 flex flex-col items-center gap-1 py-2 overflow-y-auto cy-scroll-dark"
-    >
-      {RAIL.map((r) => (
-        <RailBtn
-          key={r.kind}
-          label={r.label}
-          active={activeKind === r.kind}
-          onClick={() => onRail(r.kind, r.label)}
-          hover="hover:text-amber-brand"
-        >
-          {r.icon}
-        </RailBtn>
-      ))}
-      <span className="w-6 h-px bg-white/15 my-1" />
-      {extra.map((r) => (
-        <RailBtn
-          key={r.label}
-          label={r.label}
-          active={activeKind === r.kind}
-          onClick={() => onRail(r.kind, r.label)}
-          hover={r.hover}
-        >
-          {r.icon}
-        </RailBtn>
-      ))}
-      <span className="mt-auto text-[9px] font-black text-slate-600 tracking-widest [writing-mode:vertical-rl] rotate-180">
-        CASH YOU
-      </span>
-    </nav>
-  );
-}
 
-function RailBtn({
-  children,
-  label,
-  active,
-  onClick,
-  hover,
-}: {
-  children: React.ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  hover: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      className={`w-10 h-10 grid place-items-center rounded-xl cy-press cy-focus transition-colors ${
-        active
-          ? "bg-amber-brand text-ink-900 shadow-[0_0_18px_-6px_rgba(245,158,11,0.9)]"
-          : `text-slate-400 bg-white/5 ${hover} hover:bg-white/12`
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
 
 /* ============================ شريط الحالة السفلي ============================ */
 
@@ -584,6 +623,7 @@ export function StatusBar({
   trial,
   onOpenActivation,
   showBadge = true,
+  onOpenDatabase,
 }: {
   clock: Date;
   dateText: string;
@@ -595,6 +635,8 @@ export function StatusBar({
   onOpenActivation?: () => void;
   /** إخفاء شارة حالة النظام من صفحة الإعدادات */
   showBadge?: boolean;
+  /** فتح صفحة ربط قاعدة البيانات */
+  onOpenDatabase?: () => void;
 }) {
   void clock;
   return (
@@ -643,6 +685,16 @@ export function StatusBar({
               {trial.licensed ? `مفعّلة · ${trial.license?.daysLeft ?? 0} يوم` : trial.expired ? "انتهت التجربة · فعّل" : `تجريبي · ${trial.daysLeft} يوم`}
             </button>
           </>
+        )}
+        {onOpenDatabase && (
+          <button
+            onClick={onOpenDatabase}
+            title="ربط قاعدة البيانات السحابية أو المحلية"
+            className="mr-1 hidden items-center gap-1 rounded px-1.5 py-0.5 font-bold text-slate-300 transition hover:bg-white/10 hover:text-white sm:inline-flex"
+          >
+            <IcoDatabase className="h-3 w-3" />
+            <span className="text-[10px]">ربط قاعدة البيانات</span>
+          </button>
         )}
       </div>}
     </footer>
