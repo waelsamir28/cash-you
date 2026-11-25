@@ -169,8 +169,18 @@ export type SessionUser = {
 
 export type TrialLimitKey = "products" | "invoices" | "customers" | "suppliers";
 
+export type LicenseInfo = {
+  active: boolean;
+  validUntil: string | null;
+  daysLeft: number;
+};
+
 export type TrialStatus = {
   trial: boolean;
+  /** هل النسخة مفعّلة بكود HMAC */
+  licensed: boolean;
+  /** تفاصيل الترخيص المدفوع */
+  license: LicenseInfo;
   startedAt: string | null;
   endsAt: string | null;
   daysLeft: number;
@@ -237,4 +247,5 @@ export type ModuleKind =
   | "expenses"
   | "treasury"
   | "reports"
-  | "users";
+  | "users"
+  | "activation";

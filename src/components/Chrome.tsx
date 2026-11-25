@@ -6,6 +6,7 @@ import { money } from "@/lib/format";
 import {
   IcoBox,
   IcoChart,
+  IcoCheck,
   IcoCode,
   IcoCart,
   IcoGear,
@@ -34,6 +35,7 @@ export function TitleBar({
   user,
   trial,
   onLogout,
+  onOpenActivation,
 }: {
   data: Bootstrap;
   muted: boolean;
@@ -45,6 +47,7 @@ export function TitleBar({
   user: SessionUser | null;
   trial: TrialStatus | null;
   onLogout: () => void;
+  onOpenActivation: () => void;
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -240,13 +243,24 @@ export function TitleBar({
           </div>
 
           {trial && (
-            <div
-              className={`hidden sm:flex items-center gap-1.5 h-9 rounded-xl border px-2.5 ${trial.expired ? "bg-cash-red/15 border-cash-red/45 text-cash-red" : trial.daysLeft <= 3 ? "bg-amber-brand/15 border-amber-brand/45 text-amber-brand" : "bg-cash-green/15 border-cash-green/45 text-cash-green"}`}
-              title={`الفترة التجريبية: ${trial.daysLeft} يوم متبقٍ · حدود: ${trial.limits.products} صنف / ${trial.limits.invoices} فاتورة / ${trial.limits.customers} عميل / ${trial.limits.suppliers} مورد`}
+            <button
+              onClick={onOpenActivation}
+              className={`hidden sm:flex items-center gap-1.5 h-9 rounded-xl border px-2.5 transition hover:brightness-125 ${trial.licensed ? "bg-cash-green/15 border-cash-green/45 text-cash-green" : trial.expired ? "bg-cash-red/15 border-cash-red/45 text-cash-red" : trial.daysLeft <= 3 ? "bg-amber-brand/15 border-amber-brand/45 text-amber-brand" : "bg-cash-green/15 border-cash-green/45 text-cash-green"}`}
+              title={
+                trial.licensed
+                  ? `نسخة مفعّلة حتى ${trial.license?.validUntil ? new Date(trial.license.validUntil).toLocaleDateString("ar-EG") : ""} — اضغط للتفاصيل`
+                  : `الفترة التجريبية: ${trial.daysLeft} يوم متبقٍ · اضغط للتفعيل · حدود: ${trial.limits.products} صنف / ${trial.limits.invoices} فاتورة / ${trial.limits.customers} عميل / ${trial.limits.suppliers} مورد`
+              }
             >
-              <span className={`w-2 h-2 rounded-full ${trial.expired ? "bg-cash-red" : trial.daysLeft <= 3 ? "bg-amber-brand animate-pulse" : "bg-cash-green cy-ring"}`} />
-              <span className="text-[12px] font-bold">{trial.expired ? "انتهت التجربة" : `تجريبي · ${trial.daysLeft} يوم`}</span>
-            </div>
+              <span className={`w-2 h-2 rounded-full ${trial.licensed ? "bg-cash-green cy-ring" : trial.expired ? "bg-cash-red" : trial.daysLeft <= 3 ? "bg-amber-brand animate-pulse" : "bg-cash-green cy-ring"}`} />
+              <span className="text-[12px] font-bold">
+                {trial.licensed
+                  ? `مفعّلة · ${trial.license?.daysLeft ?? 0} يوم`
+                  : trial.expired
+                    ? "انتهت التجربة · فعّل"
+                    : `تجريبي · ${trial.daysLeft} يوم`}
+              </span>
+            </button>
           )}
 
           <button
@@ -435,6 +449,7 @@ export function IconRail({
     { icon: <IcoWallet />, label: "الخزينة", kind: "treasury", hover: "hover:text-emerald-300" },
     { icon: <IcoChart />, label: "التقارير والأرباح", kind: "reports", hover: "hover:text-cash-cyan" },
     { icon: <IcoUsers />, label: "المستخدمون", kind: "users", hover: "hover:text-amber-brand" },
+    { icon: <IcoCheck />, label: "تفعيل النسخة", kind: "activation", hover: "hover:text-cash-green" },
   ];
   return (
     <nav

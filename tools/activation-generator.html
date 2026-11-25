@@ -85,12 +85,38 @@
     }
 
     .field{margin-bottom:16px}
+    .hint{
+      margin:6px 0 0;
+      font-size:12px;
+      font-weight:600;
+      color:#64748b;
+    }
     .field label{
       display:block;
       margin-bottom:8px;
       font-size:13.5px;
       font-weight:700;
       color:#334155;
+    }
+
+    #plan{
+      width:100%;
+      height:48px;
+      padding:0 14px;
+      border-radius:12px;
+      border:1.5px solid #cbd5e1;
+      background:#f8fafc;
+      font:inherit;
+      font-weight:700;
+      color:#0f172a;
+      outline:none;
+      cursor:pointer;
+    }
+
+    #plan:focus{
+      border-color:#2563eb;
+      background:#fff;
+      box-shadow:0 0 0 4px rgba(37,99,235,.15);
     }
 
     #machineId{
@@ -243,6 +269,17 @@
           aria-describedby="formError"
         >
       </div>
+      <div class="field">
+        <label for="plan">مدة التفعيل المطلوبة:</label>
+        <select id="plan" name="plan" aria-describedby="planHint">
+          <option value="30">شهر (30 يومًا)</option>
+          <option value="90">3 شهور (90 يومًا)</option>
+          <option value="180">6 شهور (180 يومًا)</option>
+          <option value="365" selected>سنة (365 يومًا)</option>
+        </select>
+        <p id="planHint" class="hint">يجب اختيار نفس المدة داخل صفحة التفعيل في البرنامج.</p>
+      </div>
+
       <p id="formError" class="error" role="alert">يرجى إدخال كود جهاز العميل أولاً.</p>
 
       <button id="generateBtn" class="btn-generate" type="submit">توليد كود التفعيل</button>
@@ -268,6 +305,7 @@
   const $ = (id) => document.getElementById(id);
   const form = $("activationForm");
   const machineIdInput = $("machineId");
+  const planSelect = $("plan");
   const generateBtn = $("generateBtn");
   const resultBox = $("resultBox");
   const codeEl = $("activationCode");
@@ -285,8 +323,12 @@
   /** تطبيع كود الجهاز: إزالة المسافات + تحويل لأحرف كبيرة */
   const normalize = (value) => value.replace(/\s+/g, "").toUpperCase();
 
-  /** توليد توقيع HMAC-SHA256 وإرجاع أول 12 حرفًا بصيغة XXXX-XXXX-XXXX */
-  async function generateActivationCode(machineId) {
+  /**
+   * توليد التوقيع: HMAC-SHA256 over "كود-الجهاز|المدة-بالأيام"
+   * ويُعرض أول 12 حرفًا hex بصيغة XXXX-XXXX-XXXX.
+   * نفس الخوارزمية مطبّقة في src/lib/activation.ts داخل البرنامج.
+   */
+  async function generateActivationCode(machineId, days) {
     if (!window.crypto || !window.crypto.subtle) {
       throw new Error("هذا المتصفح لا يدعم Web Crypto API. استخدم Chrome أو Edge حديثًا.");
     }
@@ -302,7 +344,7 @@
     const signature = await crypto.subtle.sign(
       "HMAC",
       key,
-      encoder.encode(machineId)
+      encoder.encode(`${normalize(machineId)}|${days}`)
     );
 
     const hex = toHex(signature).slice(0, 12);
@@ -316,6 +358,11 @@
   };
 
   const hideError = () => errorEl.classList.remove("show");
+
+  planSelect.addEventListener("change", () => {
+    hideError();
+    resultBox.classList.remove("show");
+  });
 
   machineIdInput.addEventListener("input", () => {
     hideError();
@@ -342,7 +389,8 @@
     generateBtn.textContent = "جارٍ التوليد...";
 
     try {
-      const code = await generateActivationCode(machineId);
+      const days = Number(planSelect.value) || 365;
+      const code = await generateActivationCode(machineId, days);
       codeEl.textContent = code;
       resultBox.classList.remove("show");
       void resultBox.offsetWidth; /* لإعادة تشغيل حركة الظهور */

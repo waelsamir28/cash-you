@@ -184,12 +184,16 @@ export async function bumpUsageCounter(key: TrialLimitKey): Promise<void> {
 export async function getTrialStatus(): Promise<TrialStatus> {
   const started = await ensureTrialStarted();
   const usage = await readUsageCounters();
-  return computeTrial(started, usage);
+  const { readLicense } = await import("@/lib/activation");
+  const license = await readLicense().catch(() => ({ validUntil: null, active: false, daysLeft: 0 }));
+  return computeTrial(started, usage, new Date(), license);
 }
 
 /** يرفض العملية إذا انتهت المدة أو تم بلوغ حدّ المفتاح المطلوب. */
 export async function assertTrialAllows(key: TrialLimitKey): Promise<void> {
   const status = await getTrialStatus();
+  /* نسخة مفعّلة بكود HMAC: بلا أي حدود */
+  if (status.licensed) return;
   if (status.expired) throw new Error(expiredMessage());
   if (status.usage[key] >= TRIAL_LIMITS[key]) throw new Error(limitMessage(key));
 }

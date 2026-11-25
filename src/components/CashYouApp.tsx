@@ -25,6 +25,7 @@ import { TradeScreen } from "@/components/TradeScreen";
 import { ExpensesScreen, InstallmentsScreen, ReportsScreen, TreasuryScreen } from "@/components/FinanceScreens";
 import { InstallmentDialog } from "@/components/InstallmentDialog";
 import { UsersScreen } from "@/components/UsersScreen";
+import { ActivationScreen } from "@/components/ActivationScreen";
 import { readOfflineBootstrap, saveOfflineBootstrap } from "@/lib/offline-cache";
 import {
   CloseConfirm,
@@ -655,6 +656,7 @@ export default function CashYouApp({
         minimized={minimized}
         user={user}
         trial={trial}
+        onOpenActivation={() => openModule("activation", "تفعيل النسخة")}
         onLogout={() => void onLogout()}
       />
       {(!online || syncPending > 0) && (
@@ -702,6 +704,17 @@ export default function CashYouApp({
           {activeTab?.kind === "treasury" && <TreasuryScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "reports" && <ReportsScreen data={data} />}
           {activeTab?.kind === "users" && user && <UsersScreen user={user} notify={toast} />}
+          {activeTab?.kind === "activation" && user && (
+            <ActivationScreen
+              user={user}
+              trial={trial}
+              notify={toast}
+              onUpdated={(next) => {
+                setTrial(next);
+                void refreshData().catch(() => undefined);
+              }}
+            />
+          )}
 
           {activeTab?.kind === "invoice" && (
             <PosScreen
@@ -815,14 +828,24 @@ export default function CashYouApp({
       {welcome && (
         <WelcomeToast
           name={user?.fullName ?? "بك"}
-          detail={`تم تسجيل الدخول بنجاح — نسخة تجريبية${trial ? ` · متبقٍ ${trial.daysLeft} يوم` : ""}`}
+          detail={
+            trial?.licensed
+              ? `تم تسجيل الدخول بنجاح — نسخة مفعّلة${trial.license?.daysLeft ? ` · متبقٍ ${trial.license.daysLeft} يوم` : ""}`
+              : `تم تسجيل الدخول بنجاح — نسخة تجريبية${trial ? ` · متبقٍ ${trial.daysLeft} يوم` : ""}`
+          }
           onDone={() => setWelcome(false)}
         />
       )}
 
-      {trial?.expired && (
-        <div className="fixed inset-x-0 top-0 z-[110] bg-cash-red px-4 py-1.5 text-center text-[11.5px] font-black text-white cy-no-print">
-          انتهت الفترة التجريبية — لا يمكن إضافة أصناف أو فواتير جديدة. للتفعيل تواصل مع الدعم الفني.
+      {trial && !trial.licensed && trial.expired && (
+        <div className="fixed inset-x-0 top-0 z-[110] flex items-center justify-center gap-3 bg-cash-red px-4 py-1.5 text-center text-[11.5px] font-black text-white cy-no-print">
+          <span>انتهت الفترة التجريبية — لا يمكن إضافة أصناف أو فواتير جديدة.</span>
+          <button
+            onClick={() => openModule("activation", "تفعيل النسخة")}
+            className="rounded-md bg-white px-2.5 py-0.5 text-[11px] font-black text-cash-red transition hover:brightness-95"
+          >
+            تفعيل النسخة الآن
+          </button>
         </div>
       )}
     </div>
