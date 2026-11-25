@@ -3,7 +3,9 @@ const { registerDbHandlers, readLocalDbConfig, writeLocalDbConfig } = require(".
 const { startLocalServer, hasLocalServer, stopLocalServer } = require("./local-server.cjs");
 const {
   ensureDatabaseExists,
+  hasRunningEmbeddedInstance,
   startEmbeddedPostgres,
+  stopEmbeddedPostgres,
   useInstalledPostgres,
 } = require("./local-db.cjs");
 const { execFileSync } = require("node:child_process");
@@ -57,15 +59,19 @@ ipcMain.handle("cash-you:save-activation-record", (_event, record) => {
  * تجهيز قاعدة البيانات المحلية على جهاز العميل.
  *
  * كل تثبيت مستقل تماماً:
- *  1) قاعدة محلية محفوظة على جهازه → نستخدمها (وننشئها إن لم تكن موجودة).
- *  2) لا توجد → PostgreSQL مدمج مرفق مع البرنامج → نشغّله وننشئ قاعدة `cash_you`.
+ *  1) قاعدة محلية خيّرها العميل بنفسه (ليست المدمجة) → نحترم اختياره.
+ *  2) غير ذلك → PostgreSQL مدمج مرفق مع البرنامج → نشغّله وننشئ قاعدة
+ *     `cash_you` تلقائياً، ونعيد استخدام بياناته إن كان قد شُغّل سابقاً.
  *  3) المدمج غير متاح → خادم PostgreSQL مثبّت على الجهاز → ننشئ عليه `cash_you`.
  *
  * يُرجع رابط الاتصال أو null إن تعذّر كل ذلك.
  */
 async function prepareLocalDatabase() {
   const saved = readLocalDbConfig();
-  if (saved && saved.mode === "local" && /^postgres(ql)?:\/\//i.test(saved.url)) {
+  const savedIsLocal = Boolean(saved && saved.mode === "local" && /^postgres(ql)?:\/\//i.test(saved.url));
+
+  /* قاعدة اختارها العميل بنفسه (خادمه المحلي) — نحترمها */
+  if (savedIsLocal && !hasRunningEmbeddedInstance()) {
     const created = await ensureDatabaseExists(saved.url);
     if (created.ok) {
       process.stdout.write(`[cash-you] using saved local database (${created.message})\n`);
@@ -74,12 +80,18 @@ async function prepareLocalDatabase() {
     process.stdout.write(`[cash-you] saved local database is unreachable: ${created.message}\n`);
   }
 
-  /* قاعدة محلية جديدة تلقائياً */
+  /* القاعدة المدمجة — تُنشأ تلقائياً وتُحفظ بيانات العميل فيها */
   const embedded = await startEmbeddedPostgres();
   if (embedded) {
     writeLocalDbConfig({ mode: "local", url: embedded });
-    process.stdout.write("[cash-you] started bundled PostgreSQL and created cash_you\n");
+    process.stdout.write("[cash-you] bundled PostgreSQL is ready with the cash_you database\n");
     return embedded;
+  }
+
+  /* القاعدة التي اختارها العميل قد تكون ما زالت صالحة */
+  if (savedIsLocal) {
+    const created = await ensureDatabaseExists(saved.url);
+    if (created.ok) return saved.url;
   }
 
   const installed = await useInstalledPostgres();
@@ -98,10 +110,10 @@ async function prepareLocalDatabase() {
  *    الموقع المشترك أبداً — وإلا لبست حساب مالك واحد بين كل من ياخد البرنامج.
  *  - إن تعذّر تجهيز قاعدة محلية، نفتح صفحة إعداد تشرح له الحل.
  */
-async function resolveAppUrl(config) {
+async function resolveAppUrl() {
   if (!hasLocalServer()) {
-    process.stdout.write("[cash-you] local server bundle is missing — using the published site\n");
-    return config.url;
+    process.stdout.write("[cash-you] local server bundle is missing\n");
+    return null;
   }
 
   const databaseUrl = await prepareLocalDatabase();
@@ -115,12 +127,11 @@ async function resolveAppUrl(config) {
     process.stdout.write(`[cash-you] using local server at ${localUrl}\n`);
     return localUrl;
   }
-  process.stdout.write("[cash-you] local server failed to start — using the published site\n");
-  return config.url;
+  process.stdout.write("[cash-you] local server failed to start\n");
+  return null;
 }
 
 async function createWindow() {
-  const config = readConfig();
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -138,15 +149,11 @@ async function createWindow() {
     },
   });
 
-  if (!config.url || !/^https?:\/\//i.test(config.url)) {
-    /* صفحة الإعداد تظهر عند عدم ضبط رابط الموقع في app-config.json */
-    const iconDataUrl = `data:image/png;base64,${readFileSync(windowIcon).toString("base64")}`;
-    const html = `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><body style="margin:0;background:#0b1220;color:#e2e8f0;font:16px Tahoma;display:grid;place-items:center;height:100vh"><main style="max-width:620px;padding:36px;border:1px solid #334155;border-radius:22px;background:#111c31"><img src="${iconDataUrl}" alt="CASH YOU" width="96" height="96" style="border-radius:22px"><h1 style="color:#fbbf24">CASH YOU</h1><p>أضف رابط موقع CASH YOU المنشور داخل electron/app-config.json ثم أعد تشغيل التطبيق.</p><p style="color:#94a3b8">للتطوير شغّل npm run dev ثم استخدم http://localhost:3000.</p></main></body></html>`;
-    win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    return;
-  }
-
-  const appUrl = await resolveAppUrl(config);
+  /*
+   * نسخة ويندوز لا تفتح الموقع المشترك أبداً — كل عميل يعمل على قاعدة
+   * بياناته المحلية الخاصة. إن تعذّر تجهيزها نعرض تعليمات واضحة.
+   */
+  const appUrl = await resolveAppUrl();
   if (!appUrl) {
     /* لم نتمكن من تجهيز قاعدة بيانات محلية — نعرض تعليمات واضحة بدل شاشة مكسورة */
     const iconDataUrl = `data:image/png;base64,${readFileSync(windowIcon).toString("base64")}`;
@@ -175,6 +182,15 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => {
-  stopLocalServer();
+/* نوقف خادم PostgreSQL المدمج قبل الخروج حتى لا يبقى يعمل في الخلفية */
+let shuttingDown = false;
+app.on("before-quit", (event) => {
+  if (shuttingDown) return;
+  event.preventDefault();
+  shuttingDown = true;
+  void (async () => {
+    await stopEmbeddedPostgres();
+    stopLocalServer();
+    app.quit();
+  })();
 });

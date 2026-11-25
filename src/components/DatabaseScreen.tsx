@@ -32,6 +32,11 @@ export function DatabaseScreen({
 }: {
   notify: (kind: "ok" | "err" | "warn" | "info", message: string) => void;
 }) {
+  /*
+   * في نسخة ويندوز (EXE) تُنشأ قاعدة العميل المحلية تلقائياً على جهازه،
+   * ويختار هو وحده رابطه السحابي (إن أراد نسخة احتياطية/مزامنة).
+   * لذلك نبدأ في وضع «سحابية» لجمع رابطه، ونخفي اختيار المصدر المحلي.
+   */
   const [mode, setMode] = useState<Mode>("cloud");
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState<"test" | "save" | null>(null);
@@ -84,7 +89,16 @@ export function DatabaseScreen({
       if (json.ok) {
         notify("ok", json.message);
         if (action === "save" && json.saved !== false) {
-          setSaved({ saved: true, maskedUrl: "محفوظ على جهازك", mode });
+          /*
+           * نعيد قراءة الإعداد المحفوظ حتى تبقى كل الأعلام (قاعدة محلية
+           * جاهزة، رابط سحابي محفوظ) كما هي — لا نخسرها بالاستبدال.
+           */
+          const fresh = await loadDbConfig().catch(() => null);
+          setSaved(
+            fresh && fresh.saved
+              ? fresh
+              : { saved: true, maskedUrl: "محفوظ على جهازك", mode },
+          );
           setUrl("");
         }
       } else {
@@ -104,11 +118,21 @@ export function DatabaseScreen({
       ? "postgresql://user:password@host:5432/dbname?sslmode=require"
       : "postgresql://postgres:password@localhost:5432/cash_you";
 
+  /*
+   * جاهزية روابط المزامنة:
+   *  - في نسخة ويندوز: القاعدة المحلية جاهزة تلقائياً على جهاز العميل
+   *    (لا يدخل رابطها ولا كلمة مروره)، والرابط السحابي قد يكون محفوظاً
+   *    على جهازه من قبل فيكفيه تركه فارغاً.
+   *  - في نسخة الويب: العميل يدخل الرابطين بنفسه.
+   */
+  const localReady = desktop ? Boolean(saved?.hasLocalDb) || Boolean(localUrl.trim()) : Boolean(localUrl.trim());
+  const cloudReady = cloudLocked ? true : desktop ? Boolean(saved?.hasCloudDb) || Boolean(cloudUrl.trim()) : Boolean(cloudUrl.trim());
+
   /* ---------- تشغيل المزامنة ---------- */
   const runSync = async () => {
     if (syncBusy) return;
-    if (!localUrl.trim() || (!cloudLocked && !cloudUrl.trim())) {
-      notify("err", "أدخل رابط القاعدة المحلية");
+    if (!localReady || !cloudReady) {
+      notify("err", desktop ? "أضف رابط قاعدتك السحابية أولاً" : "أدخل رابط القاعدة المحلية");
       return;
     }
     setSyncBusy(true);
@@ -136,7 +160,9 @@ export function DatabaseScreen({
           </div>
           <h1 className="mt-1.5 text-[16px] font-black text-ink-900">ربط قاعدة البيانات</h1>
           <p className="mx-auto mt-0.5 max-w-sm text-[11px] font-semibold leading-5 text-slate-500">
-            اختر مصدر البيانات: قاعدة سحابية تعمل من أي مكان، أو قاعدة محلية على جهازك بسرعة أعلى.
+            {desktop
+              ? "بياناتك محفوظة على جهازك تلقائياً — أضف رابطاً سحابياً إن أردت نسخة احتياطية ومزامنة."
+              : "اختر مصدر البيانات: قاعدة سحابية تعمل من أي مكان، أو قاعدة محلية على جهازك بسرعة أعلى."}
           </p>
         </div>
 
@@ -155,6 +181,22 @@ export function DatabaseScreen({
         )}
 
         {/* اختيار النوع */}
+        {desktop ? (
+          <div className="rounded-xl border-2 border-cash-green bg-cash-green/5 p-3">
+            <div className="flex items-center gap-2">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-cash-green text-white">
+                <IcoMonitor className="h-5 w-5" />
+              </span>
+              <div className="flex-1">
+                <div className="text-[12px] font-black text-ink-800">بياناتك على جهازك — جاهزة الآن</div>
+                <div className="text-[9.5px] font-semibold leading-4 text-slate-500">
+                  أنشأ البرنامج قاعدة بيانات خاصة بك على هذا الجهاز تلقائياً — بلا تثبيت ولا إعدادات.
+                  {saved?.hasLocalDb ? " وهي محفوظة على جهازك ولن يراها أحد غيرك." : ""}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
         <div className="grid grid-cols-2 gap-2">
           {([
             { id: "cloud" as Mode, title: "قاعدة سحابية", hint: "تعمل من أي جهاز وإنترنت", icon: <IcoCloud className="h-5 w-5" /> },
@@ -183,8 +225,9 @@ export function DatabaseScreen({
             );
           })}
         </div>
+        )}
 
-        {mode === "local" && (
+        {mode === "local" && !desktop && (
           <p className="rounded-xl border border-amber-brand/40 bg-amber-brand/10 px-3 py-2 text-[10px] font-bold leading-4 text-amber-800">
             {desktop
               ? "القاعدة المحلية تُشغَّل على جهازك: يحفظ البرنامج الرابط محلياً ويشغّل خادماً محلياً عند فتح التطبيق."
@@ -196,7 +239,9 @@ export function DatabaseScreen({
         {/* الرابط */}
         <div className="rounded-xl border border-line bg-white p-3">
           <label className="block">
-            <span className="mb-1 block text-[10.5px] font-black text-slate-500">رابط الاتصال</span>
+            <span className="mb-1 block text-[10.5px] font-black text-slate-500">
+              {desktop ? "رابط قاعدتك السحابية (اختياري — للمزامنة)" : "رابط الاتصال"}
+            </span>
             <input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -273,17 +318,31 @@ export function DatabaseScreen({
 
           {syncOpen && (
             <div className="mt-3 space-y-2.5 border-t border-dashed border-line pt-3">
-              <label className="block">
-                <span className="mb-1 block text-[10.5px] font-black text-slate-500">رابط القاعدة المحلية</span>
-                <input
-                  value={localUrl}
-                  onChange={(e) => setLocalUrl(e.target.value)}
-                  dir="ltr"
-                  placeholder="postgresql://postgres:password@localhost:5432/cash_you"
-                  spellCheck={false}
-                  className="h-10 w-full rounded-lg border border-line bg-paper-2 px-2.5 font-mono text-[11px] font-bold text-ink-900 outline-none focus:border-amber-brand focus:bg-white"
-                />
-              </label>
+              {desktop ? (
+                <div className="rounded-lg border border-cash-green/40 bg-cash-green/10 px-2.5 py-2">
+                  <span className="block text-[10.5px] font-black text-slate-500">القاعدة المحلية</span>
+                  <span className="mt-1 block text-[11px] font-bold text-ink-900">
+                    قاعدة بيانات جهازك — تُنشأ تلقائياً وتُستخدم بلا إدخال أي رابط
+                  </span>
+                  {saved?.localMasked ? (
+                    <span className="mt-0.5 block truncate text-[10px] font-bold opacity-70" dir="ltr">
+                      {saved.localMasked}
+                    </span>
+                  ) : null}
+                </div>
+              ) : (
+                <label className="block">
+                  <span className="mb-1 block text-[10.5px] font-black text-slate-500">رابط القاعدة المحلية</span>
+                  <input
+                    value={localUrl}
+                    onChange={(e) => setLocalUrl(e.target.value)}
+                    dir="ltr"
+                    placeholder="postgresql://postgres:password@localhost:5432/cash_you"
+                    spellCheck={false}
+                    className="h-10 w-full rounded-lg border border-line bg-paper-2 px-2.5 font-mono text-[11px] font-bold text-ink-900 outline-none focus:border-amber-brand focus:bg-white"
+                  />
+                </label>
+              )}
 
               {cloudLocked ? (
                 <div className="rounded-lg border border-line bg-paper-2 px-2.5 py-2">
@@ -303,6 +362,11 @@ export function DatabaseScreen({
                     spellCheck={false}
                     className="h-10 w-full rounded-lg border border-line bg-paper-2 px-2.5 font-mono text-[11px] font-bold text-ink-900 outline-none focus:border-amber-brand focus:bg-white"
                   />
+                  {desktop && saved?.hasCloudDb ? (
+                    <span className="mt-1 block text-[9.5px] font-semibold leading-4 text-slate-500">
+                      المحفوظ على جهازك: <span dir="ltr">{saved.cloudMasked}</span> — اتركه فارغاً للمزامنة به.
+                    </span>
+                  ) : null}
                 </label>
               )}
 
@@ -314,7 +378,7 @@ export function DatabaseScreen({
               <button
                 type="button"
                 onClick={() => void runSync()}
-                disabled={syncBusy || !localUrl.trim() || (!cloudLocked && !cloudUrl.trim())}
+                disabled={syncBusy || !localReady || !cloudReady}
                 className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-cash-cyan text-[12.5px] font-black text-white cy-press hover:brightness-110 disabled:opacity-50"
               >
                 <IcoSync className={`h-4 w-4 ${syncBusy ? "animate-spin" : ""}`} />
@@ -388,18 +452,37 @@ export function DatabaseScreen({
         <div className="rounded-xl border border-line bg-white p-3">
           <h2 className="text-[11.5px] font-black text-ink-800">قبل ما تبدأ</h2>
           <ul className="mt-1.5 space-y-1 text-[10px] font-semibold leading-4 text-slate-600">
-            <li className="flex items-start gap-1.5">
-              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-amber-brand" />
-              بعد الحفظ أعد تشغيل البرنامج ليعمل بالاتصال الجديد.
-            </li>
-            <li className="flex items-start gap-1.5">
-              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-amber-brand" />
-              للقاعدة السحابية: استخدم رابط Neon أو Supabase مع <span className="font-mono" dir="ltr">sslmode=require</span>.
-            </li>
-            <li className="flex items-start gap-1.5">
-              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-amber-brand" />
-              للقاعدة المحلية: ثبّت PostgreSQL على الجهاز واستخدم منفذ 5432.
-            </li>
+            {desktop ? (
+              <>
+                <li className="flex items-start gap-1.5">
+                  <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-cash-green" />
+                  بياناتك محفوظة على جهازك — قاعدة أُنشئت تلقائياً باسمك وحدك، ولا يراها أي عميل آخر.
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-amber-brand" />
+                  رابطك السحابي اختياري: يُحفظ على جهازك أنت، ويصلح للنسخة الاحتياطية والمزامنة.
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-amber-brand" />
+                  للسحابة: استخدم رابط Neon أو Supabase مع <span className="font-mono" dir="ltr">sslmode=require</span>.
+                </li>
+              </>
+            ) : (
+              <>
+                <li className="flex items-start gap-1.5">
+                  <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-amber-brand" />
+                  بعد الحفظ أعد تشغيل البرنامج ليعمل بالاتصال الجديد.
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-amber-brand" />
+                  للقاعدة السحابية: استخدم رابط Neon أو Supabase مع <span className="font-mono" dir="ltr">sslmode=require</span>.
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-amber-brand" />
+                  للقاعدة المحلية: ثبّت PostgreSQL على الجهاز واستخدم منفذ 5432.
+                </li>
+              </>
+            )}
             <li className="flex items-start gap-1.5">
               <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-cash-green" />
               الجداول تُنشأ تلقائياً في القاعدة الجديدة عند أول تشغيل — بدون SQL يدوي.

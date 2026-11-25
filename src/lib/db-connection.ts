@@ -17,6 +17,14 @@ export type DbConfigState = {
   mode: DbMode;
   /** الرابط مع إخفاء كلمة المرور */
   maskedUrl: string;
+  /** نسخة ويندوز: هل قاعدة العميل المحلية جاهزة على جهازه؟ */
+  hasLocalDb?: boolean;
+  /** نسخة ويندوز: رابط القاعدة المحلية (مخفي) */
+  localMasked?: string;
+  /** نسخة ويندوز: هل أضاف العميل رابطاً سحابياً؟ */
+  hasCloudDb?: boolean;
+  /** نسخة ويندوز: رابط العميل السحابي (مخفي) */
+  cloudMasked?: string;
 };
 
 export type DbTestResult = {
@@ -158,6 +166,10 @@ export async function syncDatabases(
   const bridge = typeof window !== "undefined" ? (window as CashYouWindow).cashYou : undefined;
   if (bridge?.syncDatabases) {
     try {
+      /*
+       * في نسخة ويندوز نرسل الرابط السحابي فقط — فقاعدة العميل المحلية
+       * تُملأ تلقائياً من جهازه (لا يعرف رابطها ولا كلمة مروره).
+       */
       return await bridge.syncDatabases({ localUrl, cloudUrl });
     } catch (err) {
       return {

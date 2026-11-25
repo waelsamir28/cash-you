@@ -14,7 +14,7 @@
  * قاعدةه السحابية بنفسه من داخل البرنامج.
  */
 const { app } = require("electron");
-const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
+const { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
 
@@ -22,6 +22,11 @@ const path = require("node:path");
 const LOCAL_DB_NAME = "cash_you";
 /** مستخدم قاعدة البيانات المحلية */
 const LOCAL_DB_USER = "cashyou";
+
+/** نسخة PostgreSQL المدمجة التي نشغّلها (لإيقافها عند خروج التطبيق) */
+let runningInstance = null;
+/** pid لنسخة متبقية من تشغيل سابق نتولاها ثم نوقفها عند الخروج */
+let adoptedPid = null;
 
 /** مجلد بيانات المستخدم */
 function userDataDir() {
@@ -102,6 +107,84 @@ async function loadEmbeddedPostgres() {
 }
 
 /**
+ * يقرأ معلومات postmaster.pid (المنفذ و pid) لمجلد بيانات PostgreSQL.
+ */
+function readPostmasterInfo(databaseDir) {
+  try {
+    const raw = readFileSync(path.join(databaseDir, "postmaster.pid"), "utf8");
+    const lines = raw.split(/\r?\n/);
+    const pid = Number.parseInt(lines[0], 10);
+    const port = Number.parseInt(lines[3], 10);
+    if (!Number.isFinite(pid) || !Number.isFinite(port)) return null;
+    return { pid, port };
+  } catch {
+    return null;
+  }
+}
+
+/** هل العملية ما زالت حيّة؟ */
+function isProcessAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    /* EPERM = العملية موجودة لكن ليس لنا صلاحية الإشارة إليها */
+    return Boolean(err && err.code === "EPERM");
+  }
+}
+
+/** هل تعمل نسخة PostgreSQL المدمجة حالياً على مجلد بياناتنا؟ */
+function hasRunningEmbeddedInstance() {
+  const info = readPostmasterInfo(embeddedDataDir());
+  return Boolean(info && isProcessAlive(info.pid));
+}
+
+/** هل يمكن الاتصال بهذا الرابط؟ */
+async function canConnect(url, timeout = 4000) {
+  let Client;
+  try {
+    Client = require("pg").Client;
+  } catch {
+    return false;
+  }
+  const client = new Client({ connectionString: url, connectionTimeoutMillis: timeout });
+  try {
+    await client.connect();
+    await client.query("select 1");
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await client.end().catch(() => undefined);
+  }
+}
+
+/**
+ * يوقف PostgreSQL المدمج (سواء الذي شغّلناه أو نسخة متبقية من تشغيل سابق).
+ * يُستدعى عند إغلاق التطبيق حتى لا يبقى خادم يعمل في خلفية الجهاز.
+ */
+async function stopEmbeddedPostgres() {
+  const instance = runningInstance;
+  runningInstance = null;
+  if (instance) {
+    try {
+      await instance.stop();
+    } catch {
+      /* تجاهل — سنغلقها بالـ pid أدناه إن لزم */
+    }
+  }
+  const pid = adoptedPid;
+  adoptedPid = null;
+  if (pid && isProcessAlive(pid)) {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      /* تجاهل */
+    }
+  }
+}
+
+/**
  * يشغّل PostgreSQL المدمج على جهاز العميل وينشئ قاعدة `cash_you`.
  * يعيد رابط الاتصال أو null إن تعذّر.
  */
@@ -111,7 +194,6 @@ async function startEmbeddedPostgres() {
   if (!EmbeddedPostgres) return null;
 
   const password = localPassword();
-  const port = await freePort();
   const databaseDir = embeddedDataDir();
 
   try {
@@ -119,6 +201,39 @@ async function startEmbeddedPostgres() {
   } catch {
     return null;
   }
+
+  /*
+   * إن كان هناك خادم من تشغيل سابق:
+   *  - ما زال يعمل → نستخدمه على نفس البيانات (بلا فقد لأي حساب).
+   *  - لم يعد يعمل → ننظّف ملف postmaster.pid ونبدأ خادماً جديداً بمنفذ جديد.
+   */
+  const existing = readPostmasterInfo(databaseDir);
+  if (existing) {
+    if (isProcessAlive(existing.pid)) {
+      const reuseUrl = `postgresql://${LOCAL_DB_USER}:${password}@127.0.0.1:${existing.port}/${LOCAL_DB_NAME}`;
+      if (await canConnect(reuseUrl)) {
+        adoptedPid = existing.pid;
+        await ensureDatabaseExists(reuseUrl);
+        process.stdout.write(
+          `[local-db] reusing the running local database on port ${existing.port}\n`,
+        );
+        return reuseUrl;
+      }
+      try {
+        process.kill(existing.pid, "SIGTERM");
+      } catch {
+        /* تجاهل */
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+    }
+    try {
+      unlinkSync(path.join(databaseDir, "postmaster.pid"));
+    } catch {
+      /* ملف غير موجود — لا بأس */
+    }
+  }
+
+  const port = await freePort();
 
   const instance = new EmbeddedPostgres({
     databaseDir,
@@ -138,6 +253,7 @@ async function startEmbeddedPostgres() {
     }
     await instance.start();
     await instance.createDatabase(LOCAL_DB_NAME).catch(() => undefined);
+    runningInstance = instance;
   } catch (err) {
     process.stdout.write(
       `[local-db] تعذّر تشغيل PostgreSQL المدمج: ${err && err.message ? err.message : err}\n`,
@@ -226,6 +342,8 @@ module.exports = {
   LOCAL_DB_NAME,
   localPassword,
   ensureDatabaseExists,
+  hasRunningEmbeddedInstance,
   startEmbeddedPostgres,
+  stopEmbeddedPostgres,
   useInstalledPostgres,
 };

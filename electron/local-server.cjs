@@ -2,29 +2,38 @@
  * تشغيل خادم Next.js محلياً داخل نسخة ويندوز.
  *
  * لماذا؟
- * نسخة الويندوز تفتح الموقع المنشور على الإنترنت، فبيانات العميل كلها تذهب
- * إلى قاعدة بيانات السيرفر البعيد. ومع ذلك يطلب العميل «قاعدة محلية» على جهازه
- * نفسه — وهذا لا يتحقق إلا بتشغيل خادم Next محلياً يستخدم DATABASE_URL محلياً.
+ * كل عميل ياخد نسخة CASH YOU يجب أن يعمل على بياناته الخاصة. لذلك لم تعد
+ * النسخة تفتح الموقع المنشور على الإنترنت، بل تشغّل خادم Next المرفق داخل
+ * الحزمة على منفذ محلي، ويشير إلى قاعدة بيانات العميل نفسها عبر DATABASE_URL.
  *
  * كيف يعمل؟
  *  - يُبنى Next.js بخاصية standalone فتصبح هناك نسخة جاهزة تُشغَّل بـ node server.js.
- *  - عند وجود إعداد قاعدة بيانات محفوظ على جهاز العميل، نشغّل هذه النسخة محلياً
- *    على منفذ محلي، ونفتح التطبيق عليها بدل الموقع البعيد.
- *  - إن لم يوجد إعداد (أو تعذّر التشغيل) نعود للموقع البعيد كالمعتاد.
+ *  - نشغّل هذه النسخة على منفذ محلي عشوائي، ونفتح التطبيق عليها.
+ *  - الخادم يستمع على 127.0.0.1 فقط — لا يمكن لأحد خارج جهاز العميل الوصول إليه.
  *
  * ملاحظة: هذا الملف يعمل داخل عملية Electron الرئيسية (Node.js) فقط.
  */
 const { spawn } = require("node:child_process");
 const { existsSync } = require("node:fs");
 const http = require("node:http");
+const net = require("node:net");
 const path = require("node:path");
 
 /** العملية الجارية للخادم المحلي (لإيقافها عند خروج التطبيق) */
 let currentChild = null;
 
-/** منفذ محلي عشوائي لتفادي تعارض المنافذ */
+/** يبحث عن منفذ محلي حرّ (لتفادي تعارض المنافذ مع برامج أخرى) */
 function pickPort() {
-  return 34000 + Math.floor(Math.random() * 1000);
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : 34000;
+      server.close(() => resolve(port));
+    });
+  });
 }
 
 /**
@@ -90,7 +99,7 @@ async function startLocalServer(databaseUrl) {
   const dir = standaloneDir();
   if (!dir) return null;
 
-  const port = pickPort();
+  const port = await pickPort();
   const child = spawn(process.execPath, ["server.js"], {
     cwd: dir,
     env: {

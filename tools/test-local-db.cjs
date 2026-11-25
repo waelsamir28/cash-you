@@ -99,26 +99,79 @@ async function main() {
   await client2.end();
 
   /* ---------- 5) إنشاء قاعدة مفقودة على رابط يعطيه العميل ---------- */
-  const admin = new Client({
-    connectionString: "postgresql://postgres:postgres@127.0.0.1:5432/postgres",
-  });
+  /*
+   * نستخدم خادم PostgreSQL المدمج نفسه (superuser) بدل الاعتماد على
+   * خادم PostgreSQL مثبّت على الجهاز — فالمتصفح يجب أن يعمل بلا أي
+   * إعداد خارجي. رابط الإدارة يُشتق من رابط القاعدة المحلية.
+   */
+  const embeddedUrl = new URL(url);
+  const adminUrl = new URL(url);
+  adminUrl.pathname = "/postgres";
+  const targetUrl = new URL(url);
+  targetUrl.pathname = "/cash_you_auto";
+
+  const admin = new Client({ connectionString: adminUrl.toString() });
   await admin.connect();
   await admin.query("drop database if exists cash_you_auto with (force)");
   await admin.end();
-  const created = await localDb.ensureDatabaseExists(
-    "postgresql://postgres:postgres@127.0.0.1:5432/cash_you_auto",
-  );
+
+  const created = await localDb.ensureDatabaseExists(targetUrl.toString());
   assert.equal(created.ok, true, `فشل إنشاء قاعدة العميل: ${created.message}`);
-  const check = new Client({
-    connectionString: "postgresql://postgres:postgres@127.0.0.1:5432/cash_you_auto",
-  });
+  const check = new Client({ connectionString: targetUrl.toString() });
   await check.connect();
   const ready = await check.query("select 1 as ok");
   assert.equal(ready.rows[0].ok, 1, "القاعدة المنشأة قابلة للاستخدام");
   await check.end();
   console.log("✓ قاعدة العميل تُنشأ تلقائياً على الرابط الذي يضيفه العميل");
 
+  /* نغلق اتصالنا قبل إيقاف الخادم حتى لا تنقطع الجلسة تحت أقدامنا */
   await client.end();
+  /* الخادم المحلي انتهى دوره في هذه الاختبارات */
+  stopLocalServer();
+
+  /* ---------- 6) تشغيل ثانٍ بنفس مجلد البيانات ---------- */
+  /*
+   * إغلاق البرنامج ثم تشغيله من جديد بنفس مجلد بيانات PostgreSQL يجب أن:
+   *  - يقرأ نفس البيانات (لا حساب مفقود) مهما تغيّر المنفذ العشوائي.
+   *  - يختار منفذاً جديداً بلا تعارض مع المنفذ القديم.
+   */
+  await localDb.stopEmbeddedPostgres();
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+
+  const secondModule = loadForDir(userData);
+  const secondLaunch = await secondModule.startEmbeddedPostgres();
+  assert.ok(secondLaunch, "التشغيل الثاني يجب أن يجد PostgreSQL المدمج جاهزاً");
+  const secondPort = new URL(secondLaunch).port;
+  assert.notEqual(secondPort, embeddedUrl.port, "المنفذ العشوائي يُختار في كل تشغيل");
+  const secondClient = new Client({ connectionString: secondLaunch });
+  await secondClient.connect();
+  const kept = await secondClient.query(`select count(*)::int as c from app_users`);
+  assert.equal(kept.rows[0].c, 1, "التشغيل الثاني يرى بيانات التثبيت نفسه لا قاعدة فارغة");
+  await secondClient.end();
+  console.log("✓ التشغيل الثاني يستخدم نفس قاعدة التثبيت (منفذ جديد، بيانات محفوظة)");
+
+  /* ---------- 7) تشغيل ثالث والخادم القديم ما زال يعمل ---------- */
+  /*
+   * إن بقي خادم من تشغيل سابق يعمل على نفس البيانات، يجب أن يعيد البرنامج
+   * استخدامه بدل أن يفشل في فتح نفس مجلد البيانات مرتين.
+   */
+  const thirdModule = loadForDir(userData);
+  const third = await thirdModule.startEmbeddedPostgres();
+  assert.ok(third, "التشغيل الثالث يجب أن ينجح");
+  assert.equal(
+    new URL(third).port,
+    secondPort,
+    "يُعاد استخدام الخادم العامل على نفس البيانات بدل تشغيل نسختين",
+  );
+  const thirdClient = new Client({ connectionString: third });
+  await thirdClient.connect();
+  const stillThere = await thirdClient.query(`select count(*)::int as c from app_users`);
+  assert.equal(stillThere.rows[0].c, 1, "البيانات ما زالت كما هي");
+  await thirdClient.end();
+  console.log("✓ تشغيل ثالث يعيد استخدام الخادم العامل على نفس البيانات");
+
+  await secondModule.stopEmbeddedPostgres();
+  await thirdModule.stopEmbeddedPostgres();
   stopLocalServer();
   console.log("\n✅ كل اختبارات القاعدة المحلية التلقائية نجحت");
   process.exit(0);
