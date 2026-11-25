@@ -21,13 +21,17 @@ import {
 import { ensureSeed } from "@/db/seed";
 import { ensureExtendedSeed } from "@/db/extendedSeed";
 import type { Bootstrap, InstallmentInput, SavedInvoice, TrialStatus } from "@/lib/types";
+import { ensureDatabaseSchema } from "@/lib/ensure-schema";
 
 export async function getSetting(key: string, fallback = ""): Promise<string> {
+  /* أعمق نقطة وصول لقاعدة البيانات: نضمن وجود المخطط قبل أي استعلام */
+  await ensureDatabaseSchema();
   const rows = await db.select().from(settings).where(eq(settings.key, key)).limit(1);
   return rows[0]?.value ?? fallback;
 }
 
 export async function setSetting(key: string, value: string): Promise<void> {
+  await ensureDatabaseSchema();
   await db.insert(settings).values({ key, value }).onConflictDoUpdate({ target: settings.key, set: { value } });
 }
 
