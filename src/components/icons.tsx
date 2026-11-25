@@ -186,3 +186,35 @@ export const IcoLogo = ({ className = "w-8 h-8" }: P) => (
     className={`${base} rounded-[22%] object-contain ${className}`}
   />
 );
+/* ---------- أيقونات إضافية (الإعدادات · الترحيب · التكبير) ---------- */
+
+export const IcoSliders = ({ className = "w-4 h-4" }: P) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`${base} ${className}`}>
+    <path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" />
+    <circle cx="15" cy="6" r="2" />
+    <circle cx="9" cy="12" r="2" />
+    <circle cx="17" cy="18" r="2" />
+  </svg>
+);
+
+export const IcoPalette = ({ className = "w-4 h-4" }: P) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" className={`${base} ${className}`}>
+    <path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.8 0-.9-.7-1.6-1.6-1.6H10a3 3 0 0 1 0-6h8a3 3 0 0 0 3-3A8.4 8.4 0 0 0 12 3Z" />
+    <circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none" />
+    <circle cx="10" cy="7" r="1" fill="currentColor" stroke="none" />
+    <circle cx="14.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+export const IcoExpand = ({ className = "w-4 h-4" }: P) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" className={`${base} ${className}`}>
+    <path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5" />
+  </svg>
+);
+
+export const IcoReceipt = ({ className = "w-4 h-4" }: P) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${base} ${className}`}>
+    <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" />
+    <path d="M9 8h6M9 12h6M9 16h3" />
+  </svg>
+);

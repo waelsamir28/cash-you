@@ -20,7 +20,7 @@ import {
 } from "@/db/schema";
 import { ensureSeed } from "@/db/seed";
 import { ensureExtendedSeed } from "@/db/extendedSeed";
-import type { Bootstrap, InstallmentInput, SavedInvoice, TrialStatus } from "@/lib/types";
+import type { Bootstrap, InstallmentInput, SavedInvoice, ShopSettings, TrialStatus } from "@/lib/types";
 import { ensureDatabaseSchema } from "@/lib/ensure-schema";
 
 export async function getSetting(key: string, fallback = ""): Promise<string> {
@@ -47,6 +47,23 @@ async function readTrial(): Promise<TrialStatus | undefined> {
   } catch {
     return undefined;
   }
+}
+
+/** إعدادات المتجر والثيم — تُقرأ مرة واحدة مع بيانات النظام */
+async function readSettings(): Promise<ShopSettings> {
+  const { mergeSettings } = await import("@/lib/settings");
+  const raw = await getSetting("app.settings.v1", "");
+  let parsed: unknown = null;
+  if (raw) {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = null;
+    }
+  }
+  const merged = mergeSettings(parsed);
+  /* اسم المحل يُقرأ من الإعدادات إن وُجد وإلا من المفتاح القديم */
+  return merged;
 }
 
 export async function getBootstrap(): Promise<Bootstrap> {
@@ -84,6 +101,7 @@ export async function getBootstrap(): Promise<Bootstrap> {
 
   return {
     trial: await readTrial(),
+    settings: await readSettings(),
     categories: cats,
     products: prods,
     customers: custs.map(stripParty),
@@ -109,7 +127,10 @@ export async function getBootstrap(): Promise<Bootstrap> {
     },
     nextInvoiceNumber: Number.isFinite(next) ? next : 1,
     nextPurchaseNumber: Number.isFinite(nextPurchase) ? nextPurchase : 7001,
-    shop: { name: await getSetting("shop_name", "كاش يو للتجارة والتوريدات المكتبية"), phone: await getSetting("shop_phone", "01222355769") },
+    shop: {
+      name: await getSetting("shop_name", "كاش يو للتجارة والتوريدات المكتبية"),
+      phone: await getSetting("shop_phone", "01222355769"),
+    },
   };
 }
 

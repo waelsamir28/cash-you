@@ -103,21 +103,16 @@ export function PosScreen({
 
   return (
     <section
-      className="flex-1 min-h-0 flex flex-col gap-1.5 p-1.5 bg-paper overflow-y-auto lg:overflow-hidden cy-scroll"
+      className="flex-1 min-h-0 flex flex-col gap-1.5 p-1.5 overflow-y-auto lg:overflow-hidden cy-scroll"
+      style={{ background: "var(--cy-paper)" }}
       dir="rtl"
     >
       {/* ============ لافتة العنوان ============ */}
-      <div className="relative shrink-0 rounded-xl bg-ink-700 overflow-hidden shadow-[0_6px_18px_-8px_rgba(15,23,42,0.8)]">
+      <div className="relative shrink-0 rounded-xl overflow-hidden shadow-[0_6px_18px_-8px_rgba(15,23,42,0.8)]" style={{ background: "var(--cy-header)" }}>
         <div className="pointer-events-none absolute inset-0 cy-aurora opacity-90" />
         <div className="relative flex items-center gap-2 px-2 h-[46px]">
           {/* يمين: التاريخ + نقدي/آجل + شاشة الزبون */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <div className="hidden sm:flex flex-col leading-none px-2">
-              <span className="text-[10px] text-slate-400 font-semibold">{stamp.date}</span>
-              <span className="text-[12px] text-slate-100 font-bold cy-num mt-0.5">
-                {stamp.time}
-              </span>
-            </div>
             <button
               onClick={() => {
                 const next = draft.saleType === "نقدي" ? "آجل" : draft.saleType === "آجل" ? "تقسيط" : "نقدي";
@@ -241,21 +236,6 @@ export function PosScreen({
             <MiniAdd onClick={actions.quickAddPayment} title="إضافة طريقة دفع" />
           </Field>
 
-          <Field label="خصم %">
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step={0.5}
-              value={draft.discountPercent}
-              onChange={(e) =>
-                actions.patch({
-                  discountPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)),
-                })
-              }
-              className="w-14 bg-transparent outline-none text-center text-[13px] font-black text-cash-red cy-num h-full"
-            />
-          </Field>
         </div>
       </div>
 
@@ -267,37 +247,46 @@ export function PosScreen({
         </p>
       </div>
 
-      {/* ============ شريط التصنيفات ============ */}
-      <div className="shrink-0 flex items-center gap-1.5 overflow-x-auto cy-scroll pb-1">
-        <CatChip
-          active={draft.categoryId === "all"}
-          onClick={() => actions.patch({ categoryId: "all", page: 0 })}
-          className="bg-ink-800 text-white border-ink-900"
-          dot="bg-amber-brand"
-        >
-          الكل
-        </CatChip>
-        {data.categories.map((c) => {
-          const h = HUE[c.hue] ?? HUE.slate;
-          return (
-            <CatChip
-              key={c.id}
-              active={draft.categoryId === c.id}
-              onClick={() => actions.patch({ categoryId: c.id, page: 0 })}
-              className={h.chip}
-              dot={h.dot}
-            >
-              {c.name}
-            </CatChip>
-          );
-        })}
+      {/* ============ التصنيفات: قائمة منسدلة ============ */}
+      <div className="shrink-0 flex items-center gap-1.5 flex-wrap">
+        <label className="flex items-center gap-1.5 h-9 rounded-xl bg-white border border-line px-2.5 shadow-sm">
+          <span className="text-[11px] font-black text-slate-500 whitespace-nowrap">التصنيف</span>
+          <select
+            value={draft.categoryId === "all" ? "all" : String(draft.categoryId)}
+            onChange={(e) => {
+              const v = e.target.value;
+              actions.patch({ categoryId: v === "all" ? "all" : Number(v), page: 0 });
+            }}
+            className="bg-transparent outline-none text-[12.5px] font-black text-ink-800 min-w-[150px] cursor-pointer"
+          >
+            <option value="all">كل التصنيفات ({data.products.length})</option>
+            {data.categories.map((c) => {
+              const count = data.products.filter((p) => p.categoryId === c.id).length;
+              return (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({count})
+                </option>
+              );
+            })}
+          </select>
+        </label>
+
+        {draft.categoryId !== "all" && (
+          <button
+            onClick={() => actions.patch({ categoryId: "all", page: 0 })}
+            className="h-9 px-2.5 rounded-lg bg-slate-200 text-[11.5px] font-bold text-ink-700 hover:bg-slate-300"
+            title="عرض كل التصنيفات"
+          >
+            × إلغاء الفلتر
+          </button>
+        )}
       </div>
 
       {/* ============ مساحة العمل ============ */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-1.5">
         {/* الجدول 60% */}
         <div className="flex-[3] min-h-[220px] lg:min-h-0 flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm">
-          <div className="shrink-0 grid grid-cols-[38px_92px_74px_82px_74px_66px_1fr_78px] bg-ink-800 text-white text-[11.5px] font-black">
+          <div className="shrink-0 grid grid-cols-[38px_92px_74px_82px_74px_66px_1fr_78px] text-[11.5px] font-black" style={{ background: "var(--cy-header)", color: "var(--cy-header-text)" }}>
             {[
               "×",
               "الإجمالي",
@@ -319,7 +308,11 @@ export function PosScreen({
             ))}
           </div>
 
-          <div ref={gridRef} className="flex-1 min-h-0 overflow-y-auto cy-scroll">
+          <div
+            ref={gridRef}
+            className="flex-1 min-h-0 overflow-y-auto cy-scroll"
+            style={{ minHeight: "calc(12 * 40px)" }}
+          >
             {draft.items.length === 0 ? (
               <div className="h-full grid place-items-center p-6 text-center">
                 <div>
@@ -339,7 +332,7 @@ export function PosScreen({
                 <div
                   key={li.uid}
                   data-last={draft.lastAddedUid === li.uid ? "1" : "0"}
-                  className={`grid grid-cols-[38px_92px_74px_82px_74px_66px_1fr_78px] items-stretch text-[12.5px] border-b border-slate-200 ${
+                  className={`grid grid-cols-[38px_92px_74px_82px_74px_66px_1fr_78px] items-stretch h-10 text-[12.5px] border-b border-slate-200 ${
                     draft.lastAddedUid === li.uid
                       ? "cy-flash"
                       : idx % 2 === 0
@@ -452,7 +445,7 @@ export function PosScreen({
                 لا توجد أصناف مطابقة
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1">
                 {slice.map((p) => {
                   const h = HUE[hueOf(p.categoryId)] ?? HUE.slate;
                   const out = p.stock <= 0;
@@ -460,24 +453,24 @@ export function PosScreen({
                     <button
                       key={p.id}
                       onClick={() => actions.addProduct(p)}
-                      className={`group relative text-right rounded-xl border bg-white px-2 py-2 h-[74px] cy-press cy-focus overflow-hidden ${
+                      className={`group relative text-right rounded-lg border bg-white px-1.5 py-1 h-[56px] cy-press cy-focus overflow-hidden ${
                         out
                           ? "border-cash-red/40 opacity-70"
                           : "border-line hover:border-amber-brand hover:shadow-[0_8px_20px_-12px_rgba(245,158,11,0.9)]"
                       }`}
                     >
                       <span
-                        className={`absolute top-0 bottom-0 right-0 w-1 ${h.dot} opacity-80`}
+                        className={`absolute top-0 bottom-0 right-0 w-0.5 ${h.dot} opacity-80`}
                       />
-                      <span className="block text-[11.5px] font-bold leading-[1.35] text-ink-800 line-clamp-2 pr-1.5">
+                      <span className="block text-[10.5px] font-bold leading-[1.3] text-ink-800 line-clamp-2 pr-1">
                         {p.name}
                       </span>
-                      <span className="absolute bottom-1.5 right-2 left-2 flex items-center justify-between pr-0.5">
-                        <span className="text-[12px] font-black text-cash-green-deep cy-num">
+                      <span className="absolute bottom-1 right-1.5 left-1.5 flex items-center justify-between">
+                        <span className="text-[10.5px] font-black text-cash-green-deep cy-num">
                           {money(p.price)}
                         </span>
                         <span
-                          className={`text-[10px] font-bold cy-num ${
+                          className={`text-[9px] font-bold cy-num ${
                             out ? "text-cash-red" : "text-slate-400"
                           }`}
                         >
@@ -513,105 +506,54 @@ export function PosScreen({
         </div>
       </div>
 
-      {/* ============ البطاقات المالية ============ */}
-      <div className="shrink-0 grid grid-cols-3 gap-1.5">
-        <div className="relative overflow-hidden rounded-xl bg-ink-800 border border-black/40 px-3 py-2 shadow-[0_10px_26px_-14px_rgba(15,23,42,1)]">
-          <div className="pointer-events-none absolute inset-0 cy-aurora opacity-80" />
-          <div className="relative flex items-baseline justify-between">
-            <span className="text-[11.5px] font-black text-slate-400">المبلغ الصافي</span>
-            <span className="text-[10px] font-bold text-cash-cyan cy-num">
-              {qtyText(totals.count)} قطعة
-            </span>
-          </div>
-          <div className="relative text-white font-black text-[26px] sm:text-[34px] leading-none cy-num mt-1 text-left">
-            {money(totals.total)}
-          </div>
-        </div>
-
-        <div className="rounded-xl bg-amber-soft border-2 border-amber-brand/70 px-3 py-2">
-          <div className="flex items-baseline justify-between">
-            <span className="text-[11.5px] font-black text-amber-800">المدفوع</span>
+      {/* ============ البطاقات المالية (مقاسات موحّدة) ============ */}
+      <div className="shrink-0 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
+        <MoneyCard label="المبلغ الصافي" value={money(totals.total)} tone="ink" hint={`${qtyText(totals.count)} قطعة`} />
+        <MoneyCard
+          label="المدفوع"
+          value={draft.paidText}
+          tone="amber"
+          editable
+          onInput={(v) => actions.patch({ paidText: v })}
+          action={
             <button
               onClick={actions.payFull}
-              className="text-[10px] font-black text-amber-900/70 hover:text-cash-red"
+              className="text-[9.5px] font-black text-amber-900/70 hover:text-cash-red"
               title="دفع كامل (F12)"
             >
               دفع كامل F12
             </button>
-          </div>
-          <input
-            value={draft.paidText}
-            onChange={(e) => actions.patch({ paidText: e.target.value })}
-            onFocus={(e) => e.currentTarget.select()}
-            inputMode="decimal"
-            aria-label="المدفوع"
-            className="w-full bg-transparent outline-none text-cash-green-deep font-black text-[26px] sm:text-[34px] leading-none cy-num mt-1 text-left focus:bg-white/60 rounded"
-          />
-        </div>
-
-        <div
-          className={`rounded-xl border-2 px-3 py-2 transition-colors ${
-            totals.remaining > 0
-              ? "bg-amber-cream border-cash-red/60"
-              : "bg-amber-cream border-cash-green/60"
-          }`}
-        >
-          <div className="flex items-baseline justify-between">
-            <span className="text-[11.5px] font-black text-amber-800">
-              {totals.remaining < 0 ? "الباقي للزبون" : "المتبقي"}
-            </span>
-            <span
-              className={`text-[10px] font-black ${
-                totals.remaining > 0 ? "text-cash-red" : "text-cash-green-deep"
-              }`}
-            >
-              {totals.remaining > 0 ? "غير مسدد" : "مسدد بالكامل"}
-            </span>
-          </div>
-          <div
-            className={`font-black text-[26px] sm:text-[34px] leading-none cy-num mt-1 text-left ${
-              totals.remaining > 0 ? "text-cash-red" : "text-cash-green-deep"
-            }`}
-          >
-            {money(Math.abs(totals.remaining))}
-          </div>
-        </div>
-      </div>
-
-      {/* ============ رصيد العميل ============ */}
-      <div className="shrink-0 flex items-center justify-center gap-2 flex-wrap">
-        <BalancePill label="الرصيد السابق" value={prevBalance} tone="slate" />
-        <BalancePill label="الرصيد بعد الفاتورة" value={afterBalance} tone="amber" />
-        <span className="text-[11px] font-bold text-slate-500 hidden sm:inline">
-          العميل: <span className="text-ink-800">{draft.customerName}</span> · طريقة الدفع:{" "}
-          <span className="text-ink-800">{draft.paymentMethod}</span>
-        </span>
+          }
+        />
+        <MoneyCard
+          label={totals.remaining < 0 ? "الباقي للزبون" : "المتبقي"}
+          value={money(Math.abs(totals.remaining))}
+          tone={totals.remaining > 0 ? "red" : "green"}
+          hint={totals.remaining > 0 ? "غير مسدد" : "مسدد بالكامل"}
+        />
+        <MoneyCard label="الرصيد السابق" value={money(prevBalance)} tone="slate" />
+        <MoneyCard label="الرصيد بعد الفاتورة" value={money(afterBalance)} tone="cyan" />
       </div>
 
       {/* ============ مفاتيح الوظائف ============ */}
-      <div className="shrink-0 grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+      <div className="shrink-0 grid grid-cols-2 sm:grid-cols-3 gap-1.5">
         <FnKey onClick={actions.newInvoice} k="F4" tone="light">
           فاتورة جديدة
-        </FnKey>
-        <FnKey onClick={() => barcodeRef.current?.focus()} k="F3" tone="light">
-          بحث بالكود
-        </FnKey>
-        <FnKey onClick={actions.openDiscount} k="F11" tone="red">
-          خصم
         </FnKey>
         <FnKey onClick={actions.payFull} k="F12" tone="orange">
           دفع كامل
         </FnKey>
-        <FnKey onClick={() => actions.save(true)} k="F10" tone="ink" busy={saving}>
+        <FnKey onClick={() => actions.save(true)} k="F10" tone="savePrint" busy={saving}>
           <span className="inline-flex items-center gap-1.5">
             <IcoPrint className="w-4 h-4" />
             حفظ وطباعة
           </span>
         </FnKey>
-        <FnKey onClick={() => actions.save(false)} k="F5" tone="slate" busy={saving}>
+        <FnKey onClick={() => actions.save(false)} k="F5" tone="save" busy={saving}>
           حفظ
         </FnKey>
       </div>
+
     </section>
   );
 }
@@ -741,6 +683,58 @@ function PagerBtn({
   );
 }
 
+/**
+ * بطاقة مالية موحّدة: نفس العرض والارتفاع وحجم الخط في كل البطاقات،
+ * والرقم متوسط داخل الخانة.
+ */
+const MONEY_TONES = {
+  ink: "bg-ink-800 border-black/40 text-white",
+  amber: "bg-amber-soft border-amber-brand/70 text-amber-900",
+  red: "bg-amber-cream border-cash-red/60 text-cash-red",
+  green: "bg-amber-cream border-cash-green/60 text-cash-green-deep",
+  slate: "bg-slate-100 border-line text-ink-800",
+  cyan: "bg-cyan-50 border-cyan-300 text-cyan-900",
+} as const;
+
+function MoneyCard({
+  label,
+  value,
+  tone,
+  hint,
+  action,
+  editable,
+  onInput,
+}: {
+  label: string;
+  value: string;
+  tone: keyof typeof MONEY_TONES;
+  hint?: string;
+  action?: React.ReactNode;
+  editable?: boolean;
+  onInput?: (v: string) => void;
+}) {
+  return (
+    <div className={`relative overflow-hidden rounded-xl border-2 px-2 py-1.5 h-[64px] flex flex-col justify-between ${MONEY_TONES[tone]}`}>
+      <div className="flex items-baseline justify-between gap-1">
+        <span className="truncate text-[10.5px] font-black opacity-80">{label}</span>
+        {action ?? (hint ? <span className="shrink-0 text-[9.5px] font-bold opacity-70 cy-num">{hint}</span> : null)}
+      </div>
+      {editable ? (
+        <input
+          value={value}
+          onChange={(e) => onInput?.(e.target.value)}
+          onFocus={(e) => e.currentTarget.select()}
+          inputMode="decimal"
+          aria-label={label}
+          className="w-full bg-transparent text-center text-[17px] font-black leading-none cy-num outline-none focus:bg-white/60 rounded"
+        />
+      ) : (
+        <div className="w-full text-center text-[17px] font-black leading-none cy-num truncate">{value}</div>
+      )}
+    </div>
+  );
+}
+
 function BalancePill({
   label,
   value,
@@ -769,6 +763,10 @@ const FN_TONES: Record<string, string> = {
   orange: "bg-cash-orange text-white border-orange-700 hover:brightness-110",
   ink: "bg-ink-800 text-white border-black/50 hover:bg-ink-900",
   slate: "bg-ink-700 text-white border-ink-900 hover:bg-ink-600",
+  /* زر الحفظ: أخضر فاتح */
+  save: "bg-cash-green text-white border-emerald-700 hover:brightness-110",
+  /* زر حفظ وطباعة: أخضر غامق */
+  savePrint: "bg-cash-green-deep text-white border-emerald-900 hover:brightness-110",
 };
 
 function FnKey({

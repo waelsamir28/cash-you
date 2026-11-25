@@ -27,6 +27,47 @@
   --font-mono: "IBM Plex Mono", "Consolas", ui-monospace, monospace;
 }
 
+/* ---------- متغيرات الثيم (تُبدَّل من صفحة الإعدادات) ---------- */
+:root {
+  --cy-paper: #f1f5f9;
+  --cy-paper-2: #f8fafc;
+  --cy-line: #cbd5e1;
+  --cy-ink: #0f172a;
+  --cy-ink-soft: #334155;
+  --cy-accent: #f59e0b;
+  --cy-accent-soft: #fef08a;
+  --cy-accent-text: #0f172a;
+  --cy-green: #10b981;
+  --cy-red: #ef4444;
+  --cy-header: #1e293b;
+  --cy-header-text: #ffffff;
+  --cy-header-soft: #334155;
+}
+
+/* فئات موحّدة تتغيّر مع الثيم — تُستخدم في الصفحات القابلة للتخصيص */
+.cy-themed {
+  background: var(--cy-paper);
+  color: var(--cy-ink);
+}
+.cy-surface {
+  background: #ffffff;
+  border-color: var(--cy-line);
+}
+.cy-accent-bg {
+  background: var(--cy-accent);
+  color: var(--cy-accent-text);
+}
+.cy-accent-soft-bg {
+  background: var(--cy-accent-soft);
+}
+.cy-header-bg {
+  background: var(--cy-header);
+  color: var(--cy-header-text);
+}
+.cy-themed-line {
+  border-color: var(--cy-line);
+}
+
 @layer base {
   :root {
     color-scheme: light;

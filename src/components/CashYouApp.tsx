@@ -25,6 +25,8 @@ import { TradeScreen } from "@/components/TradeScreen";
 import { ExpensesScreen, InstallmentsScreen, ReportsScreen, TreasuryScreen } from "@/components/FinanceScreens";
 import { InstallmentDialog } from "@/components/InstallmentDialog";
 import { UsersScreen } from "@/components/UsersScreen";
+import { SettingsScreen } from "@/components/SettingsScreen";
+import { mergeSettings, themeCssVars, themeOf, type ShopSettings } from "@/lib/settings";
 import { ActivationScreen } from "@/components/ActivationScreen";
 import { readOfflineBootstrap, saveOfflineBootstrap } from "@/lib/offline-cache";
 import {
@@ -79,7 +81,9 @@ export default function CashYouApp({
   const [shutdown, setShutdown] = useState(false);
   const [saving, setSaving] = useState(false);
   const [trial, setTrial] = useState<TrialStatus | null>(initial.trial ?? null);
-  const [welcome, setWelcome] = useState(true);
+  const [settings, setSettings] = useState<ShopSettings>(() => mergeSettings(initial.settings));
+  const theme = themeOf(settings.theme);
+  const [welcome, setWelcome] = useState(() => mergeSettings(initial.settings).welcomeEnabled);
   const [trialOpen, setTrialOpen] = useState(false);
   const [syncPending, setSyncPending] = useState(0);
   const [online, setOnline] = useState(true);
@@ -630,7 +634,11 @@ export default function CashYouApp({
   }
 
   return (
-    <div className="h-[100dvh] w-full flex flex-col bg-ink-950 overflow-hidden">
+    <div
+      className="h-[100dvh] w-full flex flex-col bg-ink-950 overflow-hidden"
+      style={themeCssVars(theme) as React.CSSProperties}
+      data-theme={theme.id}
+    >
       <TitleBar
         data={data}
         muted={muted}
@@ -704,6 +712,18 @@ export default function CashYouApp({
           {activeTab?.kind === "treasury" && <TreasuryScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "reports" && <ReportsScreen data={data} />}
           {activeTab?.kind === "users" && user && <UsersScreen user={user} notify={toast} />}
+          {activeTab?.kind === "settings" && user && (
+            <SettingsScreen
+              user={user}
+              initial={settings}
+              notify={toast}
+              onPreview={(next) => setSettings(next)}
+              onSaved={(next) => {
+                setSettings(next);
+                setData((prev) => ({ ...prev, settings: next, shop: { name: next.shopName, phone: next.shopPhone } }));
+              }}
+            />
+          )}
           {activeTab?.kind === "activation" && user && (
             <ActivationScreen
               user={user}
@@ -738,6 +758,8 @@ export default function CashYouApp({
         invoiceNumber={draft.number}
         itemsCount={draft.items.length}
         user={user}
+        trial={trial}
+        onOpenActivation={() => openModule("activation", "تفعيل النسخة")}
       />
 
       {/* ---------------- الطبقات العلوية ---------------- */}
@@ -803,7 +825,17 @@ export default function CashYouApp({
       )}
 
       {overlay.kind === "receipt" && (
-        <ReceiptModal receipt={overlay.receipt} shop={data.shop} onClose={() => setOverlay({ kind: "none" })} />
+        <ReceiptModal
+          receipt={overlay.receipt}
+          shop={{ name: settings.shopName, phone: settings.shopPhone }}
+          paper={settings.invoicePaper}
+          logo={settings.shopLogo}
+          address={settings.shopAddress}
+          receiptFooter={settings.invoiceFooter}
+          thanks={settings.invoiceThanks}
+          accent={theme.vars.accent}
+          onClose={() => setOverlay({ kind: "none" })}
+        />
       )}
 
       {overlay.kind === "invoice" && (
@@ -825,9 +857,13 @@ export default function CashYouApp({
 
       <Toasts toasts={toasts} onDismiss={dismiss} />
 
-      {welcome && (
+      {welcome && settings.welcomeEnabled && (
         <WelcomeToast
           name={user?.fullName ?? "بك"}
+          logo={settings.shopLogo}
+          shopName={settings.shopName}
+          muted={muted}
+          onToggleMute={toggleMute}
           detail={
             trial?.licensed
               ? `تم تسجيل الدخول بنجاح — نسخة مفعّلة${trial.license?.daysLeft ? ` · متبقٍ ${trial.license.daysLeft} يوم` : ""}`

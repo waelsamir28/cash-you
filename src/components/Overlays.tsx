@@ -11,7 +11,9 @@ import {
   IcoCopy,
   IcoDownload,
   IcoLogo,
+  IcoMute,
   IcoPrint,
+  IcoSound,
   IcoUndo,
   IcoWarn,
   IcoX,
@@ -91,16 +93,28 @@ export function Modal({
 export function WelcomeToast({
   name,
   detail,
+  logo,
+  shopName,
+  muted,
+  onToggleMute,
   onDone,
+  duration = 3000,
 }: {
   name: string;
   detail?: string;
+  /** شعار المحل (data-URL) — يظهر بدل اللوجو الافتراضي */
+  logo?: string;
+  shopName?: string;
+  muted?: boolean;
+  onToggleMute?: () => void;
   onDone: () => void;
+  /** مدة الظهور بالملي ثانية */
+  duration?: number;
 }) {
   useEffect(() => {
-    const timer = window.setTimeout(onDone, 3000);
+    const timer = window.setTimeout(onDone, duration);
     return () => window.clearTimeout(timer);
-  }, [onDone]);
+  }, [onDone, duration]);
 
   return (
     <div
@@ -109,19 +123,45 @@ export function WelcomeToast({
       role="status"
       aria-live="polite"
     >
+      {/* زر الصوت: أيقونة صغيرة أعلى اليسار */}
+      {onToggleMute && (
+        <button
+          type="button"
+          onClick={onToggleMute}
+          title={muted ? "تشغيل الصوت" : "كتم الصوت"}
+          aria-label={muted ? "تشغيل الصوت" : "كتم الصوت"}
+          className={`pointer-events-auto absolute top-4 left-4 grid h-8 w-8 place-items-center rounded-full border backdrop-blur transition ${
+            muted
+              ? "border-cash-red/50 bg-cash-red/15 text-cash-red"
+              : "border-white/25 bg-white/10 text-white hover:bg-white/20"
+          }`}
+        >
+          {muted ? <IcoMute className="h-3.5 w-3.5" /> : <IcoSound className="h-3.5 w-3.5" />}
+        </button>
+      )}
+
       <button
         type="button"
         onClick={onDone}
-        className="cy-toast-pop pointer-events-auto relative w-[min(92vw,380px)] overflow-hidden rounded-[26px] border border-white/15 bg-ink-900/95 px-6 py-7 text-center shadow-[0_40px_120px_-30px_rgba(0,0,0,.95)] backdrop-blur-xl"
+        className="cy-toast-pop pointer-events-auto relative w-[min(92vw,400px)] overflow-hidden rounded-[26px] border border-white/15 bg-ink-900/95 px-6 py-7 text-center shadow-[0_40px_120px_-30px_rgba(0,0,0,.95)] backdrop-blur-xl"
       >
         <span className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-cash-cyan/20 blur-3xl" />
         <span className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-amber-brand/20 blur-3xl" />
 
-        <span className="relative mx-auto grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-amber-brand to-orange-500 shadow-[0_12px_30px_-10px_rgba(245,158,11,.9)]">
-          <span className="text-[26px] font-black text-ink-900">✓</span>
+        {/* شعار المحل */}
+        <span className="relative mx-auto grid h-20 w-20 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-amber-brand to-orange-500 shadow-[0_12px_30px_-10px_rgba(245,158,11,.9)]">
+          {logo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logo} alt={shopName ?? "شعار المحل"} className="h-full w-full object-contain p-2" />
+          ) : (
+            <span className="text-[30px] font-black text-ink-900">✓</span>
+          )}
         </span>
 
-        <p className="relative mt-4 text-[11px] font-black tracking-[0.24em] text-cash-cyan">CASH YOU</p>
+        {shopName && (
+          <p className="relative mt-3 text-[12px] font-black tracking-wide text-cash-cyan">{shopName}</p>
+        )}
+        <p className="relative mt-1 text-[10.5px] font-black tracking-[0.24em] text-slate-500">CASH YOU · POS</p>
         <h2 className="relative mt-1.5 text-[21px] font-black leading-snug text-white">
           أهلاً بك، {name}
         </h2>
@@ -130,9 +170,14 @@ export function WelcomeToast({
         </p>
 
         <span className="relative mt-5 block h-1 w-full overflow-hidden rounded-full bg-white/10">
-          <span className="cy-toast-bar block h-full rounded-full bg-gradient-to-l from-amber-brand to-cash-cyan" />
+          <span
+            className="cy-toast-bar block h-full rounded-full bg-gradient-to-l from-amber-brand to-cash-cyan"
+            style={{ animationDuration: `${duration}ms` }}
+          />
         </span>
-        <p className="relative mt-2 text-[10px] font-bold text-slate-500">تختفي تلقائياً بعد 3 ثوانٍ</p>
+        <p className="relative mt-2 text-[10px] font-bold text-slate-500">
+          تختفي تلقائياً بعد {Math.round(duration / 1000)} ثوانٍ
+        </p>
       </button>
     </div>
   );
@@ -345,85 +390,131 @@ export type ReceiptData = {
 export function ReceiptModal({
   receipt,
   shop,
+  paper = "80mm",
+  logo = "",
+  address = "",
+  receiptFooter = "",
+  thanks = true,
+  accent = "#f59e0b",
   onClose,
 }: {
   receipt: ReceiptData;
   shop: { name: string; phone: string };
+  /** مقاس ورق الفاتورة */
+  paper?: "58mm" | "80mm" | "a5";
+  /** شعار المحل (data-URL) */
+  logo?: string;
+  address?: string;
+  receiptFooter?: string;
+  thanks?: boolean;
+  /** لون هوية المحل (من الثيم) */
+  accent?: string;
   onClose: () => void;
 }) {
   const [printed, setPrinted] = useState(false);
+  const accentSoft = `${accent}22`;
+  const width = paper === "58mm" ? "w-[224px]" : paper === "a5" ? "w-[384px]" : "w-[300px]";
+  const textSize = paper === "58mm" ? "text-[9.5px]" : paper === "a5" ? "text-[12px]" : "text-[11px]";
+
   return (
     <Modal
       title={`تم حفظ الفاتورة رقم ${receipt.number}`}
-      subtitle="معاينة الإيصال قبل الطباعة — 80 مم"
+      subtitle={`معاينة الإيصال قبل الطباعة — ${paper === "a5" ? "A5" : paper === "58mm" ? "58 مم" : "80 مم"}`}
       onClose={onClose}
       width="max-w-md"
     >
       <div
         id="cy-print-area"
-        className="mx-auto w-[300px] bg-white text-black border border-dashed border-slate-400 rounded-lg p-3 text-[11.5px] cy-scroll max-h-[52vh] overflow-y-auto"
+        className={`mx-auto ${width} ${textSize} rounded-lg border border-dashed border-slate-300 bg-white px-3 py-3 text-black cy-scroll max-h-[58vh] overflow-y-auto`}
       >
+        {/* رأس الإيصال */}
         <div className="text-center">
-          <div className="font-black text-[16px] tracking-widest">CASH YOU</div>
-          <div className="font-bold text-[12px]">{shop.name}</div>
-          <div className="cy-num">تليفون: {shop.phone}</div>
-          <div className="border-b border-dashed border-slate-400 my-2" />
+          {logo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logo} alt={shop.name} className="mx-auto mb-1.5 h-14 w-14 object-contain" />
+          ) : null}
+          <div className="text-[15px] font-black leading-tight tracking-wide">{shop.name}</div>
+          {address ? <div className="mt-0.5 text-[10px] font-semibold text-black/70">{address}</div> : null}
+          <div className="cy-num text-[10.5px] font-bold">ت: {shop.phone}</div>
+          <div className="mx-auto mt-2 h-[3px] w-16 rounded-full" style={{ background: accent }} />
         </div>
-        <div className="grid grid-cols-2 gap-y-0.5 cy-num">
-          <span className="font-bold">رقم الفاتورة</span>
-          <span className="text-left">{receipt.number}</span>
-          <span className="font-bold">التاريخ</span>
-          <span className="text-left">{shortStamp(receipt.createdAt)}</span>
-          <span className="font-bold">العميل</span>
-          <span className="text-left truncate">{receipt.customerName}</span>
-          <span className="font-bold">النوع / الدفع</span>
-          <span className="text-left">
-            {receipt.saleType} / {receipt.paymentMethod}
-          </span>
+
+        {/* بيانات الفاتورة */}
+        <div className="mt-2 rounded-md border border-dashed border-slate-300 px-2 py-1">
+          <div className="grid grid-cols-2 gap-y-0.5 cy-num [&>span:nth-child(odd)]:font-bold">
+            <span>رقم الفاتورة</span>
+            <span className="text-left font-black">{receipt.number}</span>
+            <span>التاريخ</span>
+            <span className="text-left">{shortStamp(receipt.createdAt)}</span>
+            <span>العميل</span>
+            <span className="truncate text-left">{receipt.customerName}</span>
+            <span>نوع البيع</span>
+            <span className="text-left">{receipt.saleType} · {receipt.paymentMethod}</span>
+          </div>
         </div>
-        <div className="border-b border-dashed border-slate-400 my-2" />
-        <table className="w-full">
+
+        {/* جدول الأصناف */}
+        <table className="mt-2 w-full border-collapse">
           <thead>
-            <tr className="font-black">
-              <th className="text-right">الصنف</th>
-              <th className="text-center w-9">كمية</th>
-              <th className="text-center w-12">سعر</th>
-              <th className="text-left w-14">إجمالي</th>
+            <tr className="border-y border-slate-400 text-[10px] font-black">
+              <th className="py-1 text-right">الصنف</th>
+              <th className="w-8 py-1 text-center">كمية</th>
+              <th className="w-11 py-1 text-center">سعر</th>
+              <th className="w-14 py-1 text-left">إجمالي</th>
             </tr>
           </thead>
           <tbody className="cy-num">
             {receipt.items.map((it, i) => (
-              <tr key={i} className="align-top">
-                <td className="text-right py-0.5 leading-tight">{it.name}</td>
-                <td className="text-center">{qtyText(it.qty)}</td>
-                <td className="text-center">{money(it.price)}</td>
-                <td className="text-left font-bold">{money(it.total)}</td>
+              <tr key={i} className={`align-top ${i % 2 ? "bg-slate-50" : ""}`}>
+                <td className="py-[3px] pl-1 text-right leading-tight">{it.name}</td>
+                <td className="py-[3px] text-center">{qtyText(it.qty)}</td>
+                <td className="py-[3px] text-center">{money(it.price)}</td>
+                <td className="py-[3px] text-left font-bold">{money(it.total)}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <div className="border-b border-dashed border-slate-400 my-2" />
-        <div className="space-y-0.5 cy-num">
+
+        {/* الإجماليات */}
+        <div className="mt-2 space-y-0.5 border-t border-dashed border-slate-400 pt-2 cy-num">
           <Row2 k="الإجمالي قبل الخصم" v={money(receipt.subtotal)} />
           {receipt.discountPercent > 0 && (
             <Row2 k={`الخصم (${receipt.discountPercent}%)`} v={money(receipt.subtotal - receipt.total)} />
           )}
-          <Row2 k="الصافي" v={money(receipt.total)} big />
-          <Row2 k="المدفوع" v={money(receipt.paid)} />
-          <Row2
-            k={receipt.remaining < 0 ? "الباقي للزبون" : "المتبقي"}
-            v={money(Math.abs(receipt.remaining))}
-          />
+          <div
+            className="mt-1 flex items-center justify-between rounded-md px-2 py-1.5 text-[13px] font-black"
+            style={{ background: accentSoft }}
+          >
+            <span>الصافي المطلوب</span>
+            <span className="cy-num text-[15px]">{money(receipt.total)}</span>
+          </div>
+          <div className="flex items-center justify-between px-2 pt-0.5 font-bold">
+            <span>المدفوع</span>
+            <span className="cy-num">{money(receipt.paid)}</span>
+          </div>
+          <div className="flex items-center justify-between px-2 pb-0.5 font-bold">
+            <span>{receipt.remaining < 0 ? "الباقي للزبون" : "المتبقي"}</span>
+            <span className="cy-num">{money(Math.abs(receipt.remaining))}</span>
+          </div>
         </div>
-        <div className="border-b border-dashed border-slate-400 my-2" />
-        <div className="text-center font-bold leading-relaxed">
-          <div>الدعم الفني : م / وائل الجمال</div>
-          <div className="cy-num">01222355769</div>
-          <div className="mt-1">شكراً لزيارتكم — البضاعة المباعة ترد خلال 14 يوم</div>
+
+        {/* التذييل */}
+        <div className="mt-2 border-t border-dashed border-slate-400 pt-2 text-center leading-relaxed">
+          {thanks && receiptFooter ? (
+            <div className="rounded-md px-2 py-1 text-[10.5px] font-black" style={{ background: accentSoft }}>
+              {receiptFooter}
+            </div>
+          ) : null}
+          <div className="mt-1.5 text-[9.5px] font-bold text-black/60">
+            البضاعة المباعة تُرد خلال 14 يوم بشرط سلامة العبوة
+          </div>
+          <div className="mt-1 text-[9px] font-semibold text-black/50">
+            CASH YOU · POS — {shortStamp(receipt.createdAt)}
+          </div>
         </div>
       </div>
 
-      <div className="flex gap-2 mt-4 cy-no-print">
+      <div className="mt-4 flex gap-2 cy-no-print">
         <button
           onClick={() => {
             setPrinted(true);
@@ -434,14 +525,14 @@ export function ReceiptModal({
             }).catch(() => undefined);
             window.print();
           }}
-          className="flex-1 h-11 rounded-xl bg-ink-800 text-white font-black cy-press flex items-center justify-center gap-2 hover:bg-ink-900"
+          className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-ink-800 font-black text-white cy-press hover:bg-ink-900"
         >
-          <IcoPrint className="w-4 h-4" />
+          <IcoPrint className="h-4 w-4" />
           {printed ? "إعادة الطباعة" : "طباعة الإيصال"}
         </button>
         <button
           onClick={onClose}
-          className="h-11 px-5 rounded-xl bg-slate-200 text-ink-800 font-black cy-press hover:bg-slate-300"
+          className="h-11 rounded-xl bg-slate-200 px-5 font-black text-ink-800 cy-press hover:bg-slate-300"
         >
           إلغاء
         </button>
