@@ -76,6 +76,11 @@ if (!hookOk) {
   process.exit(1);
 }
 
+/* مسار الحزمة المعبّأة — يجب أن يطابق build.directories.output */
+const outputDir = pkg.build.directories?.output || "dist";
+const packagedStandalone = path.join(appDir, outputDir, "win-unpacked", "resources", "standalone");
+console.log(`[مسار الحزمة المعبّأة] ${outputDir}/win-unpacked/resources/standalone`);
+
 console.log("\n[ملفات التطبيق]");
 const appResults = check(pkg.build.files, appSamples);
 for (const r of appResults) console.log(`  ${r.included ? "✓" : "✗"} ${r.rel}`);

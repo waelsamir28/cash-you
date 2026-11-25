@@ -97,7 +97,8 @@ jobs:
         run: |
           set -euo pipefail
           # حزمة standalone يجب أن تكون داخل resources خارج app.asar
-          APP_DIR="dist/win-unpacked"
+          # مجلد الإخراج محدد في package.json → build.directories.output = "release"
+          APP_DIR="release/win-unpacked"
           echo "== resources =="
           ls -la "$APP_DIR/resources"
           echo "== standalone =="
