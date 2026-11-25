@@ -13,6 +13,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/build-windows-exe.yml"
+      - ".github/release-notes/**"
   pull_request:
     branches: [main]
     paths:
@@ -23,6 +24,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/build-windows-exe.yml"
+      - ".github/release-notes/**"
   workflow_dispatch:
 
 permissions:
@@ -118,6 +120,6 @@ jobs:
             gh release create "$TAG" \
               --target "$GITHUB_SHA" \
               --title "CASH YOU Desktop v${APP_VERSION}" \
-              --notes "ملف تثبيت ويندوز: CASH-YOU-Setup-${APP_VERSION}.exe — بناء آلي رقم ${{ github.run_number }} من GitHub Actions، والأيقونة واللوجو من شعار CASH YOU الرسمي." \
+              --notes "$(cat ".github/release-notes/desktop-v${APP_VERSION}.md" 2>/dev/null || echo "ملف تثبيت ويندوز: CASH-YOU-Setup-${APP_VERSION}.exe — بناء آلي رقم ${{ github.run_number }} من GitHub Actions.")" \
               "${FILES[@]}"
           fi
