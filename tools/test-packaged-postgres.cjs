@@ -52,27 +52,34 @@ function ok(message) {
   console.log(`✓ ${message}`);
 }
 
-/** يبحث عن ثنائي Electron الحقيقي داخل الحزمة */
+/**
+ * يبحث عن ثنائي Electron الحقيقي داخل الحزمة.
+ *
+ * الملف الرئيسي اسمه من `productName` (هنا "CASH YOU.exe"). نستبعاد
+ * المساعدين (elevate/notification_helper) لأن تشغيلها لا ينفّذ سكربتاً.
+ */
 function findElectronBinary(dir) {
+  const SKIP = /^(setup|uninstall|elevate|notification_helper|crashpad|chrome_crashpad)/i;
   let entries = [];
   try {
     entries = fs.readdirSync(dir);
   } catch {
     return null;
   }
-  for (const entry of entries) {
-    const file = path.join(dir, entry);
-    let stat;
+  const exeFiles = entries.filter((entry) => {
+    if (!entry.toLowerCase().endsWith(".exe")) return false;
+    if (SKIP.test(entry)) return false;
     try {
-      stat = fs.statSync(file);
+      return fs.statSync(path.join(dir, entry)).isFile();
     } catch {
-      continue;
+      return false;
     }
-    if (!stat.isFile()) continue;
-    if (entry.endsWith(".exe") && !/^setup|^uninstall|^elevate/i.test(entry)) return file;
-    if (process.platform !== "win32" && stat.mode & 0o111 && !entry.includes(".")) return file;
-  }
-  return null;
+  });
+  if (exeFiles.length === 0) return null;
+
+  /* نُفضّل ملفاً يحمل اسم المنتج، وإلا أول ملف غير مستبعد */
+  const preferred = exeFiles.find((entry) => /cash\s*you/i.test(entry));
+  return path.join(dir, preferred ?? exeFiles[0]);
 }
 
 async function main() {
@@ -133,12 +140,21 @@ async function main() {
   fs.writeFileSync(
     scriptFile,
     `
+/* هنا نعمل داخل Electron الحقيقي: resourcesPath يشير إلى مجلد resources */
+console.log("PROBE resourcesPath:", process.resourcesPath);
+console.log("PROBE platform:", process.platform, process.arch);
+
 const localDb = require(${JSON.stringify(asarLocalDb)});
 const { Client } = require(${JSON.stringify(asarPg)});
 
 (async () => {
   const url = await localDb.startEmbeddedPostgres();
-  if (!url) throw new Error("startEmbeddedPostgres أعاد null — لم يعمل المدمج");
+  if (!url) {
+    const reason = typeof localDb.embeddedDatabaseError === "function"
+      ? localDb.embeddedDatabaseError()
+      : "(لا تفاصيل)";
+    throw new Error("startEmbeddedPostgres أعاد null — السبب: " + reason);
+  }
 
   const client = new Client({ connectionString: url });
   await client.connect();

@@ -182,15 +182,74 @@ function restoreSymlinks(root) {
 }
 
 /**
- * مسارات ثنائيات PostgreSQL المدمج حسب النظام.
- * (نفس منطق حزمة `embedded-postgres` — نحتاج `pg_ctl` تحديداً على ويندوز.)
+ * مجلدات مرشحة تحتوي ثنائيات PostgreSQL المدمج، بترتيب الأولوية.
  *
- * نُصحّح المسارات بعد التغليف عبر `unpackedPath`، ونعيد المسارات الفعلية
- * القابلة للتنفيذ (لا حساب المسار من موقع الوحدة داخل ASAR).
+ * نبحث عن الثنائيات على القرص مباشرة ولا نحمّل حزمة النظام عبر `import()`:
+ *  - `import()` لحزمة ESM داخل `app.asar` غير موثوقة، وقد تفشل على ويندوز.
+ *  - المسار بعد التغليف معروف ومحدد: `app.asar.unpacked`، أو مجلد التطوير.
+ *
+ * مواضع `__dirname` الممكنة:
+ *   تغليف: <resources>/app.asar/electron   → الجذر المطلوب <resources>
+ *   تطوير: <project>/electron             → الجذر المطلوب <project>
+ * لذلك نصعد مستويين ونفحص كل أب، مع `process.resourcesPath` كضمان.
+ */
+function binarySearchRoots() {
+  const roots = [__dirname];
+  let current = __dirname;
+  for (let depth = 0; depth < 3; depth += 1) {
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+    roots.push(current);
+  }
+  try {
+    roots.push(process.resourcesPath);
+  } catch {
+    /* غير متاح خارج Electron */
+  }
+  return [...new Set(roots.filter(Boolean))];
+}
+
+/**
+ * مسارات ثنائيات PostgreSQL المدمج حسب النظام.
+ *
+ * نحسب المسار بأنفسنا من `app.asar.unpacked` (حيث electron-builder يضع
+ * الملفات الأصلية) بدل الاعتماد على مسار الحزمة المشتق من موقع وحدتها،
+ * وهو مسار داخل `app.asar` غير موجود على القرص — سبب عطل الإصدار 1.3.0.
  */
 async function embeddedBinaries() {
   const pkg = EMBEDDED_PACKAGES[`${process.platform}-${process.arch}`];
   if (!pkg) return null;
+
+  const exe = (name) => (process.platform === "win32" ? `${name}.exe` : name);
+  const names = { postgres: exe("postgres"), initdb: exe("initdb"), pgCtl: exe("pg_ctl") };
+
+  for (const root of binarySearchRoots()) {
+    const candidates = [
+      /* 1) تغليف: <resources>/app.asar.unpacked ★ المسار الصحيح */
+      path.join(root, "app.asar.unpacked", "node_modules", pkg, "native", "bin"),
+      /* 2) تغليف غير مفكوك: <resources>/app/(asar غير موجود) — احتياط */
+      path.join(root, "app", "node_modules", pkg, "native", "bin"),
+      /* 3) تطوير: <project>/node_modules */
+      path.join(root, "node_modules", pkg, "native", "bin"),
+    ];
+    for (const binDir of candidates) {
+      if (!existsSync(binDir)) continue;
+      const resolved = {
+        postgres: path.join(binDir, names.postgres),
+        initdb: path.join(binDir, names.initdb),
+        pgCtl: path.join(binDir, names.pgCtl),
+      };
+      if (!existsSync(resolved.postgres)) continue;
+      restoreSymlinks(binariesRoot(binDir));
+      return { ...resolved, binDir };
+    }
+  }
+
+  /*
+   * آخر محاولة: الحزمة نفسها عبر import (تغطي تركيباً غير تقليدي)،
+   * مع تصحيح المسار إن كان داخل ASAR.
+   */
   try {
     const mod = await import(pkg);
     const resolved = {
@@ -198,9 +257,8 @@ async function embeddedBinaries() {
       initdb: unpackedPath(mod.initdb),
       pgCtl: unpackedPath(mod.pg_ctl),
     };
-    if (!resolved.postgres) return null;
+    if (!resolved.postgres || !existsSync(resolved.postgres)) return null;
     const binDir = path.dirname(resolved.postgres);
-    if (!existsSync(binDir)) return null;
     restoreSymlinks(binariesRoot(binDir));
     return { ...resolved, binDir };
   } catch {
