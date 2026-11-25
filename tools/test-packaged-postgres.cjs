@@ -127,11 +127,11 @@ async function main() {
     if (!fs.existsSync(shareDir)) fail(`مجلد share مفقود: ${shareDir}`);
     ok("مجلد share (ملفات الترميز/التهيئة) موجود خارج ASAR");
 
-    /* الوحدة نفسها داخل ASAR لتُحمَّل */
-    if (!fs.existsSync(path.join(appAsar, "node_modules", pkgName))) {
-      fail(`وحدة ${pkgName} غير موجودة داخل app.asar — لن تُحمّل أصلاً`);
-    }
-    ok(`وحدة ${pkgName} قابلة للتحميل من داخل app.asar`);
+    /*
+     * ملاحظة: لا يمكن فحص ما «داخل» app.asar هنا بـ fs العادي — قراءة ASAR
+     * تحتاج `fs` المعدّل في Electron. الوحدة تُختبر فعلياً في الخطوة التالية
+     * حيث تعمل داخل Electron الحقيقي.
+     */
   }
 
   /* 2) تشغيل الكود المعبّأ نفسه عبر Electron المرفق (بلا واجهة) */
@@ -148,6 +148,7 @@ async function main() {
   const scriptFile = path.join(workDir, "run.cjs");
   const asarLocalDb = path.join(appAsar, "electron", "local-db.cjs");
   const asarPg = path.join(appAsar, "node_modules", "pg");
+  const platformPkg = PLATFORM_PACKAGES[`${process.platform}-${process.arch}`]?.[0] ?? "";
 
   fs.writeFileSync(
     scriptFile,
@@ -155,6 +156,34 @@ async function main() {
 /* هنا نعمل داخل Electron الحقيقي: resourcesPath يشير إلى مجلد resources */
 console.log("PROBE resourcesPath:", process.resourcesPath);
 console.log("PROBE platform:", process.platform, process.arch);
+
+/* داخل Electron نستطيع سرد محتوى app.asar، وهو ما يتعذر على Node العادي */
+const fs = require("node:fs");
+const path = require("node:path");
+const asarRoot = path.join(process.resourcesPath, "app.asar");
+const platformPkg = ${JSON.stringify(platformPkg)};
+
+function describe(target) {
+  try {
+    return fs.statSync(target).isDirectory() ? "dir" : "file";
+  } catch (e) {
+    return "MISSING (" + e.code + ")";
+  }
+}
+
+console.log("PROBE asar:", asarRoot);
+console.log("PROBE app.asar/electron:", describe(path.join(asarRoot, "electron")));
+console.log("PROBE app.asar/node_modules:", describe(path.join(asarRoot, "node_modules")));
+if (platformPkg) {
+  console.log(
+    "PROBE app.asar/" + platformPkg + ":",
+    describe(path.join(asarRoot, "node_modules", platformPkg)),
+  );
+  console.log(
+    "PROBE unpacked/" + platformPkg + "/native/bin:",
+    describe(path.join(process.resourcesPath, "app.asar.unpacked", "node_modules", platformPkg, "native", "bin")),
+  );
+}
 
 const localDb = require(${JSON.stringify(asarLocalDb)});
 const { Client } = require(${JSON.stringify(asarPg)});

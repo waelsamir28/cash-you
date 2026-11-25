@@ -113,6 +113,11 @@ async function main() {
     path.join(srcPackage, "package.json"),
     path.join(appAsar, "node_modules", platformPackage, "package.json"),
   );
+  /*
+   * كما وجدنا في الحزمة الفعلية على ويندوز: الحزمة تُوضع كاملة (مع dist)
+   * في app.asar.unpacked، ولا تبقى نسخة قابلة للتحميل داخل app.asar.
+   * الكود يجب أن يعمل بهذا الشكل، فلا يعتمد إطلاقاً على استيراد الوحدة.
+   */
   copyDir(
     path.join(srcPackage, "native"),
     path.join(unpackedRoot, "node_modules", platformPackage, "native"),
