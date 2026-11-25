@@ -54,9 +54,14 @@ function readLocalDbConfig() {
   /* رابط قديم محفوظ قبل الفصل بين المحلي والسحابي */
   const legacyLocal = mode === "local" ? legacyUrl : "";
   const legacyCloud = mode === "cloud" ? legacyUrl : "";
+  /*
+   * `url` يتبع الوضع دائماً — لا يجوز أن يشير الوضع المحلي إلى رابط
+   * سحابي (فقد يعمل البرنامج على قاعدة العميل السحابية بدل قاعدته المحلية).
+   */
+  const url = mode === "local" ? localUrl || legacyLocal : cloudUrl || legacyCloud;
   return {
     mode,
-    url: cloudUrl || legacyCloud || localUrl || legacyLocal,
+    url,
     localUrl: localUrl || legacyLocal,
     cloudUrl: cloudUrl || legacyCloud,
   };
@@ -158,10 +163,20 @@ async function testLocalDbConnection(url) {
 function registerDbHandlers() {
   ipcMain.handle("cash-you:get-db-config", () => {
     const cfg = readLocalDbConfig();
+    /*
+     * في نسخة ويندوز «الاتصال المحفوظ» هو رابط العميل السحابي (الذي يختاره
+     * بنفسه) — أما قاعدة جهازه المحلية فتُنشأ تلقائياً وتُعرض منفصلة.
+     */
+    const mode = cfg.cloudUrl ? "cloud" : cfg.localUrl ? "local" : cfg.mode;
+    const masked = cfg.cloudUrl
+      ? maskDbUrl(cfg.cloudUrl)
+      : cfg.localUrl
+        ? maskDbUrl(cfg.localUrl)
+        : "";
     return {
-      saved: Boolean(cfg.url),
-      mode: cfg.mode,
-      maskedUrl: cfg.url ? maskDbUrl(cfg.url) : "",
+      saved: Boolean(cfg.cloudUrl || cfg.localUrl),
+      mode,
+      maskedUrl: masked,
       /* قاعدة العميل المحلية (تُنشأ تلقائياً) */
       hasLocalDb: Boolean(cfg.localUrl),
       localMasked: cfg.localUrl ? maskDbUrl(cfg.localUrl) : "",

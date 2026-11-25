@@ -29,7 +29,7 @@ Module._load = function (request) {
   return origLoad.apply(this, arguments);
 };
 
-const { registerDbHandlers } = require("../electron/db-config.cjs");
+const { registerDbHandlers, readLocalDbConfig, writeLocalDbConfig } = require("../electron/db-config.cjs");
 registerDbHandlers();
 
 /** يحمّل وحدة الجسر لمجلد مستخدم آخر (تثبيت آخر) */
@@ -76,6 +76,25 @@ function loadForDir(dir) {
   assert.equal(afterCloud.localMasked.includes("••••"), true, "الرابط المحلي يظهر مخفياً");
   assert.equal(afterCloud.cloudMasked.includes("••••"), true, "الرابط السحابي يظهر مخفياً");
   console.log("9) فصل المحلي عن السحابي: ✓");
+
+  /* ---------- 9b) الرابط المحلي لا يختلط بالسحابي ---------- */
+  /*
+   * بعد حفظ رابط سحابي ثم إعادة كتابة الرابط المحلي (كما يفعل البرنامج
+   * عند تشغيل القاعدة المدمجة) يجب أن يبقى كل رابط في مكانه:
+   * الوضع المحلي ⇒ الرابط المحلي، والوضع السحابي ⇒ الرابط السحابي.
+   */
+  const embeddedUrl = "postgresql://cashyou:secret@127.0.0.1:45491/cash_you";
+  writeLocalDbConfig({ mode: "local", url: embeddedUrl });
+  const afterLocal = readLocalDbConfig();
+  assert.equal(afterLocal.mode, "local", "الوضع يجب أن يبقى محلياً");
+  assert.equal(afterLocal.url, embeddedUrl, "الوضع المحلي يشير إلى رابط سحابي — خطأ خطير");
+  assert.equal(afterLocal.cloudUrl, cloudUrl, "الرابط السحابي ضاع عند الحفظ المحلي");
+  assert.equal(afterLocal.localUrl, embeddedUrl, "الرابط المحلي غير صحيح");
+  const state = await handlers["cash-you:get-db-config"]();
+  assert.equal(state.hasCloudDb, true, "الرابط السحابي لم يعد محفوظاً");
+  assert.equal(state.hasLocalDb, true, "الرابط المحلي لم يعد محفوظاً");
+  assert.equal(state.mode, "cloud", "الواجهة تعرض الاتصال المحفوظ (السحابي) للعميل");
+  console.log("9b) الوضع لا يختلط بين المحلي والسحابي: ✓");
 
   /* ---------- 10) عزل التثبيتات ---------- */
   const otherDir = fs.mkdtempSync(path.join(os.tmpdir(), "cy-userdata2-"));
