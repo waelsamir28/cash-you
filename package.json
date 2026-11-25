@@ -22,7 +22,8 @@
     "test:db-sync": "node tools/test-db-sync.cjs",
     "test:tenant": "node tools/test-tenant-http.cjs",
     "test:tenant-unit": "node tools/test-tenant-isolation.cjs",
-    "test:local-db": "node tools/test-local-db.cjs"
+    "test:local-db": "node tools/test-local-db.cjs",
+    "test:embedded": "node tools/test-embedded-postgres.cjs"
   },
   "dependencies": {
     "dotenv": "17.3.1",
@@ -113,7 +114,8 @@
       "node_modules/postgres-date/**/*",
       "node_modules/postgres-interval/**/*",
       "node_modules/split2/**/*",
-      "node_modules/@embedded-postgres/**/*"
+      "node_modules/@embedded-postgres/**/*",
+      "node_modules/embedded-postgres/**/*"
     ],
     "afterPack": "tools/copy-standalone.cjs"
   },
