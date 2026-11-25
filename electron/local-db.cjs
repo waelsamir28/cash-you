@@ -163,30 +163,45 @@ async function embeddedBinaries() {
 /** ينفّذ أمراً ويعيد مخرجاته (يرمي خطأً واضحاً عند الفشل) */
 function runCommand(command, args, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { windowsHide: true });
+    /*
+     * ننتظر حدث `exit` (خروج العملية) لا `close` (إغلاق المخرجات) — لأن
+     * الخادم الذي يشغّله `pg_ctl` قد يبقي على مقابض المخرجات مفتوحة،
+     * فيتأخر `close` إلى ما لا نهاية.
+     */
+    const child = spawn(command, args, {
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     let out = "";
     let err = "";
+    let settled = false;
     child.stdout?.on("data", (buf) => {
       out += buf.toString();
     });
     child.stderr?.on("data", (buf) => {
       err += buf.toString();
     });
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      fn(value);
+    };
     const timer = setTimeout(() => {
       child.kill();
-      reject(new Error(`انتهت مهلة الأمر: ${path.basename(command)}`));
+      finish(reject, new Error(`انتهت مهلة الأمر: ${path.basename(command)}`));
     }, timeoutMs);
     child.on("error", (error) => {
       clearTimeout(timer);
-      reject(error);
+      finish(reject, error);
     });
-    child.on("close", (code) => {
+    child.on("exit", (code) => {
       clearTimeout(timer);
       if (code === 0) {
-        resolve({ out, err });
+        finish(resolve, { out, err });
         return;
       }
-      reject(
+      finish(
+        reject,
         new Error(
           `فشل ${path.basename(command)} (رمز ${code}): ${(err || out).trim().slice(-800)}`,
         ),
@@ -211,7 +226,7 @@ function tailServerLog(databaseDir, lines = 12) {
  * with administrative permissions is not permitted")، بينما `pg_ctl` يشغّله
  * بتوكن محدود فيعمل حتى مع صلاحيات المدير.
  */
-async function startWithPgCtl(binaries, databaseDir, port) {
+async function startWithPgCtl(binaries, databaseDir, port, adminUrl) {
   const pgCtl = binaries.pgCtl;
   if (!pgCtl || !existsSync(pgCtl)) throw new Error("pg_ctl غير متوفر");
   const logFile = path.join(databaseDir, "server.log");
@@ -230,12 +245,24 @@ async function startWithPgCtl(binaries, databaseDir, port) {
         "60",
         "start",
       ],
-      90000,
+      60000,
     );
   } catch (err) {
+    /*
+     * `pg_ctl` قد لا يُنهي عمليته حتى لو اشتغل الخادم — فالحكم الحقيقي
+     * هو: هل الخادم يستجيب؟ إن كان يعمل نعتبر المهمة ناجحة.
+     */
+    if (!(await canConnect(adminUrl, 5000))) {
+      const log = tailServerLog(databaseDir);
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`${message}${log ? `\nسجل الخادم:\n${log}` : ""}`);
+    }
+  }
+  if (!(await canConnect(adminUrl, 8000))) {
     const log = tailServerLog(databaseDir);
-    const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`${message}${log ? `\nسجل الخادم:\n${log}` : ""}`);
+    throw new Error(
+      `لم يستجب الخادم المحلي${log ? `\nسجل الخادم:\n${log}` : ""}`,
+    );
   }
 }
 
@@ -423,7 +450,12 @@ async function startEmbeddedPostgres() {
        * with administrative permissions is not permitted") — وهو شائع جداً
        * عند العملاء. أما `pg_ctl` فيشغّله بتوكن محدود فيعمل دائماً.
        */
-      await startWithPgCtl(binaries, databaseDir, port);
+      await startWithPgCtl(
+        binaries,
+        databaseDir,
+        port,
+        `postgresql://${LOCAL_DB_USER}:${password}@127.0.0.1:${port}/postgres`,
+      );
       startedWithPgCtl = true;
       runningDataDir = databaseDir;
     } else {
