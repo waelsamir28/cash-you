@@ -1,13 +1,14 @@
 import { getSetting, setSetting } from "@/lib/data";
 import { getSessionUser } from "@/lib/auth";
 import { mergeSettings, type ShopSettings } from "@/lib/settings";
+import { withTenant } from "@/lib/tenant-routes";
 
 export const dynamic = "force-dynamic";
 
 const KEY = "app.settings.v1";
 
 /** قراءة إعدادات البرنامج (تُدمج مع الافتراضية دائماً) */
-export async function GET() {
+export const GET = withTenant(async () => {
   try {
     const raw = await getSetting(KEY, "");
     let parsed: unknown = null;
@@ -22,10 +23,10 @@ export async function GET() {
   } catch {
     return Response.json({ error: "تعذر قراءة الإعدادات" }, { status: 500 });
   }
-}
+});
 
 /** حفظ الإعدادات — للمالك فقط */
-export async function PUT(req: Request) {
+export const PUT = withTenant(async (req: Request) => {
   try {
     const current = await getSessionUser(req);
     if (!current) return Response.json({ error: "سجّل الدخول أولاً" }, { status: 401 });
@@ -51,4 +52,4 @@ export async function PUT(req: Request) {
   } catch {
     return Response.json({ error: "تعذر حفظ الإعدادات" }, { status: 500 });
   }
-}
+});

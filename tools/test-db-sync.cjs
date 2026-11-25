@@ -8,7 +8,8 @@
  */
 const assert = require("node:assert/strict");
 const { Client } = require("pg");
-const { syncDatabases } = require("../electron/db-sync.cjs");
+const syncModule = require("../electron/db-sync.cjs");
+const { syncDatabases } = syncModule;
 
 const LOCAL = process.env.SYNC_LOCAL_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/sync_local";
 const CLOUD = process.env.SYNC_CLOUD_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/sync_cloud";
@@ -199,6 +200,66 @@ async function main() {
   const user = await cloud.query("SELECT username FROM app_users WHERE username='owner'");
   assert.equal(user.rowCount, 1, "المستخدمون يجب أن ينتقلوا");
   console.log("report(settings/users):", r6.pushed);
+
+  /* ---------- 9) حماية هوية العميل: لا نسخ حسابات بين عملاء ---------- */
+  /* البصمة: القاعدة المحلية تخصّ العميل "أ" والسحابية تخصّ العميل "ب" */
+  await local.query(
+    `INSERT INTO settings (key, value) VALUES ('customer.identity','client_a')
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+  );
+  await cloud.query(
+    `INSERT INTO settings (key, value) VALUES ('customer.identity','client_b')
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+  );
+
+  const identity = await syncModule.checkCustomerIdentity(local, cloud);
+  assert.equal(identity.ok, false, "اختلاف البصمة يجب أن يمنع المزامنة");
+  assert.match(identity.reason || "", /عملاء مختلفين/, "سبب الرفض يجب أن يوضّح الفرق");
+  console.log("✓ المزامنة مرفوضة بين عملاء مختلفين:", identity.reason);
+
+  /* حساب عميل آخر في السحابة يجب ألا ينتقل إلى قاعدة العميل "أ" */
+  await cloud.query(
+    `INSERT INTO app_users (username, full_name, password_hash, role, created_at)
+     VALUES ('other_client','عميل آخر','hash2','owner', now())
+     ON CONFLICT (username) DO NOTHING`,
+  );
+  await cloud.query(
+    `INSERT INTO settings (key, value) VALUES ('secret_of_b','قيمة سرية')
+     ON CONFLICT (key) DO NOTHING`,
+  );
+  const blockedReport = await syncModule.syncByUrl(LOCAL, CLOUD, "both");
+  assert.equal(blockedReport.ok, false, "المزامنة الكاملة يجب أن تُرفض");
+  const leakedUser = await local.query("SELECT username FROM app_users WHERE username='other_client'");
+  assert.equal(leakedUser.rowCount, 0, "حساب عميل آخر لا ينتقل بين العملاء");
+  const leakedSetting = await local.query("SELECT value FROM settings WHERE key='secret_of_b'");
+  assert.equal(leakedSetting.rowCount, 0, "إعدادات عميل آخر لا تنتقل بين العملاء");
+  console.log("✓ لا تسريب لحسابات أو إعدادات عميل آخر");
+
+  /* ---------- 10) البصمة نفسها → المزامنة مسموحة ---------- */
+  await cloud.query(
+    `INSERT INTO settings (key, value) VALUES ('customer.identity','client_a')
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+  );
+  const sameIdentity = await syncModule.checkCustomerIdentity(local, cloud);
+  assert.equal(sameIdentity.ok, true, "تطابق البصمة يسمح بالمزامنة");
+  const okReport = await syncModule.syncByUrl(LOCAL, CLOUD, "both");
+  assert.equal(okReport.ok, true, "المزامنة بين قاعدتين للعميل نفسه تنجح");
+  console.log("✓ المزامنة مسموحة لنفس العميل:", okReport.message);
+
+  /* ---------- 11) قاعدة محلية جديدة تتبنّى بصمة العميل ---------- */
+  const fresh = await client(process.env.SYNC_FRESH_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/sync_fresh");
+  await wipe(fresh);
+  const freshIdentity = await syncModule.checkCustomerIdentity(fresh, cloud);
+  assert.equal(freshIdentity.ok, true, "قاعدة جديدة بلا بصمة مقبولة");
+  await syncModule.syncByUrl(
+    process.env.SYNC_FRESH_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/sync_fresh",
+    CLOUD,
+    "both",
+  );
+  const stamped = await fresh.query("SELECT value FROM settings WHERE key='customer.identity'");
+  assert.equal(stamped.rows[0]?.value, "client_a", "القاعدة الجديدة تتبنّى بصمة العميل");
+  console.log("✓ قاعدة العميل الجديدة تتبنّى بصمته عند أول مزامنة");
+  await fresh.end();
 
   console.log("\n✅ كل اختبارات المزامنة نجحت");
   await local.end();

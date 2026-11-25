@@ -2,15 +2,16 @@ import { db } from "@/db";
 import { asc } from "drizzle-orm";
 import { customers } from "@/db/schema";
 import { withOfflineIdempotency } from "@/lib/offline-idempotency";
+import { withTenant } from "@/lib/tenant-routes";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export const GET = withTenant(async () => {
   const rows = await db.select().from(customers).orderBy(asc(customers.id));
   return Response.json(rows);
-}
+});
 
-export async function POST(req: Request) {
+export const POST = withTenant(async (req: Request) => {
   return withOfflineIdempotency(req, async () => {
     try {
       const body = (await req.json()) as { name?: string; phone?: string; balance?: number };
@@ -22,4 +23,4 @@ export async function POST(req: Request) {
       return Response.json({ error: err instanceof Error ? err.message : "تعذر إضافة العميل" }, { status: 500 });
     }
   });
-}
+});

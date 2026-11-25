@@ -102,6 +102,9 @@ async function startLocalServer(databaseUrl) {
       PORT: String(port),
       HOSTNAME: "127.0.0.1",
       DATABASE_URL: databaseUrl,
+      /* قاعدة واحدة على جهاز العميل نفسه — لا حاجة لعزل مستأجرين هنا،
+         والعزل المتعدد مفعّل افتراضياً على النسخ السحابية. */
+      CASH_YOU_TENANT_MODE: "0",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

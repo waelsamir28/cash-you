@@ -4,6 +4,7 @@ import { and, eq, gt } from "drizzle-orm";
 import { db } from "@/db";
 import { appSessions, appUsers, usageCounters } from "@/db/schema";
 import { ensureAuthSchema } from "@/lib/ensure-schema";
+import { LEGACY_TENANT } from "@/db/tenant-context";
 import {
   computeTrial,
   limitMessage,
@@ -117,6 +118,47 @@ export async function findUserByUsername(username: string) {
   await ensureAuthSchema();
   const rows = await db.select().from(appUsers).where(eq(appUsers.username, normalizeUsername(username))).limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * يبحث عن مستخدم في كل وحدات العزل — حتى لو كان المتصفح على مستأجر آخر.
+ * يُستخدم عند تسجيل الدخول: لو كان العميل فتح البرنامج من جهاز جديد
+ * (فلا كوكي مستأجر) نبحث عن حسابه في كل القواعد ثم نثبّته على قاعدته.
+ */
+export async function findUserAcrossTenants(username: string): Promise<{
+  user: Awaited<ReturnType<typeof findUserByUsername>>;
+  tenant: import("@/db/tenant-context").TenantUnit;
+} | null> {
+  const { currentTenantContext, tenantModeEnabled } = await import("@/db/tenant-context");
+  if (!tenantModeEnabled()) {
+    const user = await findUserByUsername(username);
+    return user ? { user, tenant: currentTenantContext()?.tenant ?? LEGACY_TENANT } : null;
+  }
+
+  /* المستأجر الحالي أولاً */
+  const current = currentTenantContext()?.tenant ?? LEGACY_TENANT;
+  const here = await findUserByUsername(username);
+  if (here) return { user: here, tenant: current };
+
+  /* ثم بقية المستأجرين */
+  const { listTenants } = await import("@/db/tenant-registry");
+  const { getTenantDb } = await import("@/db/tenant-pool");
+  const tenants = await listTenants();
+  for (const tenant of tenants) {
+    if (tenant.key === current.key) continue;
+    try {
+      const instance = getTenantDb(tenant);
+      const rows = await instance
+        .select()
+        .from(appUsers)
+        .where(eq(appUsers.username, normalizeUsername(username)))
+        .limit(1);
+      if (rows[0]) return { user: rows[0], tenant };
+    } catch {
+      /* وحدة غير جاهزة — نتخطاها */
+    }
+  }
+  return null;
 }
 
 export async function listUsers(): Promise<PublicUser[]> {

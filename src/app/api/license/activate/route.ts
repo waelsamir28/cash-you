@@ -1,5 +1,6 @@
 import { activateWithCode, isActivationPlan } from "@/lib/activation";
 import { getSessionUser } from "@/lib/auth";
+import { withTenant } from "@/lib/tenant-routes";
 
 export const dynamic = "force-dynamic";
 
@@ -7,7 +8,7 @@ export const dynamic = "force-dynamic";
  * تفعيل الفترة التجريبية بكود HMAC-SHA256.
  * متاح للمالك فقط، لأن التفعيل يعدّل ترخيص البرنامج.
  */
-export async function POST(req: Request) {
+export const POST = withTenant(async (req: Request) => {
   try {
     const current = await getSessionUser(req);
     if (!current) return Response.json({ error: "سجّل الدخول أولاً" }, { status: 401 });
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
   } catch {
     return Response.json({ error: "تعذر تنفيذ التفعيل" }, { status: 500 });
   }
-}
+});
 
 async function currentTrial() {
   const { getTrialStatus } = await import("@/lib/auth");

@@ -26,6 +26,10 @@ type Props = {
   localDb?: boolean;
   /** عدد العمليات المعلّقة للمزامنة */
   pendingSync?: number;
+  /** معرّف وحدة عزل العميل (قاعدة/مخطط مستقل) */
+  tenantKey?: string;
+  /** هل يعمل البرنامج بعزل مستأجرين؟ */
+  tenantIsolated?: boolean;
 };
 
 function CopyField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
@@ -55,6 +59,8 @@ export function SupportScreen({
   daysLeft,
   localDb,
   pendingSync,
+  tenantKey,
+  tenantIsolated,
 }: Props) {
   const diagnosis = [
     { label: "إصدار البرنامج", value: appVersion || "غير معروف" },
@@ -62,6 +68,12 @@ export function SupportScreen({
     { label: "حالة التفعيل", value: licensed ? `مفعّلة — متبقٍ ${daysLeft ?? 0} يوم` : "غير مفعّلة" },
     { label: "مصدر البيانات", value: localDb ? "قاعدة بيانات محلية على هذا الجهاز" : "قاعدة بيانات سحابية" },
     { label: "عمليات معلّقة للمزامنة", value: String(pendingSync ?? 0) },
+    {
+      label: "عزل بيانات العميل",
+      value: tenantIsolated
+        ? `قاعدة مستقلة${tenantKey ? ` — ${tenantKey}` : ""}`
+        : "قاعدة واحدة على هذا الجهاز",
+    },
   ];
 
   const steps = [

@@ -26,8 +26,6 @@ export type DbTestResult = {
   saved?: boolean;
 };
 
-export type SyncDirection = "push" | "pull" | "both";
-
 export type SyncTableDetail = {
   table: string;
   copied: number;
@@ -57,7 +55,6 @@ type DbBridge = {
   saveDbConfig?: (config: { mode: DbMode; url: string }) => Promise<{ ok: boolean; message: string }>;
   testDbConnection?: (config: { url: string }) => Promise<DbTestResult>;
   syncDatabases?: (config: {
-    direction: SyncDirection;
     localUrl: string;
     cloudUrl: string;
   }) => Promise<SyncReport>;
@@ -155,12 +152,11 @@ export async function saveDbConfig(mode: DbMode, url: string): Promise<DbTestRes
 export async function syncDatabases(
   localUrl: string,
   cloudUrl: string,
-  direction: SyncDirection = "both",
 ): Promise<SyncReport> {
   const bridge = typeof window !== "undefined" ? (window as CashYouWindow).cashYou : undefined;
   if (bridge?.syncDatabases) {
     try {
-      return await bridge.syncDatabases({ direction, localUrl, cloudUrl });
+      return await bridge.syncDatabases({ localUrl, cloudUrl });
     } catch (err) {
       return {
         ok: false,
@@ -177,7 +173,7 @@ export async function syncDatabases(
     const res = await fetch("/api/db-sync", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ direction, localUrl, cloudUrl }),
+      body: JSON.stringify({ localUrl, cloudUrl }),
     });
     const json = (await res.json()) as SyncReport;
     return json;

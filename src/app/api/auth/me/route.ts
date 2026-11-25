@@ -1,9 +1,10 @@
 import { getSessionUser, getTrialStatus, listUsers } from "@/lib/auth";
+import { withTenant } from "@/lib/tenant-routes";
 
 export const dynamic = "force-dynamic";
 
 /** يُستخدم عند فتح التطبيق: هل هناك جلسة صالحة؟ + حالة الفترة التجريبية. */
-export async function GET(req: Request) {
+export const GET = withTenant(async (req: Request) => {
   try {
     const user = await getSessionUser(req);
     const trial = await getTrialStatus();
@@ -12,4 +13,4 @@ export async function GET(req: Request) {
   } catch {
     return Response.json({ user: null, trial: null, users: undefined });
   }
-}
+});

@@ -213,6 +213,8 @@ export type Bootstrap = {
   trial?: TrialStatus;
   /** إصدار البرنامج (يُعرض في صفحة الدعم الفني) */
   appVersion?: string;
+  /** معلومات عزل بيانات العميل (للتشخيص) */
+  tenant?: { key: string; kind: string; isolated: boolean };
 };
 
 export type InstallmentInput = {

@@ -53,11 +53,28 @@ exports.default = async function afterPack(context) {
   fs.rmSync(dest, { recursive: true, force: true });
   copyDir(standalone, dest);
 
+  /* الأصول الثابتة (JS/CSS) والملفات العامة — Next لا يضعها داخل standalone،
+     لكن الخادم يحتاجها وإلا ظهرت الصفحة بلا تنسيق ولا سكربتات. */
+  const staticSrc = path.join(root, ".next", "static");
+  if (fs.existsSync(staticSrc)) {
+    const staticDest = path.join(dest, ".next", "static");
+    fs.rmSync(staticDest, { recursive: true, force: true });
+    copyDir(staticSrc, staticDest);
+  }
+  const publicSrc = path.join(root, "public");
+  if (fs.existsSync(publicSrc)) {
+    const publicDest = path.join(dest, "public");
+    fs.rmSync(publicDest, { recursive: true, force: true });
+    copyDir(publicSrc, publicDest);
+  }
+
   /* تأكيد أن التبعيات نُسخت فعلاً (هي ما يجعل الخادم يعمل) */
   const required = [
     path.join(dest, "server.js"),
     path.join(dest, "node_modules", "pg", "package.json"),
     path.join(dest, "node_modules", "next", "dist", "server", "next.js"),
+    path.join(dest, ".next", "static"),
+    path.join(dest, "public"),
   ];
   for (const file of required) {
     if (!fs.existsSync(file)) {

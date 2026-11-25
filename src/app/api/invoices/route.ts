@@ -1,15 +1,16 @@
 import { getBootstrap, markInvoicePrinted, saveInvoice, type SavePayload } from "@/lib/data";
 import { withOfflineIdempotency } from "@/lib/offline-idempotency";
 import { assertTrialAllows, bumpUsageCounter, getTrialStatus } from "@/lib/auth";
+import { withTenant } from "@/lib/tenant-routes";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export const GET = withTenant(async () => {
   const data = await getBootstrap();
   return Response.json({ invoices: data.invoices, nextInvoiceNumber: data.nextInvoiceNumber });
-}
+});
 
-export async function PATCH(req: Request) {
+export const PATCH = withTenant(async (req: Request) => {
   return withOfflineIdempotency(req, async () => {
     try {
       const body = (await req.json()) as { number: number };
@@ -20,9 +21,9 @@ export async function PATCH(req: Request) {
       return Response.json({ error: err instanceof Error ? err.message : "تعذر تحديث حالة الطباعة" }, { status: 500 });
     }
   });
-}
+});
 
-export async function POST(req: Request) {
+export const POST = withTenant(async (req: Request) => {
   return withOfflineIdempotency(req, async () => {
     try {
       const body = (await req.json()) as SavePayload;
@@ -35,4 +36,4 @@ export async function POST(req: Request) {
       return Response.json({ error: err instanceof Error ? err.message : "تعذر حفظ الفاتورة" }, { status: 500 });
     }
   });
-}
+});

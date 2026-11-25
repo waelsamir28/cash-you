@@ -19,7 +19,9 @@
     "desktop:build": "node tools/make-icon.cjs && node tools/make-installer-art.cjs && node tools/build-desktop-assets.cjs",
     "test:db-bridge": "node tools/test-db-config.cjs",
     "test:local-server": "node tools/test-local-server.cjs",
-    "test:db-sync": "node tools/test-db-sync.cjs"
+    "test:db-sync": "node tools/test-db-sync.cjs",
+    "test:tenant": "node tools/test-tenant-http.cjs",
+    "test:tenant-unit": "node tools/test-tenant-isolation.cjs"
   },
   "dependencies": {
     "dotenv": "17.3.1",

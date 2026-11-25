@@ -10,7 +10,6 @@ import {
   type DbConfigState,
   type DbMode,
   type DbTestResult,
-  type SyncDirection,
   type SyncReport,
 } from "@/lib/db-connection";
 import {
@@ -45,7 +44,6 @@ export function DatabaseScreen({
   const [syncOpen, setSyncOpen] = useState(false);
   const [localUrl, setLocalUrl] = useState("");
   const [cloudUrl, setCloudUrl] = useState("");
-  const [syncDir, setSyncDir] = useState<SyncDirection>("both");
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncReport, setSyncReport] = useState<SyncReport | null>(null);
 
@@ -109,7 +107,7 @@ export function DatabaseScreen({
     setSyncBusy(true);
     setSyncReport(null);
     try {
-      const report = await syncDatabases(localUrl.trim(), cloudUrl.trim(), syncDir);
+      const report = await syncDatabases(localUrl.trim(), cloudUrl.trim());
       setSyncReport(report);
       if (report.ok) {
         notify("ok", report.message);
@@ -258,7 +256,7 @@ export function DatabaseScreen({
             <span className="flex-1">
               <span className="block text-[11.5px] font-black text-ink-800">مزامنة بين القاعدة المحلية والسحابية</span>
               <span className="block text-[9.5px] font-semibold leading-4 text-slate-500">
-                انقل بياناتك بين القاعدتين في أي اتجاه — تُنسخ السجلات الأحدث فقط ولا تُحذف بيانات أي طرف.
+                مزامنة آمنة ثنائية الاتجاه بزر واحد — تُرفع السجلات الأحدث وتُنزل السجلات الأحدث، ولا يُحذف أي سجل من أي طرف.
               </span>
             </span>
             <span className={`shrink-0 text-[13px] font-black text-slate-400 transition-transform ${syncOpen ? "rotate-180" : ""}`}>
@@ -292,30 +290,10 @@ export function DatabaseScreen({
                 />
               </label>
 
-              <div>
-                <span className="mb-1 block text-[10.5px] font-black text-slate-500">اتجاه المزامنة</span>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {([
-                    { id: "push" as SyncDirection, label: "محلي ← سحابي", hint: "ارفع" },
-                    { id: "pull" as SyncDirection, label: "سحابي ← محلي", hint: "نزّل" },
-                    { id: "both" as SyncDirection, label: "الاتجاهان", hint: "الأحدث" },
-                  ]).map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setSyncDir(opt.id)}
-                      className={`rounded-lg border-2 px-2 py-1.5 text-center transition ${
-                        syncDir === opt.id
-                          ? "border-cash-cyan bg-cash-cyan/10 text-ink-900"
-                          : "border-line bg-white text-slate-600 hover:border-cash-cyan/50"
-                      }`}
-                    >
-                      <span className="block text-[10.5px] font-black">{opt.label}</span>
-                      <span className="block text-[9px] font-bold opacity-70">{opt.hint}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <p className="rounded-lg border border-cash-green/30 bg-cash-green/10 px-2.5 py-1.5 text-[10px] font-bold leading-4 text-cash-green-deep">
+                المزامنة ثنائية الاتجاه تلقائياً: تُرفع السجلات الأحدث وتُنزل السجلات الأحدث،
+                ولا يُحذف أي شيء. ولا تُنسخ الحسابات أو الإعدادات بين عملاء مختلفين.
+              </p>
 
               <button
                 type="button"

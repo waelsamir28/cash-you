@@ -154,6 +154,24 @@ export async function getBootstrap(): Promise<Bootstrap> {
       phone: await getSetting("shop_phone", "01222355769"),
     },
     appVersion: await readAppVersion(),
+    /* معلومات عزل العميل — تُعرض في شاشة الدعم الفني */
+    tenant: await readTenantInfo(),
+  };
+}
+
+/** معلومات وحدة عزل العميل الحالي (للتشخيص) */
+export async function readTenantInfo(): Promise<{
+  key: string;
+  kind: string;
+  isolated: boolean;
+}> {
+  const { currentTenantContext, tenantModeEnabled } = await import("@/db/tenant-context");
+  const tenant = currentTenantContext()?.tenant;
+  const enabled = tenantModeEnabled();
+  return {
+    key: tenant?.key ?? "legacy",
+    kind: tenant?.kind ?? "legacy",
+    isolated: enabled && tenant?.kind !== "legacy",
   };
 }
 

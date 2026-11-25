@@ -172,13 +172,6 @@ function registerDbHandlers() {
   ipcMain.handle("cash-you:sync-databases", async (_event, payload) => {
     const localUrl = String((payload && payload.localUrl) || "").trim();
     const cloudUrl = String((payload && payload.cloudUrl) || "").trim();
-    const direction =
-      payload && payload.direction === "push"
-        ? "push"
-        : payload && payload.direction === "pull"
-          ? "pull"
-          : "both";
-
     if (!localUrl || !cloudUrl) {
       return { ok: false, message: "يلزم رابط القاعدتين: المحلية والسحابية", copied: 0, details: [] };
     }
@@ -235,8 +228,29 @@ function registerDbHandlers() {
     }
 
     try {
-      const report = await syncModule.syncDatabases(localClient, cloudClient, direction);
-      return { ...report, durationMs: Date.now() - started };
+      /* فحص هوية العميل: يمنع نقل الحسابات والإعدادات بين عملاء مختلفين */
+      const identity = await syncModule.checkCustomerIdentity(localClient, cloudClient);
+      if (!identity.ok) {
+        return {
+          ok: false,
+          message: identity.reason || "تم رفض المزامنة لحماية بيانات العملاء",
+          copied: 0,
+          pushed: 0,
+          pulled: 0,
+          details: [],
+          durationMs: Date.now() - started,
+        };
+      }
+
+      const report = await syncModule.syncDatabases(localClient, cloudClient, "both", { identity });
+      const blocked =
+        !syncModule.allowIdentityTablesFor(identity, "push") ||
+        !syncModule.allowIdentityTablesFor(identity, "pull");
+      const message = blocked
+        ? report.message +
+          " — لم تُنسخ الحسابات أو الإعدادات لأن القاعدتين تخصّان عميلين مختلفين"
+        : report.message;
+      return { ...report, message, durationMs: Date.now() - started };
     } catch (err) {
       return {
         ok: false,

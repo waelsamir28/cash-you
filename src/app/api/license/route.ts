@@ -1,5 +1,6 @@
 import { readLicense } from "@/lib/activation";
 import { getSessionUser, getTrialStatus } from "@/lib/auth";
+import { withTenant } from "@/lib/tenant-routes";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
  * ⚠️ لا يُعاد أبداً كود التفعيل المتوقع: إرجاعه من الخادم يجعل أي شخص
  * قادراً على توليد كود صالح دون المفتاح السري.
  */
-export async function GET(req: Request) {
+export const GET = withTenant(async (req: Request) => {
   try {
     const current = await getSessionUser(req);
     if (!current) return Response.json({ error: "سجّل الدخول أولاً" }, { status: 401 });
@@ -18,4 +19,4 @@ export async function GET(req: Request) {
   } catch {
     return Response.json({ error: "تعذر قراءة حالة الترخيص" }, { status: 500 });
   }
-}
+});

@@ -1,6 +1,11 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { FULL_SCHEMA_SQL } from "@/db/full-schema";
+import { currentTenantContext } from "@/db/tenant-context";
+import {
+  CUSTOMER_IDENTITY_KEY,
+  newCustomerIdentity,
+} from "@/lib/customer-identity";
 
 /**
  * الترقية الذاتية لقاعدة البيانات.
@@ -11,22 +16,61 @@ import { FULL_SCHEMA_SQL } from "@/db/full-schema";
  *
  * السبب: نسخة الويندوز تتصل بقاعدة بيانات قد تكون فاضية (أو لم يُشغَّل عليها
  * `npm run db:push`)، فيجب أن يعمل البرنامج من أول طلب بدون خطوات يدوية.
+ *
+ * في وضع المستأجرين المتعددين: كل وحدة عزل لها ذاكرة إنشاء منفصلة،
+ * فقاعدة العميل الجديد تُنشأ تلقائياً عند أول طلب له.
  */
-let ensurePromise: Promise<void> | null = null;
+const ensured = new Map<string, Promise<void>>();
+
+function tenantKey(): string {
+  return currentTenantContext()?.tenant.key ?? "control";
+}
 
 async function createSchema(): Promise<void> {
   await db.execute(sql.raw(FULL_SCHEMA_SQL));
+  await ensureCustomerIdentity();
+}
+
+/**
+ * يضمن وجود بصمة هوية العميل داخل قاعدة العميل.
+ *
+ * البصمة تميّز قاعدة العميل عن غيرها، وتُستخدم لمنع المزامنة من نقل
+ * الحسابات والإعدادات (ومنها حالة التجربة والترخيص) بين عملاء مختلفين.
+ * في وضع المستأجرين: البصمة هي مفتاح وحدة العزل نفسه.
+ */
+export async function ensureCustomerIdentity(): Promise<string> {
+  const tenant = currentTenantContext()?.tenant;
+  const expected = tenant && tenant.kind !== "legacy" ? tenant.key : null;
+
+  const rows = (await db.execute(
+    sql.raw(`select value from settings where key = '${CUSTOMER_IDENTITY_KEY}' limit 1`),
+  )) as unknown as { rows?: { value: string }[] };
+  const current = rows.rows?.[0]?.value;
+
+  if (current && current.trim()) return current.trim();
+
+  const identity = expected ?? newCustomerIdentity();
+  await db.execute(
+    sql.raw(
+      `insert into settings (key, value) values ('${CUSTOMER_IDENTITY_KEY}', '${identity}')
+       on conflict (key) do update set value = excluded.value`,
+    ),
+  );
+  return identity;
 }
 
 export function ensureDatabaseSchema(): Promise<void> {
-  if (!ensurePromise) {
-    ensurePromise = createSchema().catch((error) => {
-      /* نعيد المحاولة في الطلب التالي بدل تثبيت الفشل */
-      ensurePromise = null;
-      throw error;
-    });
-  }
-  return ensurePromise;
+  const key = tenantKey();
+  const cached = ensured.get(key);
+  if (cached) return cached;
+
+  const promise = createSchema().catch((error) => {
+    /* نعيد المحاولة في الطلب التالي بدل تثبيت الفشل */
+    ensured.delete(key);
+    throw error;
+  });
+  ensured.set(key, promise);
+  return promise;
 }
 
 /** اسم قديم محفوظ للتوافق مع بقية الملفات */
