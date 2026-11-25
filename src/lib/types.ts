@@ -211,6 +211,8 @@ export type Bootstrap = {
   /** إعدادات المتجر والثيم والفاتورة (تُحمَّل مع بيانات النظام) */
   settings?: ShopSettings;
   trial?: TrialStatus;
+  /** إصدار البرنامج (يُعرض في صفحة الدعم الفني) */
+  appVersion?: string;
 };
 
 export type InstallmentInput = {
@@ -253,4 +255,5 @@ export type ModuleKind =
   | "reports"
   | "users"
   | "activation"
+  | "support"
   | "settings";

@@ -123,6 +123,12 @@ export const IcoMute = ({ className = "w-4 h-4" }: P) => (
   </svg>
 );
 
+export const IcoPhone = ({ className = "w-4 h-4" }: P) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${base} ${className}`}>
+    <path d="M6.5 3h3l1.5 4-2 1.5a12 12 0 006.5 6.5l1.5-2 4 1.5v3a2 2 0 01-2.2 2A17 17 0 014.5 5.2 2 2 0 016.5 3z" strokeLinejoin="round" />
+  </svg>
+);
+
 export const IcoCheck = ({ className = "w-4 h-4" }: P) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" className={`${base} ${className}`}>
     <path d="M4.5 12.5l5 5 10-11" />
@@ -133,6 +139,13 @@ export const IcoWarn = ({ className = "w-4 h-4" }: P) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" className={`${base} ${className}`}>
     <path d="M12 3.6L22 20H2z" strokeLinejoin="round" />
     <path d="M12 9.6v4.2M12 17h.01" />
+  </svg>
+);
+
+export const IcoSync = ({ className = "w-4 h-4" }: P) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" className={`${base} ${className}`}>
+    <path d="M20 11a8 8 0 00-14.3-4.6M4 13a8 8 0 0014.3 4.6" />
+    <path d="M20 4.5V11h-6.5M4 19.5V13h6.5" />
   </svg>
 );
 

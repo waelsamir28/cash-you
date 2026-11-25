@@ -25,6 +25,7 @@ import { TradeScreen } from "@/components/TradeScreen";
 import { ExpensesScreen, InstallmentsScreen, ReportsScreen, TreasuryScreen } from "@/components/FinanceScreens";
 import { InstallmentDialog } from "@/components/InstallmentDialog";
 import { UsersScreen } from "@/components/UsersScreen";
+import { SupportScreen } from "@/components/SupportScreen";
 import { SettingsScreen } from "@/components/SettingsScreen";
 
 import { IcoX } from "@/components/icons";
@@ -32,6 +33,8 @@ import { appCssVars, fontOf, mergeSettings, show, themeOf, type ShopSettings } f
 import { ActivationScreen } from "@/components/ActivationScreen";
 import { DatabaseScreen } from "@/components/DatabaseScreen";
 import { readOfflineBootstrap, saveOfflineBootstrap } from "@/lib/offline-cache";
+import { loadDbConfig, type DbMode } from "@/lib/db-connection";
+import { readDeviceCode } from "@/lib/device";
 import {
   CloseConfirm,
   CustomerDisplay,
@@ -96,6 +99,9 @@ export default function CashYouApp({
   const [trialOpen, setTrialOpen] = useState(false);
   const [syncPending, setSyncPending] = useState(0);
   const [online, setOnline] = useState(true);
+  /* معلومات تشخيص لصفحة الدعم الفني */
+  const [dbMode, setDbMode] = useState<DbMode>("cloud");
+  const [deviceId, setDeviceId] = useState<string>("");
   const [now, setNow] = useState(() => new Date());
 
   const barcodeRef = useRef<HTMLInputElement | null>(null);
@@ -186,6 +192,24 @@ export default function CashYouApp({
       if (!cached) throw error;
       setData(cached);
     }
+  }, []);
+
+  /* معلومات التشخيص: معرّف الجهاز ونوع قاعدة البيانات */
+  useEffect(() => {
+    let alive = true;
+    void readDeviceCode()
+      .then((d) => {
+        if (alive) setDeviceId(d.code);
+      })
+      .catch(() => undefined);
+    void loadDbConfig()
+      .then((cfg) => {
+        if (alive) setDbMode(cfg.mode);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -639,7 +663,7 @@ export default function CashYouApp({
 
   return (
     <div
-      className="cy-app-shell h-[100dvh] w-full flex flex-col bg-ink-950 overflow-hidden"
+      className="cy-app-shell h-[100dvh] w-full max-w-full flex flex-col bg-ink-950 overflow-hidden"
       style={appCssVars(settings) as React.CSSProperties}
       data-theme={theme.id}
       data-motion={settings.motion}
@@ -695,9 +719,9 @@ export default function CashYouApp({
         showMenu={show(settings, "rail")}
       />}
 
-      <div className="flex-1 min-h-0 flex">
+      <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden">
 
-        <main className="flex-1 min-w-0 flex flex-col">
+        <main className="flex-1 min-w-0 flex flex-col overflow-x-hidden">
           <div key={activeId} className="cy-page flex-1 min-h-0 flex flex-col" data-motion={settings.pageMotion}>
           {activeTab?.kind === "home" && (
             <HomeScreen
@@ -711,13 +735,23 @@ export default function CashYouApp({
           {activeTab?.kind === "products" && <ProductsScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "parties" && <PartiesScreen key={activeTab.id} initialKind={activeTab.title === "الموردون" ? "supplier" : "customer"} data={data} refresh={refreshData} notify={toast} />}
           {(activeTab?.kind === "purchase" || activeTab?.kind === "salesReturn" || activeTab?.kind === "purchaseReturn") && (
-            <TradeScreen key={activeTab.id} kind={activeTab.kind} data={data} refresh={refreshData} notify={toast} stamp={stamp} />
+            <TradeScreen key={activeTab.id} kind={activeTab.kind} data={data} refresh={refreshData} notify={toast} stamp={stamp} settings={settings} />
           )}
           {activeTab?.kind === "installments" && <InstallmentsScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "expenses" && <ExpensesScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "treasury" && <TreasuryScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "reports" && <ReportsScreen data={data} />}
           {activeTab?.kind === "users" && user && <UsersScreen user={user} notify={toast} />}
+          {activeTab?.kind === "support" && (
+            <SupportScreen
+              appVersion={data.appVersion}
+              deviceId={deviceId}
+              licensed={trial?.licensed}
+              daysLeft={trial?.daysLeft}
+              localDb={dbMode === "local"}
+              pendingSync={syncPending}
+            />
+          )}
           {activeTab?.kind === "settings" && user && (
             <SettingsScreen
               user={user}
@@ -769,6 +803,7 @@ export default function CashYouApp({
         trial={trial}
         onOpenActivation={() => openModule("activation", "تفعيل النسخة")}
         onOpenDatabase={() => setOverlay({ kind: "database" })}
+        onOpenSync={() => setOverlay({ kind: "database" })}
         showBadge={show(settings, "statusBadge")}
       />}
 

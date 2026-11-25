@@ -711,7 +711,8 @@ const MONEY_TONES = {
   cyan: "bg-cyan-50 border-cyan-300 text-cyan-900",
 } as const;
 
-function MoneyCard({
+/** بطاقة مالية موحّدة — تُستخدم في شاشة المبيعات والمشتريات */
+export function MoneyCard({
   label,
   value,
   tone,

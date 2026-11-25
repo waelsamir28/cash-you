@@ -515,6 +515,24 @@
   transform-origin: top left;
 }
 
+/* ============================ القائمة المنزلقة ============================ */
+
+/* الدرج ينزلق من اليمين (اتجاه الواجهة من اليمين لليسار) */
+@keyframes cy-drawer-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0.35;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.cy-drawer-in {
+  animation: cy-drawer-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* ============================ حركة انتقال الصفحات ============================ */
 
 @keyframes cy-page-slide {

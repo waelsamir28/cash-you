@@ -35,6 +35,28 @@ export async function setSetting(key: string, value: string): Promise<void> {
   await db.insert(settings).values({ key, value }).onConflictDoUpdate({ target: settings.key, set: { value } });
 }
 
+/** إصدار البرنامج — يُقرأ من package.json ويُعرض في صفحة الدعم الفني */
+async function readAppVersion(): Promise<string> {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    /* في النشر standalone يكون package.json بجوار الجذر */
+    const roots = [process.cwd(), join(process.cwd(), ".."), join(process.cwd(), "..", "..")];
+    for (const root of roots) {
+      try {
+        const raw = await readFile(join(root, "package.json"), "utf8");
+        const version = (JSON.parse(raw) as { version?: string }).version;
+        if (version) return `v${version}`;
+      } catch {
+        /* جرّب المسار التالي */
+      }
+    }
+  } catch {
+    /* تجاهل — الإصدار اختياري */
+  }
+  return "غير معروف";
+}
+
 const iso = (d: Date | null) => d?.toISOString() ?? null;
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -131,6 +153,7 @@ export async function getBootstrap(): Promise<Bootstrap> {
       name: await getSetting("shop_name", "كاش يو للتجارة والتوريدات المكتبية"),
       phone: await getSetting("shop_phone", "01222355769"),
     },
+    appVersion: await readAppVersion(),
   };
 }
 
