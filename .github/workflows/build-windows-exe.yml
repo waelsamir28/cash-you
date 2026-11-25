@@ -68,6 +68,10 @@ jobs:
           test -f .next/standalone/server.js
           test -d .next/standalone/.next/static
           test -f .next/standalone/node_modules/pg/package.json
+          test -f .next/standalone/node_modules/next/dist/server/next.js
+
+      - name: Verify the desktop bundle patterns
+        run: node tools/check-desktop-bundle.cjs
 
       - name: Package the NSIS installer
         run: npm run desktop:dist
@@ -84,6 +88,26 @@ jobs:
           test -f assets/branding/uninstaller-sidebar.bmp
           compgen -G "release/*.exe" > /dev/null
           ls -lh assets/branding release
+
+      - name: Verify the packaged app contains the local server
+        shell: bash
+        run: |
+          set -euo pipefail
+          # حزمة standalone يجب أن تكون داخل resources خارج app.asar
+          APP_DIR="dist/win-unpacked"
+          test -d "$APP_DIR/resources/standalone"
+          test -f "$APP_DIR/resources/standalone/server.js"
+          test -f "$APP_DIR/resources/standalone/node_modules/pg/package.json"
+          test -f "$APP_DIR/resources/standalone/node_modules/next/dist/server/next.js"
+          test -d "$APP_DIR/resources/app.asar.unpacked/.next/static"
+          # حجم الحزمة يجب أن يعكس وجود standalone كامل (لا يقل عن 30 ميجابايت)
+          STANDALONE_KB=$(du -sk "$APP_DIR/resources/standalone" | cut -f1)
+          echo "standalone size: ${STANDALONE_KB} KB"
+          if [ "$STANDALONE_KB" -lt 30000 ]; then
+            echo "::error::حزمة standalone ناقصة في الحزمة (${STANDALONE_KB} KB فقط)"
+            exit 1
+          fi
+          ls -lh "$APP_DIR/resources"
 
       - name: Upload the installer as a workflow artifact
         uses: actions/upload-artifact@v4
