@@ -45,6 +45,7 @@ export type PosActions = {
   openCustomerScreen: () => void;
   quickAddCustomer: () => void;
   quickAddPayment: () => void;
+  suspend: () => void;
 };
 
 export function PosScreen({
@@ -547,6 +548,7 @@ export function PosScreen({
                   else if (b.id === "payFull") actions.payFull();
                   else if (b.id === "savePrint") actions.save(true);
                   else if (b.id === "save") actions.save(false);
+                  else if (b.id === "suspend") actions.suspend();
                 }}
                 k={b.shortcut}
                 tone={

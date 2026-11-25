@@ -3,7 +3,7 @@
  * كل الإعدادات اختيارية، والقيم الافتراضية في DEFAULT_SETTINGS.
  */
 
-export type ThemeId = "light-amber" | "light-slate" | "light-emerald" | "light-rose" | "light-ocean" | "light-sand" | "light-violet" | "light-mono";
+export type ThemeId = "light-amber" | "light-slate" | "light-emerald" | "light-rose" | "light-ocean" | "light-sand" | "light-violet" | "light-mono" | "dark-amber" | "dark-slate" | "dark-emerald" | "dark-ocean";
 
 export type Theme = {
   id: ThemeId;
@@ -134,6 +134,58 @@ export const THEMES: Theme[] = [
       accent: "#111827", accentSoft: "#e5e7eb", accentText: "#ffffff",
       green: "#15803d", red: "#b91c1c",
       header: "#000000", headerText: "#ffffff", headerSoft: "#374151",
+    },
+  },
+  {
+    id: "dark-amber",
+    name: "ليلي — عنبري",
+    hint: "وضع ليلي دافئ مريح للعين",
+    swatch: ["#f59e0b", "#1e293b", "#0f172a"],
+    vars: {
+      paper: "#0f172a", paper2: "#1e293b", line: "#334155",
+      ink: "#f1f5f9", inkSoft: "#cbd5e1",
+      accent: "#f59e0b", accentSoft: "#78350f", accentText: "#0f172a",
+      green: "#34d399", red: "#f87171",
+      header: "#1e293b", headerText: "#f1f5f9", headerSoft: "#475569",
+    },
+  },
+  {
+    id: "dark-slate",
+    name: "ليلي — رمادي",
+    hint: "وضع ليلي هادئ محايد",
+    swatch: ["#3b82f6", "#1e293b", "#0f172a"],
+    vars: {
+      paper: "#0f172a", paper2: "#1e293b", line: "#334155",
+      ink: "#f1f5f9", inkSoft: "#cbd5e1",
+      accent: "#3b82f6", accentSoft: "#1e3a5f", accentText: "#ffffff",
+      green: "#34d399", red: "#f87171",
+      header: "#1e293b", headerText: "#f1f5f9", headerSoft: "#475569",
+    },
+  },
+  {
+    id: "dark-emerald",
+    name: "ليلي — زمردي",
+    hint: "وضع ليلي أخضر مريح",
+    swatch: ["#10b981", "#064e3b", "#022c22"],
+    vars: {
+      paper: "#022c22", paper2: "#064e3b", line: "#065f46",
+      ink: "#ecfdf5", inkSoft: "#a7f3d0",
+      accent: "#10b981", accentSoft: "#064e3b", accentText: "#022c22",
+      green: "#34d399", red: "#f87171",
+      header: "#064e3b", headerText: "#ecfdf5", headerSoft: "#065f46",
+    },
+  },
+  {
+    id: "dark-ocean",
+    name: "ليلي — محيطي",
+    hint: "وضع ليلي أزرق عميق",
+    swatch: ["#06b6d4", "#164e63", "#083344"],
+    vars: {
+      paper: "#083344", paper2: "#164e63", line: "#155e75",
+      ink: "#ecfeff", inkSoft: "#a5f3fc",
+      accent: "#06b6d4", accentSoft: "#164e63", accentText: "#083344",
+      green: "#34d399", red: "#f87171",
+      header: "#164e63", headerText: "#ecfeff", headerSoft: "#155e75",
     },
   },
 ];
@@ -349,7 +401,7 @@ export const defaultUi = (): Record<UiPartId, boolean> =>
 
 /* ============================ أزرار شريط الوظائف ============================ */
 
-export type FnButtonId = "newInvoice" | "payFull" | "savePrint" | "save";
+export type FnButtonId = "newInvoice" | "payFull" | "savePrint" | "save" | "suspend";
 
 export type FnButton = { id: FnButtonId; label: string; visible: boolean; shortcut: string };
 
@@ -358,6 +410,7 @@ export const FN_BUTTONS_DEFAULT: FnButton[] = [
   { id: "payFull", label: "دفع كامل", visible: true, shortcut: "F12" },
   { id: "savePrint", label: "حفظ وطباعة", visible: true, shortcut: "F10" },
   { id: "save", label: "حفظ", visible: true, shortcut: "F5" },
+  { id: "suspend", label: "تعليق الفاتورة", visible: true, shortcut: "Ctrl+D" },
 ];
 
 /** كل عناصر شاشة الدخول ظاهرة افتراضياً */

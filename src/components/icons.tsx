@@ -267,3 +267,14 @@ export function IcoLock({ className = "w-4 h-4" }: { className?: string }) {
     </svg>
   );
 }
+
+/* آلة حاسبة */
+export function IcoCalc({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="5" y="3" width="14" height="18" rx="2.5" />
+      <path d="M8.5 7h7" />
+      <path d="M8.5 11h.01M12 11h.01M15.5 11h.01M8.5 14.5h.01M12 14.5h.01M15.5 14.5h.01M8.5 18h.01M12 18h.01M15.5 18h.01" />
+    </svg>
+  );
+}

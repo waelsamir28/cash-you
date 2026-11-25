@@ -240,4 +240,57 @@ create table if not exists "offline_sync_receipts" (
 	"status" integer NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
+
+create table if not exists "stock_movements" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"product_id" integer NOT NULL,
+	"product_code" text DEFAULT '' NOT NULL,
+	"product_name" text DEFAULT '' NOT NULL,
+	"movement_type" text NOT NULL,
+	"qty" double precision DEFAULT 0 NOT NULL,
+	"balance_after" double precision DEFAULT 0 NOT NULL,
+	"reference_type" text DEFAULT '' NOT NULL,
+	"reference_number" integer,
+	"user_name" text DEFAULT '' NOT NULL,
+	"notes" text DEFAULT '' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+
+create table if not exists "activity_log" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"user_id" integer,
+	"user_name" text DEFAULT '' NOT NULL,
+	"action" text NOT NULL,
+	"entity_type" text DEFAULT '' NOT NULL,
+	"entity_id" integer,
+	"details" text DEFAULT '' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+
+create table if not exists "deleted_invoices" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"invoice_number" integer NOT NULL,
+	"customer_name" text DEFAULT '' NOT NULL,
+	"total" double precision DEFAULT 0 NOT NULL,
+	"items_json" text DEFAULT '[]' NOT NULL,
+	"delete_reason" text DEFAULT '' NOT NULL,
+	"deleted_by" text DEFAULT '' NOT NULL,
+	"deleted_at" timestamp DEFAULT now() NOT NULL
+);
+
+create table if not exists "suspended_invoices" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"title" text DEFAULT 'فاتورة معلقة' NOT NULL,
+	"draft_json" text DEFAULT '{}' NOT NULL,
+	"user_name" text DEFAULT '' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+
+create table if not exists "screen_permissions" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"user_id" integer NOT NULL,
+	"screen_kind" text NOT NULL,
+	"allowed" boolean DEFAULT true NOT NULL
+);
 `;

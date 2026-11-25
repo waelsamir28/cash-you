@@ -23,6 +23,11 @@ import { HomeScreen } from "@/components/HomeScreen";
 import { ProductsScreen, PartiesScreen } from "@/components/ManagementScreens";
 import { TradeScreen } from "@/components/TradeScreen";
 import { ExpensesScreen, InstallmentsScreen, ReportsScreen, TreasuryScreen } from "@/components/FinanceScreens";
+import {
+  ActivityLogScreen, BackupScreen, BarcodePrintScreen, DashboardScreen, DeletedInvoicesScreen,
+  HealthScreen, InvoiceHistoryScreen, ItemCardScreen, PriceKioskScreen, ShortagesScreen,
+  SmartPurchaseScreen, StockMovementsScreen, StocktakeScreen, SuspendedScreen,
+} from "@/components/FatoraScreens";
 import { InstallmentDialog } from "@/components/InstallmentDialog";
 import { UsersScreen } from "@/components/UsersScreen";
 import { SupportScreen } from "@/components/SupportScreen";
@@ -36,15 +41,18 @@ import { readOfflineBootstrap, saveOfflineBootstrap } from "@/lib/offline-cache"
 import { loadDbConfig, type DbMode } from "@/lib/db-connection";
 import { readDeviceCode } from "@/lib/device";
 import {
+  CalculatorOverlay,
   CloseConfirm,
   CustomerDisplay,
   DiscountDialog,
   InvoiceDetail,
+  LockScreenOverlay,
   MinimizedBar,
   OverpayModal,
   QuickProductModal,
   PromptDialog,
   ReceiptModal,
+  ShortcutsOverlay,
   ShutdownScreen,
   Toasts,
   WelcomeToast,
@@ -66,7 +74,13 @@ type Overlay =
   /** صفحة ربط قاعدة البيانات */
   | { kind: "database" }
   | { kind: "invoice"; invoice: InvoiceRow }
-  | { kind: "installment"; print: boolean };
+  | { kind: "installment"; print: boolean }
+  /** آلة حاسبة عائمة */
+  | { kind: "calculator" }
+  /** قفل الشاشة */
+  | { kind: "lock" }
+  /** دليل الاختصارات */
+  | { kind: "shortcuts" };
 
 export default function CashYouApp({
   initial,
@@ -168,6 +182,22 @@ export default function CashYouApp({
     window.setTimeout(() => barcodeRef.current?.focus(), 60);
     return id;
   }, [data.nextInvoiceNumber, tabs]);
+
+  /** استكمال فاتورة معلقة: فتحها في تبويب جديد */
+  const resumeSuspended = useCallback((draftJson: string) => {
+    try {
+      const parsed = JSON.parse(draftJson) as Draft;
+      seq.current += 1;
+      const id = `inv-${seq.current}`;
+      setDrafts((prev) => ({ ...prev, [id]: { ...emptyDraft(data.nextInvoiceNumber), ...parsed } }));
+      setTabs((prev) => [...prev, { id, kind: "invoice", title: "فاتورة مبيعات" }]);
+      setActiveId(id);
+      sfxKey();
+      toast("ok", "تم استكمال الفاتورة المعلقة");
+    } catch {
+      toast("err", "تعذر استكمال الفاتورة");
+    }
+  }, [data.nextInvoiceNumber]);
 
   const openModule = useCallback((kind: ModuleKind, title: string) => {
     if (kind === "invoice") { openInvoiceTab(); return; }
@@ -290,9 +320,23 @@ export default function CashYouApp({
     (raw: string) => {
       const term = raw.trim();
       if (!term) return false;
+
+      /* باركود الميزان الإلكتروني (EAN-13):
+         21 + كود الصنف (5 أرقام) + الوزن بالجرام (5 أرقام) + رقم تحقق
+         22 + كود الصنف (5 أرقام) + السعر (5 أرقام) + رقم تحقق */
+      let scaleQty: number | undefined;
+      let scaleCode = term;
+      if (/^2[12]\d{11}$/.test(term)) {
+        scaleCode = term.slice(1, 6);
+        const value = Number(term.slice(6, 11));
+        if (term[0] === "2") scaleQty = value / 1000;
+        else scaleQty = value / 100;
+      }
+
       const hit =
+        data.products.find((p) => p.code === scaleCode) ??
         data.products.find((p) => p.code === term) ??
-        data.products.find((p) => p.code.endsWith(term)) ??
+        data.products.find((p) => p.code.endsWith(scaleCode)) ??
         data.products.find((p) => p.name.includes(term));
       if (!hit) {
         sfxError();
@@ -301,7 +345,7 @@ export default function CashYouApp({
         return false;
       }
       sfxScan();
-      addProduct(hit);
+      addProduct(hit, scaleQty);
       return true;
     },
     [data.products, addProduct],
@@ -375,6 +419,29 @@ export default function CashYouApp({
     openInvoiceTab();
     toast("ok", "تم فتح فاتورة جديدة في تبويب مستقل");
   }, [activeTab, draft.items.length, openInvoiceTab, toast]);
+
+  /* ---------------- تعليق الفاتورة ---------------- */
+  const suspend = useCallback(async () => {
+    if (activeTab?.kind !== "invoice") return;
+    if (draft.items.length === 0) {
+      toast("warn", "لا توجد أصناف لتعليقها");
+      return;
+    }
+    const res = await apiFetch("/api/suspended", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: `فاتورة ${draft.number} — ${draft.customerName || "عميل نقدي"}`,
+        draftJson: JSON.stringify(draft),
+        userName: user?.fullName ?? "",
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok) { toast("err", json.error ?? "تعذر التعليق"); return; }
+    toast("ok", "تم تعليق الفاتورة — ستجدها في «الفواتير المعلقة»");
+    sfxSave();
+    openInvoiceTab();
+  }, [activeTab, draft, user, openInvoiceTab, toast]);
 
   /* ---------------- الحفظ ---------------- */
   const save = useCallback(
@@ -521,13 +588,15 @@ export default function CashYouApp({
   const saveRef = useRef(save);
   const newRef = useRef(newInvoice);
   const payRef = useRef(payFull);
+  const suspendRef = useRef(suspend);
   const kindRef = useRef<Tab["kind"] | undefined>(activeTab?.kind);
   useEffect(() => {
     saveRef.current = save;
     newRef.current = newInvoice;
     payRef.current = payFull;
+    suspendRef.current = suspend;
     kindRef.current = activeTab?.kind;
-  }, [save, newInvoice, payFull, activeTab]);
+  }, [save, newInvoice, payFull, suspend, activeTab]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -550,6 +619,18 @@ export default function CashYouApp({
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         document.getElementById("cy-global-search")?.focus();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        if (kindRef.current === "invoice") void suspendRef.current();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        setOverlay({ kind: "lock" });
+      }
+      if (e.key === "F1") {
+        e.preventDefault();
+        setOverlay({ kind: "shortcuts" });
       }
     };
     window.addEventListener("keydown", onKey);
@@ -600,8 +681,9 @@ export default function CashYouApp({
         sfxKey();
         setOverlay({ kind: "addPayment" });
       },
+      suspend: () => void suspend(),
     }),
-    [patch, addProduct, addByCode, updateLine, removeLine, save, newInvoice, payFull, toast],
+    [patch, addProduct, addByCode, updateLine, removeLine, save, newInvoice, payFull, suspend, toast],
   );
 
   /* ---------------- إضافة عميل / طريقة دفع ---------------- */
@@ -696,6 +778,7 @@ export default function CashYouApp({
         trial={trial}
         onOpenActivation={() => openModule("activation", "تفعيل النسخة")}
         onLogout={() => void onLogout()}
+        onOpenCalculator={() => setOverlay({ kind: "calculator" })}
       />
       {(!online || syncPending > 0) && (
         <div className={`flex items-center gap-2 px-3 py-1.5 text-[11px] font-black ${online ? "bg-amber-100 text-amber-900" : "bg-cash-red text-white"}`}>
@@ -741,6 +824,20 @@ export default function CashYouApp({
           {activeTab?.kind === "expenses" && <ExpensesScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "treasury" && <TreasuryScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "reports" && <ReportsScreen data={data} />}
+          {activeTab?.kind === "invoiceHistory" && <InvoiceHistoryScreen data={data} refresh={refreshData} notify={toast} />}
+          {activeTab?.kind === "suspended" && <SuspendedScreen data={data} refresh={refreshData} notify={toast} onResume={resumeSuspended} />}
+          {activeTab?.kind === "shortages" && <ShortagesScreen data={data} refresh={refreshData} notify={toast} />}
+          {activeTab?.kind === "stockMovements" && <StockMovementsScreen data={data} refresh={refreshData} notify={toast} />}
+          {activeTab?.kind === "activityLog" && <ActivityLogScreen />}
+          {activeTab?.kind === "deletedInvoices" && <DeletedInvoicesScreen />}
+          {activeTab?.kind === "backup" && <BackupScreen data={data} refresh={refreshData} notify={toast} />}
+          {activeTab?.kind === "dashboard" && <DashboardScreen data={data} refresh={refreshData} notify={toast} />}
+          {activeTab?.kind === "itemCard" && <ItemCardScreen data={data} refresh={refreshData} notify={toast} />}
+          {activeTab?.kind === "stocktake" && <StocktakeScreen data={data} refresh={refreshData} notify={toast} />}
+          {activeTab?.kind === "barcodePrint" && <BarcodePrintScreen data={data} refresh={refreshData} notify={toast} />}
+          {activeTab?.kind === "smartPurchase" && <SmartPurchaseScreen data={data} refresh={refreshData} notify={toast} />}
+          {activeTab?.kind === "priceKiosk" && <PriceKioskScreen data={data} refresh={refreshData} notify={toast} />}
+          {activeTab?.kind === "health" && <HealthScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "users" && user && <UsersScreen user={user} notify={toast} />}
           {activeTab?.kind === "support" && (
             <SupportScreen
@@ -964,6 +1061,10 @@ export default function CashYouApp({
           }}
         />
       )}
+
+      {overlay.kind === "calculator" && <CalculatorOverlay onClose={() => setOverlay({ kind: "none" })} />}
+      {overlay.kind === "lock" && <LockScreenOverlay userName={user?.fullName ?? ""} onUnlock={() => setOverlay({ kind: "none" })} />}
+      {overlay.kind === "shortcuts" && <ShortcutsOverlay onClose={() => setOverlay({ kind: "none" })} />}
 
       {minimized && <MinimizedBar data={data} onRestore={() => setMinimized(false)} />}
 

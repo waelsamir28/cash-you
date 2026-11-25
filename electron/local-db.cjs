@@ -21,12 +21,50 @@ const {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
 } = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
+
+/*
+ * `original-fs` — وحدة Electron التي توفر `fs` الأصلي بدون تعديل ASAR.
+ * نستخدمها لفحص مسارات `app.asar.unpacked` لأن `fs` المعدّل قد يرجع
+ * `false` خطأً لتلك المسارات (يحاول البحث داخل الأرشيف بدل القرص).
+ */
+let realFs = null;
+try {
+  realFs = require("original-fs");
+} catch {
+  realFs = null;
+}
+
+/**
+ * فحص وجود ملف/مجلد يتجاوز تعديل ASAR في Electron.
+ * يجرب: existsSync العادي → statSync → original-fs.
+ */
+function pathExists(target) {
+  if (!target) return false;
+  try {
+    if (existsSync(target)) return true;
+  } catch { /* تجاهل */ }
+  try {
+    statSync(target);
+    return true;
+  } catch { /* تجاهل */ }
+  if (realFs) {
+    try {
+      if (realFs.existsSync(target)) return true;
+    } catch { /* تجاهل */ }
+    try {
+      realFs.statSync(target);
+      return true;
+    } catch { /* تجاهل */ }
+  }
+  return false;
+}
 
 /** اسم قاعدة العميل المحلية */
 const LOCAL_DB_NAME = "cash_you";
@@ -144,7 +182,7 @@ function unpackedPath(filePath) {
   const marker = `${path.sep}app.asar${path.sep}`;
   if (!filePath.includes(marker)) return filePath;
   const redirected = filePath.replace(marker, `${path.sep}app.asar.unpacked${path.sep}`);
-  return existsSync(redirected) ? redirected : filePath;
+  return pathExists(redirected) ? redirected : filePath;
 }
 
 /** جذر حزمة النظام (`<...>/native/bin` ← `<...>`) */
@@ -182,6 +220,21 @@ function restoreSymlinks(root) {
 }
 
 /**
+ * تسجيل تشخيصي: يُكتب في مجلد بيانات المستخدم حتى يستطيع العميل إرساله
+ * للدعم عند أي فشل — يوضح بالضبط أين بحثنا وماذا وجدنا.
+ */
+function logDiagnostic(message) {
+  try {
+    const line = `[${new Date().toISOString()}] ${message}\n`;
+    const file = path.join(userDataDir(), "cash-you-diagnostics.log");
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, line, { flag: "a" });
+  } catch {
+    /* لا يهم */
+  }
+}
+
+/**
  * مجلدات مرشحة تحتوي ثنائيات PostgreSQL المدمج، بترتيب الأولوية.
  *
  * نبحث عن الثنائيات على القرص مباشرة ولا نحمّل حزمة النظام عبر `import()`:
@@ -192,11 +245,15 @@ function restoreSymlinks(root) {
  *   تغليف: <resources>/app.asar/electron   → الجذر المطلوب <resources>
  *   تطوير: <project>/electron             → الجذر المطلوب <project>
  * لذلك نصعد مستويين ونفحص كل أب، مع `process.resourcesPath` كضمان.
+ *
+ * نضيف أيضاً جذراً مشتقاً من مكان ملف التنفيذ نفسه (`process.execPath`):
+ *   <install>/CASH YOU.exe → <install>/resources
+ * وهو مسار حقيقي على القرص لا يعتمد على `__dirname` داخل ASAR.
  */
 function binarySearchRoots() {
   const roots = [__dirname];
   let current = __dirname;
-  for (let depth = 0; depth < 3; depth += 1) {
+  for (let depth = 0; depth < 4; depth += 1) {
     const parent = path.dirname(current);
     if (parent === current) break;
     current = parent;
@@ -204,6 +261,13 @@ function binarySearchRoots() {
   }
   try {
     roots.push(process.resourcesPath);
+  } catch {
+    /* غير متاح خارج Electron */
+  }
+  try {
+    /* <install>/resources — مشتق من موقع ملف التنفيذ */
+    roots.push(path.join(path.dirname(process.execPath), "resources"));
+    roots.push(path.dirname(process.execPath));
   } catch {
     /* غير متاح خارج Electron */
   }
@@ -224,6 +288,7 @@ async function embeddedBinaries() {
   const exe = (name) => (process.platform === "win32" ? `${name}.exe` : name);
   const names = { postgres: exe("postgres"), initdb: exe("initdb"), pgCtl: exe("pg_ctl") };
 
+  const tried = [];
   for (const root of binarySearchRoots()) {
     const candidates = [
       /* 1) تغليف: <resources>/app.asar.unpacked ★ المسار الصحيح */
@@ -234,17 +299,23 @@ async function embeddedBinaries() {
       path.join(root, "node_modules", pkg, "native", "bin"),
     ];
     for (const binDir of candidates) {
-      if (!existsSync(binDir)) continue;
+      tried.push(binDir);
+      if (!pathExists(binDir)) continue;
       const resolved = {
         postgres: path.join(binDir, names.postgres),
         initdb: path.join(binDir, names.initdb),
         pgCtl: path.join(binDir, names.pgCtl),
       };
-      if (!existsSync(resolved.postgres)) continue;
+      if (!pathExists(resolved.postgres)) continue;
+      if (!pathExists(resolved.initdb)) continue;
       restoreSymlinks(binariesRoot(binDir));
+      logDiagnostic(`binaries found: ${binDir}`);
       return { ...resolved, binDir };
     }
   }
+  logDiagnostic(
+    `binaries NOT found. tried ${tried.length} paths; resourcesPath=${process.resourcesPath}; execPath=${process.execPath}; __dirname=${__dirname}`,
+  );
 
   /*
    * آخر محاولة: الحزمة نفسها عبر import (تغطي تركيباً غير تقليدي)،
@@ -257,7 +328,7 @@ async function embeddedBinaries() {
       initdb: unpackedPath(mod.initdb),
       pgCtl: unpackedPath(mod.pg_ctl),
     };
-    if (!resolved.postgres || !existsSync(resolved.postgres)) return null;
+    if (!resolved.postgres || !pathExists(resolved.postgres)) return null;
     const binDir = path.dirname(resolved.postgres);
     restoreSymlinks(binariesRoot(binDir));
     return { ...resolved, binDir };
