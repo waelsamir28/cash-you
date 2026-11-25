@@ -64,6 +64,8 @@ const appSamples = [
   "node_modules/embedded-postgres/dist/index.js",
   "node_modules/@embedded-postgres/windows-x64/native/bin/postgres.exe",
   "node_modules/exit-hook/index.js",
+  /* xtend تطلبه postgres-interval وقت التحميل — غيابه أسقط الاتصال بالقاعدة */
+  "node_modules/xtend/mutable.js",
 ];
 
 /*
@@ -76,6 +78,81 @@ const resourceSamples = [];
 console.log("files:", JSON.stringify(pkg.build.files));
 console.log("afterPack:", pkg.build.afterPack);
 console.log("asarUnpack:", JSON.stringify(pkg.build.asarUnpack));
+
+/*
+ * ثنائيات PostgreSQL **يجب** أن تكون خارج app.asar.
+ *
+ * خطأ الإصدار 1.3.0 كان: spawn ...\resources\app.asar\node_modules\
+ * @embedded-postgres\windows-x64\...\initdb.exe ENOENT — لأن الملفات
+ * الأصلية تُنقل إلى app.asar.unpacked بينما مسار المكتبة بقي داخل ASAR.
+ * بدون هذه المطابقة ينكسر التشغيل عند العميل رغم نجاح كل الفحوص الأخرى.
+ */
+const asarUnpack = pkg.build.asarUnpack || [];
+const unpackReady = asarUnpack.some((pattern) =>
+  pattern.replace(/\\/g, "/").includes("node_modules/@embedded-postgres/"),
+);
+console.log(
+  `\n[إخراج ثنائيات PostgreSQL من ASAR] ${unpackReady ? "✓" : "✗"} node_modules/@embedded-postgres/**/* (asarUnpack)`,
+);
+if (!unpackReady) {
+  console.log(
+    "\n✗ build.asarUnpack لا يُخرج @embedded-postgres — سيفشل تشغيل initdb بـ ENOENT",
+  );
+  process.exit(1);
+}
+
+/*
+ * كل اعتمادية مطلوبة وقت التحميل يجب أن تكون في build.files.
+ * مثال حقيقي: `pg-types` → `postgres-interval` → `xtend`، وغياب `xtend`
+ * أسقط `require("pg")` فتعذّر الاتصال بالقاعدة المحلية.
+ */
+const declared = new Set();
+for (const pattern of pkg.build.files) {
+  const match = pattern.match(/^node_modules\/((?:@[^/]+\/)?[^/*]+)/);
+  if (match) declared.add(match[1]);
+}
+/*
+ * pg-cloudflare يُطلب فقط داخل Cloudflare Workers (require داخل دالة)،
+ * و@embedded-postgres/* مغطّى بنمط النطاق الكامل.
+ */
+const RUNTIME_EXEMPT = new Set(["pg-cloudflare"]);
+const missingDeps = [];
+const pending = [...declared];
+const seen = new Set();
+while (pending.length > 0) {
+  const name = pending.pop();
+  if (seen.has(name)) continue;
+  seen.add(name);
+  let manifest;
+  try {
+    manifest = require(path.join(appDir, "node_modules", name, "package.json"));
+  } catch {
+    continue;
+  }
+  const deps = {
+    ...manifest.dependencies,
+    ...manifest.optionalDependencies,
+    ...manifest.peerDependencies,
+  };
+  for (const dep of Object.keys(deps)) {
+    if (seen.has(dep)) continue;
+    pending.push(dep);
+    if (declared.has(dep) || RUNTIME_EXEMPT.has(dep)) continue;
+    if (dep.startsWith("@embedded-postgres/")) continue;
+    if (fs.existsSync(path.join(appDir, "node_modules", dep))) missingDeps.push(dep);
+  }
+}
+console.log(
+  `\n[اعتماديات التشغيل] ${
+    missingDeps.length === 0 ? "✓ مكتملة" : `✗ ناقص: ${missingDeps.join(", ")}`
+  }`,
+);
+if (missingDeps.length > 0) {
+  console.log(
+    "\n✗ حزم مطلوبة وقت التحميل غير مضمّنة في build.files — أضفها وإلا يفشل require داخل الحزمة",
+  );
+  process.exit(1);
+}
 
 /* صورة شاشة التثبيت يجب أن تكون ضمن buildResources (يصلها NSIS) */
 const resourcesDir = pkg.build.directories?.buildResources || "build";
