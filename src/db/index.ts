@@ -7,14 +7,19 @@ import path from "node:path";
  * رابط قاعدة البيانات.
  *
  * الأولوية:
- *  1) متغير البيئة DATABASE_URL (النشر السحابي / CI).
- *  2) الرابط المحفوظ من صفحة «ربط قاعدة البيانات» داخل electron/app-config.json
- *     أو .cash-you-db.json — ويُستخدم في النسخة التي تشغّل سيرفرها على نفس الجهاز.
+ *  1) متغير البيئة DATABASE_URL (النشر السحابي / CI / التشغيل المحلي).
+ *  2) الرابط المحفوظ من صفحة «ربط قاعدة البيانات»:
+ *     - .cash-you-db.json في مجلد العمل (نتيجة الحفظ على السيرفر).
+ *     - electron/app-config.json (نفس الشيء لنسخة ويندوز).
+ *
+ * ملاحظة: نسخة ويندوز تمرّر الرابط عبر متغير البيئة عند تشغيل خادمها المحلي،
+ * لذلك لا حاجة لقراءة الملفات في تلك الحالة — لكن القراءة تبقى احتياطاً
+ * مفيداً عند تشغيل الخادم محلياً بدون متغيرات بيئة.
  */
 function savedDatabaseUrl(): string {
   const files = [
-    path.join(process.cwd(), "electron", "app-config.json"),
     path.join(process.cwd(), ".cash-you-db.json"),
+    path.join(process.cwd(), "electron", "app-config.json"),
   ];
   for (const file of files) {
     try {

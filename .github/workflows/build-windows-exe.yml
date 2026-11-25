@@ -55,6 +55,18 @@ jobs:
       - name: Generate the Windows 11 dark installer artwork
         run: node tools/make-installer-art.cjs
 
+      - name: Build the Next.js app (standalone) and desktop assets
+        run: node tools/build-desktop-assets.cjs
+        env:
+          # The build does not connect to a database — a syntactically valid URL is enough.
+          DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?sslmode=disable
+
+      - name: Verify the bundled local server
+        run: |
+          test -f .next/standalone/server.js
+          test -d .next/standalone/.next/static
+          test -f .next/standalone/node_modules/pg/package.json
+
       - name: Package the NSIS installer
         run: npm run desktop:dist
         env:

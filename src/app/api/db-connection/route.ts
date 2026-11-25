@@ -143,10 +143,19 @@ export async function POST(req: Request) {
     }
 
     const notes = await saveConfig(mode, url);
+    /* الوضع المحلي على الويب لا يكفي — الاختبار يتم من السيرفر البعيد،
+       لذا قاعدة «localhost» على جهاز العميل لا يراها هذا السيرفر.
+       نسخة ويندوز تحفظ وتختبر محلياً عبر جسر Electron. */
+    const localHint =
+      mode === "local"
+        ? " (قاعدة محلية على جهازك تحتاج نسخة ويندوز — في الويب يُختبر الاتصال من السيرفر)"
+        : "";
     return Response.json({
       ok: true,
       saved: true,
-      message: notes.length ? `تم الحفظ — ${notes[0]}` : "تم الحفظ — أعد تشغيل البرنامج ليعمل بالاتصال الجديد",
+      message: notes.length
+        ? `تم الحفظ — ${notes[0]}${localHint}`
+        : `تم الحفظ — أعد تشغيل البرنامج ليعمل بالاتصال الجديد${localHint}`,
       latencyMs: test.latencyMs,
       note: notes[0] ?? null,
     });

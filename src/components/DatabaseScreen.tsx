@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/offline-sync";
+import { useEffect, useMemo, useState } from "react";
+import {
+  isDesktopBridge,
+  loadDbConfig,
+  saveDbConfig,
+  testDbConnection,
+  type DbConfigState,
+  type DbMode,
+  type DbTestResult,
+} from "@/lib/db-connection";
 import {
   IcoCheck,
   IcoCloud,
@@ -10,7 +18,7 @@ import {
   IcoWarn,
 } from "@/components/icons";
 
-type Mode = "cloud" | "local";
+type Mode = DbMode;
 
 /**
  * صفحة ربط قاعدة البيانات: سحابية أو محلية.
@@ -24,13 +32,14 @@ export function DatabaseScreen({
   const [mode, setMode] = useState<Mode>("cloud");
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState<"test" | "save" | null>(null);
-  const [result, setResult] = useState<{ ok: boolean; message: string; latencyMs?: number } | null>(null);
-  const [saved, setSaved] = useState<{ saved: boolean; maskedUrl: string; mode: Mode } | null>(null);
+  const [result, setResult] = useState<DbTestResult | null>(null);
+  const [saved, setSaved] = useState<DbConfigState | null>(null);
+  /* هل نعمل داخل نسخة ويندوز؟ عندها الحفظ والاختبار يتمّان على جهاز العميل */
+  const desktop = useMemo(() => isDesktopBridge(), []);
 
   useEffect(() => {
-    void apiFetch("/api/db-connection")
-      .then((r) => r.json())
-      .then((j: { saved: boolean; maskedUrl: string; mode: Mode }) => setSaved(j))
+    void loadDbConfig()
+      .then(setSaved)
       .catch(() => setSaved(null));
   }, []);
 
@@ -39,17 +48,26 @@ export function DatabaseScreen({
     setBusy(action);
     setResult(null);
     try {
-      const res = await apiFetch("/api/db-connection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, mode, url }),
-      });
-      const json = (await res.json()) as { ok: boolean; message: string; latencyMs?: number; saved?: boolean };
+      /* الاختبار أولاً — لا نُحفظ رابطاً غير صالح */
+      if (action === "save") {
+        const probe = await testDbConnection(url);
+        if (!probe.ok) {
+          setResult(probe);
+          notify("err", `لم يتم الحفظ — ${probe.message}`);
+          return;
+        }
+      }
+
+      const json =
+        action === "test"
+          ? await testDbConnection(url)
+          : await saveDbConfig(mode, url);
+
       setResult(json);
       if (json.ok) {
         notify("ok", json.message);
-        if (json.saved) {
-          setSaved({ saved: true, maskedUrl: "محفوظ", mode });
+        if (action === "save" && json.saved !== false) {
+          setSaved({ saved: true, maskedUrl: "محفوظ على جهازك", mode });
           setUrl("");
         }
       } else {
@@ -89,6 +107,7 @@ export function DatabaseScreen({
             <IcoCheck className="h-4 w-4 shrink-0" />
             <span className="flex-1">
               هناك اتصال محفوظ ({saved.mode === "cloud" ? "سحابي" : "محلي"})
+              {desktop ? " على جهازك" : " على السيرفر"}
             </span>
             <span className="cy-num truncate text-[10px] opacity-70" dir="ltr">
               {saved.maskedUrl}
@@ -126,6 +145,14 @@ export function DatabaseScreen({
           })}
         </div>
 
+        {mode === "local" && (
+          <p className="rounded-xl border border-amber-brand/40 bg-amber-brand/10 px-3 py-2 text-[10px] font-bold leading-4 text-amber-800">
+            {desktop
+              ? "القاعدة المحلية تُشغَّل على جهازك: يحفظ البرنامج الرابط محلياً ويشغّل خادماً محلياً عند فتح التطبيق."
+              : "في نسخة الويب يُختبر الاتصال من السيرفر البعيد — استخدم نسخة ويندوز لقاعدة محلية على جهازك."}
+          </p>
+        )}
+
         {/* الرابط */}
         <div className="rounded-xl border border-line bg-white p-3">
           <label className="block">
@@ -141,7 +168,9 @@ export function DatabaseScreen({
             />
           </label>
           <p className="mt-1.5 text-[9.5px] font-semibold leading-4 text-slate-500">
-            يُختبر الاتصال قبل الحفظ. الرابط يُخزَّن مشفّراً على جهازك فقط، ولا يظهر كاملاً بعد الحفظ.
+            {desktop
+              ? "يُختبر الاتصال من جهازك نفسه — لذلك تنجح القواعد المحلية. الرابط يُحفظ على جهازك فقط ولا يظهر كاملاً بعد الحفظ."
+              : "يُختبر الاتصال قبل الحفظ. الرابط يُحفظ على السيرفر ولا يظهر كاملاً بعد الحفظ."}
           </p>
 
           {result && (
@@ -175,7 +204,7 @@ export function DatabaseScreen({
               disabled={busy !== null || !url.trim()}
               className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-cash-green text-[12px] font-black text-white cy-press hover:brightness-110 disabled:opacity-50"
             >
-              {busy === "save" ? "جارٍ الحفظ..." : "اختبار وحفظ"}
+              {busy === "save" ? "جارٍ الحفظ..." : desktop ? "اختبار وحفظ" : "حفظ"}
             </button>
           </div>
         </div>
