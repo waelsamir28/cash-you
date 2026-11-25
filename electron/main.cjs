@@ -28,6 +28,54 @@ function getDeviceCode() {
 }
 
 const windowIcon = path.join(__dirname, "icon.png");
+/** شاشة البداية أثناء فتح البرنامج */
+const splashPath = path.join(__dirname, "splash.html");
+
+/**
+ * نافذة شاشة البداية (بلا إطار) — تظهر أثناء تجهيز قاعدة البيانات
+ * وتشغيل الخادم المحلي، ف给人的 انطباع أن البرنامج يستيقظ بهدوء.
+ */
+function createSplashWindow() {
+  const win = new BrowserWindow({
+    width: 560,
+    height: 430,
+    frame: false,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    center: true,
+    show: false,
+    skipTaskbar: true,
+    resizable: false,
+    backgroundColor: "#0b1220",
+    icon: windowIcon,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+
+  win.setMenuBarVisibility(false);
+  void win.loadFile(splashPath);
+  win.once("ready-to-show", () => {
+    win.showInactive();
+  });
+  return win;
+}
+
+/** تحديث نص الحالة على شاشة البداية */
+function setSplashStatus(win, text) {
+  if (!win || win.isDestroyed()) return;
+  try {
+    win.webContents.executeJavaScript(
+      `window.showSplashProgress && window.showSplashProgress(true); window.setSplashStatus && window.setSplashStatus(${JSON.stringify(text)});`,
+    );
+  } catch {
+    /* الشاشة قد تكون مغلقة */
+  }
+}
 
 ipcMain.handle("cash-you:get-device-code", () => getDeviceCode());
 ipcMain.handle("cash-you:get-activation-record", () => {
@@ -58,7 +106,10 @@ ipcMain.handle("cash-you:save-activation-record", (_event, record) => {
  *
  * يُرجع رابط الاتصال أو null إن تعذّر كل ذلك.
  */
-async function prepareLocalDatabase() {
+async function prepareLocalDatabase(onStatus) {
+  const report = (text) => {
+    if (typeof onStatus === "function") onStatus(text);
+  };
   const saved = readLocalDbConfig();
   const savedIsLocal = Boolean(saved && saved.mode === "local" && /^postgres(ql)?:\/\//i.test(saved.url));
 
@@ -73,6 +124,7 @@ async function prepareLocalDatabase() {
   }
 
   /* القاعدة المدمجة — تُنشأ تلقائياً وتُحفظ بيانات العميل فيها */
+  report("جارٍ تجهيز قاعدة بيانات جهازك…");
   const embedded = await startEmbeddedPostgres();
   if (embedded) {
     writeLocalDbConfig({ mode: "local", url: embedded });
@@ -102,18 +154,23 @@ async function prepareLocalDatabase() {
  *    الموقع المشترك أبداً — وإلا لبست حساب مالك واحد بين كل من ياخد البرنامج.
  *  - إن تعذّر تجهيز قاعدة محلية، نفتح صفحة إعداد تشرح له الحل.
  */
-async function resolveAppUrl() {
+async function resolveAppUrl(onStatus) {
+  const report = (text) => {
+    if (typeof onStatus === "function") onStatus(text);
+  };
   if (!hasLocalServer()) {
     process.stdout.write("[cash-you] local server bundle is missing\n");
     return null;
   }
 
-  const databaseUrl = await prepareLocalDatabase();
+  report("جارٍ تجهيز قاعدة بيانات جهازك…");
+  const databaseUrl = await prepareLocalDatabase(report);
   if (!databaseUrl) {
     process.stdout.write("[cash-you] could not prepare a local database\n");
     return null;
   }
 
+  report("جارٍ تشغيل الخادم المحلي…");
   const localUrl = await startLocalServer(databaseUrl);
   if (localUrl) {
     process.stdout.write(`[cash-you] using local server at ${localUrl}\n`);
@@ -145,7 +202,9 @@ async function createWindow() {
    * نسخة ويندوز لا تفتح الموقع المشترك أبداً — كل عميل يعمل على قاعدة
    * بياناته المحلية الخاصة. إن تعذّر تجهيزها نعرض تعليمات واضحة.
    */
-  const appUrl = await resolveAppUrl();
+  const splash = createSplashWindow();
+  const appUrl = await resolveAppUrl((text) => setSplashStatus(splash, text));
+  if (splash && !splash.isDestroyed()) splash.destroy();
   if (!appUrl) {
     /* لم نتمكن من تجهيز قاعدة بيانات محلية — نعرض تعليمات واضحة بدل شاشة مكسورة */
     const iconDataUrl = `data:image/png;base64,${readFileSync(windowIcon).toString("base64")}`;
