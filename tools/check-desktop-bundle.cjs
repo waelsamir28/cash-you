@@ -52,6 +52,11 @@ const appSamples = [
   "electron/local-server.cjs",
   "electron/local-db.cjs",
   "electron/preload.cjs",
+  /* شاشة البداية أثناء فتح البرنامج + خطّها العربي */
+  "electron/splash.html",
+  "electron/icon.png",
+  "assets/fonts/cairo-arabic-700-normal.woff2",
+  "assets/fonts/cairo-latin-700-normal.woff2",
   ".next/static/chunks/main.js",
   "public/desktop/icon.ico",
   "package.json",
@@ -71,6 +76,18 @@ const resourceSamples = [];
 console.log("files:", JSON.stringify(pkg.build.files));
 console.log("afterPack:", pkg.build.afterPack);
 console.log("asarUnpack:", JSON.stringify(pkg.build.asarUnpack));
+
+/* صورة شاشة التثبيت يجب أن تكون ضمن buildResources (يصلها NSIS) */
+const resourcesDir = pkg.build.directories?.buildResources || "build";
+const installerSplash = path.join(appDir, resourcesDir, "splash-installer.bmp");
+const installerSplashOk = fs.existsSync(installerSplash);
+console.log(
+  `\n[صورة شاشة التثبيت] ${installerSplashOk ? "✓" : "✗"} ${resourcesDir}/splash-installer.bmp`,
+);
+if (!installerSplashOk) {
+  console.log("\n✗ صورة شاشة التثبيت مفقودة — شغّل node tools/make-splash.cjs");
+  process.exit(1);
+}
 
 /* hook النسخ يجب أن يكون موجوداً */
 const hookPath = path.join(appDir, pkg.build.afterPack || "");

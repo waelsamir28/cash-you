@@ -32,7 +32,10 @@
 !macroend
 
 ; ---------- صفحة الترحيب ----------
+;  صورة الترحيب هي نفس تصميم شاشة فتح البرنامج (تصميم وتنفيذ م/ وائل الجمال)
+;  وتوجد في مجلد buildResources، ويجدها NSIS عبر مسار include الخاص به.
 !macro customWelcomePage
+  !define MUI_WELCOMEPAGE_BITMAP "splash-installer.bmp"
   !define MUI_WELCOMEPAGE_TITLE "${CY_APP_NAME}"
   !define MUI_WELCOMEPAGE_TEXT "Welcome to CASH YOU — Arabic POS & Sales System.$\r$\n$\r$\nThis wizard installs the CASH YOU desktop app on your computer. You can pick a different install folder next.$\r$\n$\r$\nClick Next to continue."
   !insertmacro MUI_PAGE_WELCOME

@@ -1,0 +1,277 @@
+<!doctype html>
+<!--
+  شاشة البداية (Splash) لنسخة ويندوز — CASH YOU
+
+  تُستخدم في مكانين بنفس التصميم:
+   1) أثناء فتح البرنامج: نافذة Electron بلا إطار تعرض هذه الشاشة
+      أثناء تجهيز قاعدة البيانات المحلية وتشغيل الخادم.
+   2) أثناء التثبيت: نفس التصميم يُصدَّر إلى صورة نقطية لصفحة الترحيب
+      في مثبّت NSIS (assets/branding/splash-installer.bmp).
+
+  التوقيع أسفل الشاشة: تصميم وتنفيذ م/ وائل الجمال | 01222355769
+-->
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <title>CASH YOU</title>
+    <style>
+      @font-face {
+        font-family: "Cairo";
+        font-style: normal;
+        font-weight: 400;
+        font-display: block;
+        src: url("../assets/fonts/cairo-arabic-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Cairo";
+        font-style: normal;
+        font-weight: 600;
+        font-display: block;
+        src: url("../assets/fonts/cairo-arabic-600-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Cairo";
+        font-style: normal;
+        font-weight: 700;
+        font-display: block;
+        src: url("../assets/fonts/cairo-arabic-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Cairo Latin";
+        font-style: normal;
+        font-weight: 700;
+        font-display: block;
+        src: url("../assets/fonts/cairo-latin-700-normal.woff2") format("woff2");
+      }
+
+      :root {
+        --ink-900: #0b1220;
+        --ink-800: #111c31;
+        --ink-700: #16233d;
+        --amber: #fbbf24;
+        --green: #10b981;
+        --text: #e8eefc;
+        --muted: #8ea3c7;
+        --credit: "تصميم وتنفيذ م/ وائل الجمال | 01222355769";
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+      }
+
+      body {
+        background: var(--ink-900);
+        color: var(--text);
+        font-family: "Cairo", "Segoe UI", Tahoma, "Noto Kufi Arabic", sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        position: relative;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* توهج خلفي ناعم */
+      body::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(60% 45% at 50% 34%, rgba(251, 191, 36, 0.16), transparent 70%),
+          radial-gradient(50% 40% at 50% 92%, rgba(16, 185, 129, 0.12), transparent 70%),
+          linear-gradient(180deg, #0e1729 0%, #0b1220 45%, #070c16 100%);
+        pointer-events: none;
+      }
+
+      /* خطوط خفيفة تعطي عمقاً */
+      body::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(148, 178, 255, 0.045) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(148, 178, 255, 0.045) 1px, transparent 1px);
+        background-size: 46px 46px;
+        mask-image: radial-gradient(70% 60% at 50% 40%, #000 20%, transparent 100%);
+        -webkit-mask-image: radial-gradient(70% 60% at 50% 40%, #000 20%, transparent 100%);
+        pointer-events: none;
+      }
+
+      .stage {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        padding: 22px 34px 62px;
+      }
+
+      /* ---------- الشعار ---------- */
+      .logo {
+        width: 158px;
+        height: 158px;
+        border-radius: 40px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(160deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow:
+          0 26px 64px rgba(0, 0, 0, 0.55),
+          0 0 0 10px rgba(251, 191, 36, 0.05),
+          inset 0 1px 0 rgba(255, 255, 255, 0.14);
+        animation: float 4.5s ease-in-out infinite;
+      }
+
+      .logo img {
+        width: 136px;
+        height: 136px;
+        object-fit: contain;
+        filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.45));
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-8px);
+        }
+      }
+
+      /* ---------- الاسم والوصف ---------- */
+      .tagline {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--muted);
+        text-align: center;
+        letter-spacing: 0.2px;
+        line-height: 1.7;
+      }
+
+      .tagline b {
+        color: var(--text);
+        font-weight: 700;
+      }
+
+      .rule {
+        width: 132px;
+        height: 3px;
+        border-radius: 99px;
+        background: linear-gradient(90deg, transparent, var(--amber), var(--green), transparent);
+        opacity: 0.9;
+      }
+
+      /* ---------- شريط التقدّم (شاشة فتح البرنامج) ---------- */
+      .progress {
+        width: 280px;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 9px;
+      }
+
+      .progress.on {
+        display: flex;
+      }
+
+      .bar {
+        width: 100%;
+        height: 5px;
+        border-radius: 99px;
+        background: rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+      }
+
+      .bar > i {
+        display: block;
+        height: 100%;
+        width: 38%;
+        border-radius: 99px;
+        background: linear-gradient(90deg, var(--amber), var(--green));
+        animation: slide 1.5s ease-in-out infinite;
+      }
+
+      @keyframes slide {
+        0% {
+          transform: translateX(-120%);
+        }
+        100% {
+          transform: translateX(320%);
+        }
+      }
+
+      .status {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--muted);
+        min-height: 18px;
+      }
+
+      /* ---------- التوقيع ---------- */
+      .credit {
+        position: absolute;
+        bottom: 18px;
+        left: 0;
+        right: 0;
+        z-index: 1;
+        text-align: center;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: #6f83a6;
+        letter-spacing: 0.2px;
+      }
+
+      .credit b {
+        color: #9fb3d4;
+        font-weight: 700;
+      }
+
+      .credit .sep {
+        color: var(--amber);
+        margin: 0 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="stage">
+      <div class="logo">
+        <img src="./icon.png" alt="CASH YOU" />
+      </div>
+      <div class="rule"></div>
+      <p class="tagline">
+        <b>كاش يو</b> — نظام نقاط بيع ومبيعات عربي متكامل
+      </p>
+      <div class="progress" id="progress">
+        <div class="bar"><i></i></div>
+        <div class="status" id="status">جارٍ التحضير…</div>
+      </div>
+    </main>
+
+    <footer class="credit">
+      تصميم وتنفيذ <b>م/ وائل الجمال</b><span class="sep">|</span><b dir="ltr">01222355769</b>
+    </footer>
+
+    <script>
+      /* نافذة Electron تحدّث نص الحالة أثناء التجهيز */
+      window.setSplashStatus = function (text) {
+        var el = document.getElementById("status");
+        if (el) el.textContent = text;
+      };
+      window.showSplashProgress = function (on) {
+        var el = document.getElementById("progress");
+        if (el) el.classList.toggle("on", on !== false);
+      };
+    </script>
+  </body>
+</html>
