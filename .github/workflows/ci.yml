@@ -47,7 +47,10 @@ jobs:
           node --check electron/local-server.cjs
           node --check electron/local-db.cjs
           node --check public/cash-you-sw.js
-          node --input-type=commonjs -e "const fs=require('node:fs');const vm=require('node:vm');const html=fs.readFileSync('tools/license-generator.html','utf8');const script=html.match(/<script>([\\s\\S]*?)<\\/script>/);if(!script)throw new Error('license generator script not found');new vm.Script(script[1]);"
+          node --check tools/test-asar-paths.cjs
+          node --check tools/test-packaged-postgres.cjs
+          node --check tools/check-desktop-bundle.cjs
+          node --input-type=commonjs -e "const fs=require('node:fs');const vm=require('node:vm');const html=fs.readFileSync('tools/activation-generator.html','utf8');const script=html.match(/<script>([\\s\\S]*?)<\/script>/);if(!script)throw new Error('activation generator script not found');new vm.Script(script[1]);"
 
       - name: Build Next.js app
         run: npm run build
