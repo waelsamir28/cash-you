@@ -14,6 +14,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { execFileSync } = require("node:child_process");
 
 const root = path.join(__dirname, "..");
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), "cy-local-db-"));
@@ -53,7 +54,18 @@ async function main() {
   console.log("✓ قاعدة بيانات محلية تلقائية:", url.replace(/:[^:@]+@/, ":••••@"));
 
   /* ---------- 2) فتح البرنامج ينشئ الجداول ---------- */
-  assert.ok(hasLocalServer(), "حزمة الخادم المحلي غير موجودة — شغّل tools/build-desktop-assets.cjs");
+  /*
+   * الاختبار مستقل تماماً: إن لم تكن حزمة الخادم المحلي جاهزة نبنيها الآن
+   * (بلا اعتماد على PostgreSQL مثبّت ولا على خطوات يدوية).
+   */
+  if (!hasLocalServer()) {
+    console.log("… نبني حزمة الخادم المحلي للاختبار");
+    execFileSync(process.execPath, [path.join(root, "tools", "build-desktop-assets.cjs")], {
+      stdio: "inherit",
+      cwd: root,
+    });
+  }
+  assert.ok(hasLocalServer(), "حزمة الخادم المحلي غير موجودة");
   const appUrl = await startLocalServer(url);
   assert.ok(appUrl, "الخادم المحلي لم يبدأ");
   const health = await fetch(`${appUrl}/api/health`).then((r) => r.json());
