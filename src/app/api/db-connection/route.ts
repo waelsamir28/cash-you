@@ -5,12 +5,18 @@
  * (لو استُورد `pg` من مكوّن عميل لأُسحب net/dns/fs إلى حزمة المتصفح وفشل البناء.)
  *
  * الحفظ:
- *  - نسخة الويندوز  → electron/app-config.json (يقرأه main.cjs) مع الحفاظ على باقي المفاتيح.
- *  - نسخة الويب/التطوير → .cash-you-db.json (احتياطي).
+ *  - نسخة الويندوز  → ملف على جهاز العميل (عبر جسر Electron) — لا يصل إلى أي سيرفر.
+ *  - نسخة الويب متعددة المستأجرين → داخل قاعدة العميل نفسه (settings) — حتى لا
+ *    يتشارك عملاء مختلفون رابط قاعدة سحابية واحدة من ملف مشترك على السيرفر.
+ *  - نسخة الويب/التطوير (قاعدة واحدة) → .cash-you-db.json (احتياطي).
  */
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Client } from "pg";
+import { tenantModeEnabled } from "@/db/tenant-context";
+import { db } from "@/db";
+import { settings as settingsTable } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -38,7 +44,43 @@ async function readJson(file: string): Promise<Record<string, unknown>> {
   }
 }
 
+/** مفتاح حفظ رابط قاعدة العميل داخل جدول إعدادات العميل */
+const TENANT_DB_URL_KEY = "db.tenantUrl";
+
+/** يقرأ الرابط المحفوظ داخل قاعدة العميل (وضع المستأجرين) */
+async function readTenantSaved(): Promise<string> {
+  try {
+    const rows = await db
+      .select({ value: settingsTable.value })
+      .from(settingsTable)
+      .where(eq(settingsTable.key, TENANT_DB_URL_KEY))
+      .limit(1);
+    return rows[0]?.value ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** يحفظ الرابط داخل قاعدة العميل (وضع المستأجرين) */
+async function saveTenantUrl(url: string): Promise<string | null> {
+  try {
+    await db
+      .insert(settingsTable)
+      .values({ key: TENANT_DB_URL_KEY, value: url })
+      .onConflictDoUpdate({ target: settingsTable.key, set: { value: url } });
+    return null;
+  } catch (err) {
+    return err instanceof Error ? err.message : "تعذر الحفظ داخل قاعدة العميل";
+  }
+}
+
 async function readSaved(): Promise<{ mode: Mode; url: string } | null> {
+  /* في وضع المستأجرين: الرابط داخل قاعدة العميل — لا ملف مشترك */
+  if (tenantModeEnabled()) {
+    const url = await readTenantSaved();
+    if (url) return { mode: "cloud", url };
+    return null;
+  }
   for (const file of [CONFIG_PATH, FALLBACK_PATH]) {
     const json = await readJson(file);
     /* مفاتيح منفصلة: "url" في app-config.json هو رابط الموقع وليس قاعدة البيانات */
@@ -140,6 +182,20 @@ export async function POST(req: Request) {
 
     if (!test.ok) {
       return Response.json({ ok: false, message: `لم يتم الحفظ — ${test.message}`, latencyMs: test.latencyMs });
+    }
+
+    /* في وضع المستأجرين: نخزّن الرابط داخل قاعدة العميل نفسه */
+    if (tenantModeEnabled()) {
+      const note = await saveTenantUrl(url);
+      return Response.json({
+        ok: true,
+        saved: true,
+        message: note
+          ? `تم الحفظ — ${note}`
+          : "تم حفظ الرابط داخل قاعدة بياناتك — لن يراه أي عميل آخر",
+        latencyMs: test.latencyMs,
+        note,
+      });
     }
 
     const notes = await saveConfig(mode, url);

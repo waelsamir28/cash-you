@@ -1,6 +1,7 @@
 import { deleteProduct, upsertProduct, type ProductInput } from "@/lib/operations";
 import { withOfflineIdempotency } from "@/lib/offline-idempotency";
 import { assertTrialAllows, bumpUsageCounter } from "@/lib/auth";
+import { withTenant } from "@/lib/tenant-routes";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,6 @@ async function handle(req: Request) {
     }
   });
 }
-export const POST = handle;
-export const PUT = handle;
-export const DELETE = handle;
+export const POST = withTenant(handle);
+export const PUT = withTenant(handle);
+export const DELETE = withTenant(handle);

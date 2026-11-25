@@ -58,6 +58,9 @@ const CUSTOMERS: [name: string, phone: string, balance: number][] = [
 const PAYMENTS = ["نقدي", "فيزا", "محفظة إلكترونية", "تحويل بنكي", "شيك"];
 
 export async function ensureSeed(): Promise<void> {
+  /* قاعدة جديدة تماماً (قاعدة محلية مولّدة تلقائياً) — ننشئ المخطط أولاً */
+  const { ensureDatabaseSchema } = await import("@/lib/ensure-schema");
+  await ensureDatabaseSchema();
   const flag = await db
     .select()
     .from(settings)

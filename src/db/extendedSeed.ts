@@ -9,6 +9,9 @@ import {
 } from "@/db/schema";
 
 export async function ensureExtendedSeed() {
+  /* قاعدة جديدة تماماً — ننشئ المخطط أولاً */
+  const { ensureDatabaseSchema } = await import("@/lib/ensure-schema");
+  await ensureDatabaseSchema();
   const flag = await db.select().from(settings).where(eq(settings.key, "seeded_v2")).limit(1);
   if (flag.length) return;
 

@@ -19,7 +19,11 @@
     "desktop:build": "node tools/make-icon.cjs && node tools/make-installer-art.cjs && node tools/build-desktop-assets.cjs",
     "test:db-bridge": "node tools/test-db-config.cjs",
     "test:local-server": "node tools/test-local-server.cjs",
-    "test:db-sync": "node tools/test-db-sync.cjs"
+    "test:db-sync": "node tools/test-db-sync.cjs",
+    "test:tenant": "node tools/test-tenant-http.cjs",
+    "test:tenant-unit": "node tools/test-tenant-isolation.cjs",
+    "test:local-db": "node tools/test-local-db.cjs",
+    "test:embedded": "node tools/test-embedded-postgres.cjs"
   },
   "dependencies": {
     "dotenv": "17.3.1",
@@ -69,7 +73,10 @@
       "node_modules/postgres-bytea/**/*",
       "node_modules/postgres-date/**/*",
       "node_modules/postgres-interval/**/*",
-      "node_modules/split2/**/*"
+      "node_modules/split2/**/*",
+      "node_modules/embedded-postgres/**/*",
+      "node_modules/@embedded-postgres/**/*",
+      "node_modules/exit-hook/**/*"
     ],
     "win": {
       "target": [
@@ -106,8 +113,17 @@
       "node_modules/postgres-bytea/**/*",
       "node_modules/postgres-date/**/*",
       "node_modules/postgres-interval/**/*",
-      "node_modules/split2/**/*"
+      "node_modules/split2/**/*",
+      "node_modules/@embedded-postgres/**/*",
+      "node_modules/embedded-postgres/**/*"
     ],
     "afterPack": "tools/copy-standalone.cjs"
+  },
+  "optionalDependencies": {
+    "embedded-postgres": "19.0.0-beta.20",
+    "@embedded-postgres/windows-x64": "19.0.0-beta.20",
+    "@embedded-postgres/linux-x64": "19.0.0-beta.20",
+    "@embedded-postgres/darwin-x64": "19.0.0-beta.20",
+    "@embedded-postgres/darwin-arm64": "19.0.0-beta.20"
   }
 }

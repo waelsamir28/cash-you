@@ -1,8 +1,9 @@
 import { getBootstrap } from "@/lib/data";
+import { withTenant } from "@/lib/tenant-routes";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export const GET = withTenant(async () => {
   try {
     const data = await getBootstrap();
     return Response.json(data);
@@ -12,4 +13,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

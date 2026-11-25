@@ -20,6 +20,7 @@ const hook = require("./copy-standalone.cjs").default;
     "node_modules/next/dist/server/next.js",
     "node_modules/pg-pool/index.js",
     ".next/static",
+    "public",
   ];
 
   console.log("\n[التحقق من contents]");

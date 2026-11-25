@@ -1,10 +1,11 @@
 import { upsertParty, type PartyInput } from "@/lib/operations";
 import { withOfflineIdempotency } from "@/lib/offline-idempotency";
 import { assertTrialAllows, bumpUsageCounter } from "@/lib/auth";
+import { withTenant } from "@/lib/tenant-routes";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(req: Request) {
+export const POST = withTenant(async (req: Request) => {
   return withOfflineIdempotency(req, async () => {
     try {
       const body = (await req.json()) as PartyInput & { kind: "customer" | "supplier" };
@@ -17,5 +18,5 @@ export async function POST(req: Request) {
       return Response.json({ error: e instanceof Error ? e.message : "تعذر حفظ البيانات" }, { status: 400 });
     }
   });
-}
+});
 export const PUT = POST;

@@ -750,6 +750,8 @@ export default function CashYouApp({
               daysLeft={trial?.daysLeft}
               localDb={dbMode === "local"}
               pendingSync={syncPending}
+              tenantKey={data.tenant?.key}
+              tenantIsolated={data.tenant?.isolated}
             />
           )}
           {activeTab?.kind === "settings" && user && (

@@ -13,6 +13,12 @@
  *  - الجداول بلا طابع زمني: تُنسخ السجلات الجديدة فقط دون المساس الموجود.
  */
 import { Client } from "pg";
+import {
+  CUSTOMER_IDENTITY_KEY,
+  newCustomerIdentity,
+  readCustomerIdentity,
+  stampCustomerIdentity,
+} from "@/lib/customer-identity";
 
 export type SyncDirection = "push" | "pull" | "both";
 
@@ -153,6 +159,19 @@ export const SYNC_TABLES: TableSpec[] = [
 
 /* ================================ أدوات مساعدة ================================ */
 
+/**
+ * جداول الهوية — لا تُنسخ بين عملاء مختلفين أبداً.
+ * `app_users` فيها حسابات المالك والموظفين، و`settings` فيها حالة الفترة
+ * التجريبية والترخيص وإعدادات المتجر — أي نقلها بين عملاء يعني تسريباً.
+ */
+export const IDENTITY_TABLES = ["app_users", "settings"] as const;
+
+/** هل هذا الجدول من جداول الهوية؟ */
+export function isIdentityTable(table: string): boolean {
+  return (IDENTITY_TABLES as readonly string[]).includes(table);
+}
+
+
 type Row = Record<string, unknown>;
 
 function quoteIdent(name: string): string {
@@ -215,7 +234,12 @@ export async function copyTable(
   target: Client,
   spec: TableSpec,
   idMaps: IdMaps,
+  options: { allowIdentityTables?: boolean } = {},
 ): Promise<{ copied: number; skipped: number }> {
+  /* جداول الهوية لا تُنسخ إلا بين قاعدتين تخصّان نفس العميل */
+  if (isIdentityTable(spec.name) && options.allowIdentityTables === false) {
+    return { copied: 0, skipped: 0 };
+  }
   if (!(await tableExists(source, spec.name))) return { copied: 0, skipped: 0 };
   if (!(await tableExists(target, spec.name))) return { copied: 0, skipped: 0 };
 
@@ -270,6 +294,8 @@ export async function copyTable(
   let skipped = 0;
 
   for (const row of srcRows) {
+    /* بصمة العميل هي علامة الربط نفسها — لا تُنسخ بين القواعد */
+    if (spec.name === "settings" && row.key === CUSTOMER_IDENTITY_KEY) continue;
     const prepared: Row = { ...row };
 
     /* ترجمة المفاتيح الأجنبية */
@@ -344,6 +370,105 @@ function isNewer(sourceTime: unknown, targetTime: unknown): boolean {
   return s > t;
 }
 
+/* ============================ هوية العميل ومنع التسريب ============================ */
+
+/**
+ * نتيجة فحص هوية العميل بين قاعدتين.
+ * - `ok: true`: القاعدتان متوافقتان (نفس العميل، أو إحداهما غير مرتبطة بعد).
+ * - `ok: false`: القاعدتان تخصّان عميلين مختلفين → تُرفض العملية كلها.
+ */
+export type IdentityCheck = {
+  ok: boolean;
+  localIdentity: string | null;
+  cloudIdentity: string | null;
+  /** سبب المنع (إن وُجد) */
+  reason?: string;
+};
+
+/**
+ * يفحص هل القاعدتان تخصّان نفس العميل.
+ *
+ * القاعدة: كل قاعدة عميل تحمل بصمة `customer.identity`.
+ *  - إن اختلفت البصمتان → عميلان مختلفان → تُرفض المزامنة كلها.
+ *  - إن كانت إحداهما بلا بصمة → تُعتبر غير مرتبطة بعد، وتُربط أثناء المزامنة.
+ */
+export async function checkCustomerIdentity(
+  local: Client,
+  cloud: Client,
+  expectedIdentity?: string | null,
+): Promise<IdentityCheck> {
+  const localIdentity = await readCustomerIdentity(local);
+  const cloudIdentity = await readCustomerIdentity(cloud);
+
+  /* القاعدة السحابية يجب أن تخصّ هذا العميل بالضبط */
+  if (expectedIdentity && cloudIdentity && expectedIdentity !== cloudIdentity) {
+    return {
+      ok: false,
+      localIdentity: localIdentity ?? null,
+      cloudIdentity: cloudIdentity ?? null,
+      reason: "القاعدة السحابية لا تخصّ هذا العميل — تم رفض العملية",
+    };
+  }
+
+  if (localIdentity && cloudIdentity && localIdentity !== cloudIdentity) {
+    return {
+      ok: false,
+      localIdentity,
+      cloudIdentity,
+      reason: "القاعدتان تخصّان عملاء مختلفين — تم رفض المزامنة",
+    };
+  }
+
+  return { ok: true, localIdentity: localIdentity ?? null, cloudIdentity: cloudIdentity ?? null };
+}
+
+/**
+ * هل يُسمح بنقل جداول الهوية (الحسابات والإعدادات) في اتجاه معيّن؟
+ *
+ * - عند الدفع (محلي ← سحابي): نسمح إذا كانت السحابية غير مرتبطة بعد،
+ *   أو أن البصمتان متطابقتان.
+ * - عند السحب (سحابي ← محلي): نسمح إذا كانت القاعدة المحلية غير مرتبطة بعد
+ *   (تُربط بالبصمة أثناء المزامنة)، أو أن البصمتان متطابقتان.
+ */
+export function allowIdentityTablesFor(
+  identity: IdentityCheck,
+  direction: "push" | "pull",
+): boolean {
+  const { localIdentity, cloudIdentity } = identity;
+  if (localIdentity && cloudIdentity) return localIdentity === cloudIdentity;
+  /* إحداهما غير مرتبطة — الاتجاه الآمن فقط */
+  return direction === "push" ? !cloudIdentity : !localIdentity;
+}
+
+/**
+ * يربط القاعدتين ببصمة العميل.
+ *
+ * - قاعدتان مرتبطتان → نُبقيهما كما هما (تطابقهما شرط المزامنة أصلاً).
+ * - واحدة مرتبطة والأخرى غير → غير المرتبطة تتبنّى بصمة المرتبطة.
+ * - ولا واحدة مرتبطة → نبصمة جديدة ونختم بها القاعدتين — فتصيران قاعدتي
+ *   نفس العميل، وأي مزامنة لاحقة مع قاعدة عميل آخر تُرفض.
+ */
+export async function bindIdentities(
+  local: Client,
+  cloud: Client,
+  identity: IdentityCheck,
+): Promise<void> {
+  const { localIdentity, cloudIdentity } = identity;
+  if (localIdentity && cloudIdentity) return;
+  if (localIdentity) {
+    await stampCustomerIdentity(cloud, localIdentity);
+    return;
+  }
+  if (cloudIdentity) {
+    await stampCustomerIdentity(local, cloudIdentity);
+    return;
+  }
+  /* قاعدتان غير مرتبطتين → نصنع بصمة عميل جديدة */
+  const fresh = newCustomerIdentity();
+  await stampCustomerIdentity(local, fresh);
+  await stampCustomerIdentity(cloud, fresh);
+}
+
 /* ============================== تنفيذ المزامنة ============================== */
 
 /**
@@ -356,9 +481,12 @@ export async function syncDatabases(
   local: Client,
   cloud: Client,
   direction: SyncDirection,
+  options: { identity?: IdentityCheck } = {},
 ): Promise<SyncReport> {
   const started = Date.now();
   const details: SyncTableDetail[] = [];
+  const identity: IdentityCheck =
+    options.identity ?? (await checkCustomerIdentity(local, cloud));
 
   const pairs: { from: Client; to: Client; direction: "push" | "pull" }[] =
     direction === "push"
@@ -371,11 +499,15 @@ export async function syncDatabases(
           ];
 
   for (const pair of pairs) {
+    /* نقل الحسابات والإعدادات مسموح فقط في الاتجاه الآمن */
+    const allowIdentityTables = allowIdentityTablesFor(identity, pair.direction);
     /* خريطة ترجمة المعرّفات خاصة بكل اتجاه */
     const idMaps: IdMaps = {};
     for (const spec of SYNC_TABLES) {
       try {
-        const { copied, skipped } = await copyTable(pair.from, pair.to, spec, idMaps);
+        const { copied, skipped } = await copyTable(pair.from, pair.to, spec, idMaps, {
+          allowIdentityTables,
+        });
         if (copied > 0 || skipped > 0) {
           details.push({ table: spec.name, copied, skipped, direction: pair.direction });
         }
@@ -390,6 +522,13 @@ export async function syncDatabases(
         });
       }
     }
+  }
+
+  /* نربط القاعدتين ببصمة العميل (مرة واحدة بعد كل الاتجاهات) */
+  try {
+    await bindIdentities(local, cloud, identity);
+  } catch {
+    /* الربط غير حرج */
   }
 
   const copied = details.reduce((s, d) => s + d.copied, 0);
@@ -416,19 +555,51 @@ export async function syncDatabases(
 
 /**
  * واجهة عالية المستوى: تفتح اتصالين وتنفّذ المزامنة.
+ *
+ * `expectedIdentity` هو بصمة العميل المتوقَّعة في القاعدة السحابية — يمرّرها
+ * الخادم من وحدة العميل الحالي. عند وجودها نمنع المزامنة كلياً إذا كانت
+ * القاعدة السحابية تخصّ عميلاً آخر.
  */
 export async function syncByUrl(
   localUrl: string,
   cloudUrl: string,
   direction: SyncDirection = "both",
+  expectedIdentity?: string | null,
+  cloudOptions?: { options?: string },
 ): Promise<SyncReport> {
   const started = Date.now();
   const local = new Client({ connectionString: localUrl });
-  const cloud = new Client({ connectionString: cloudUrl });
+  const cloud = new Client({
+    connectionString: cloudUrl,
+    ...(cloudOptions?.options ? { options: cloudOptions.options } : {}),
+  });
   try {
     await local.connect();
     await cloud.connect();
-    return await syncDatabases(local, cloud, direction);
+
+    const identity = await checkCustomerIdentity(local, cloud, expectedIdentity ?? null);
+    if (!identity.ok) {
+      return {
+        ok: false,
+        message: identity.reason ?? "تم رفض المزامنة لحماية بيانات العملاء",
+        copied: 0,
+        pushed: 0,
+        pulled: 0,
+        details: [],
+        durationMs: Date.now() - started,
+      };
+    }
+
+    const report = await syncDatabases(local, cloud, direction, { identity });
+    const blocked =
+      !allowIdentityTablesFor(identity, "push") || !allowIdentityTablesFor(identity, "pull");
+    if (blocked) {
+      return {
+        ...report,
+        message: `${report.message} — لم تُنسخ الحسابات أو الإعدادات لأن القاعدتين تخصّان عميلين مختلفين`,
+      };
+    }
+    return report;
   } catch (err) {
     return {
       ok: false,

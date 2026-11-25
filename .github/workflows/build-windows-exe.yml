@@ -51,6 +51,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify the bundled PostgreSQL (local database without installation)
+        run: |
+          if (!(Test-Path "node_modules/@embedded-postgres/windows-x64/native/bin/postgres.exe")) { throw "postgres.exe is missing from the embedded PostgreSQL package" }
+          if (!(Test-Path "node_modules/embedded-postgres/dist/index.js")) { throw "embedded-postgres is missing" }
+          Write-Host "embedded PostgreSQL is present"
+
+      - name: Smoke test the bundled PostgreSQL (runs for real on Windows)
+        run: node tools/test-embedded-postgres.cjs
+
       - name: Prepare the app icon (ICO)
         run: node tools/make-icon.cjs
 

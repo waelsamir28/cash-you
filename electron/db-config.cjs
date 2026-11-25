@@ -28,28 +28,49 @@ function dbConfigPath() {
   return path.join(userDataDir(), "cash-you-db.json");
 }
 
-/** مسار ملف app-config.json المجاور للتطبيق */
-function appConfigPath() {
-  return path.join(__dirname, "app-config.json");
-}
-
-/** قراءة الإعداد المحفوظ على جهاز العميل */
+/**
+ * قراءة الإعدادات المحفوظة على جهاز العميل.
+ *
+ * نخزّن رابطين بشكل منفصل:
+ *  - `localUrl`: قاعدة بيانات العميل المحلية (تُنشأ تلقائياً — لا يدخلها العميل).
+ *  - `cloudUrl`:  رابط القاعدة السحابية الذي أضافه العميل بنفسه (للمزامنة).
+ *
+ * ملاحظة مهمة: لا نقرأ أي إعداد من `app-config.json` المجاور للتطبيق، لأن
+ * ذلك ملف مشترك بين كل من ياخد النسخة — ولا يجوز أن تُشتقّ منه إعدادات
+ * خاصة بالعميل (رابط قاعدة سحابية مثلاً).
+ */
 function readLocalDbConfig() {
-  for (const file of [dbConfigPath(), appConfigPath()]) {
-    try {
-      const json = JSON.parse(readFileSync(file, "utf8"));
-      const url = typeof json.dbUrl === "string" ? json.dbUrl.trim() : "";
-      if (url) {
-        return { mode: json.dbMode === "local" ? "local" : "cloud", url };
-      }
-    } catch {
-      /* الملف غير موجود أو غير صالح */
-    }
+  let json = {};
+  try {
+    json = JSON.parse(readFileSync(dbConfigPath(), "utf8"));
+  } catch {
+    /* الملف غير موجود أو غير صالح */
   }
-  return null;
+  const pick = (value) => (typeof value === "string" ? value.trim() : "");
+  const localUrl = pick(json.localUrl);
+  const cloudUrl = pick(json.cloudUrl);
+  const legacyUrl = pick(json.dbUrl);
+  const mode = json.dbMode === "local" ? "local" : "cloud";
+  /* رابط قديم محفوظ قبل الفصل بين المحلي والسحابي */
+  const legacyLocal = mode === "local" ? legacyUrl : "";
+  const legacyCloud = mode === "cloud" ? legacyUrl : "";
+  /*
+   * `url` يتبع الوضع دائماً — لا يجوز أن يشير الوضع المحلي إلى رابط
+   * سحابي (فقد يعمل البرنامج على قاعدة العميل السحابية بدل قاعدته المحلية).
+   */
+  const url = mode === "local" ? localUrl || legacyLocal : cloudUrl || legacyCloud;
+  return {
+    mode,
+    url,
+    localUrl: localUrl || legacyLocal,
+    cloudUrl: cloudUrl || legacyCloud,
+  };
 }
 
-/** حفظ الإعداد على جهاز العميل مع الحفاظ على بقية المفاتيح */
+/**
+ * حفظ الإعداد على جهاز العميل.
+ * حفظ رابط سحابي **لا يمسّ** رابط القاعدة المحلية، والعكس.
+ */
 function writeLocalDbConfig(cfg) {
   if (!/^postgres(ql)?:\/\//i.test(cfg.url)) {
     return { ok: false, message: "الرابط يجب أن يبدأ بـ postgresql://" };
@@ -61,13 +82,16 @@ function writeLocalDbConfig(cfg) {
   } catch {
     /* ملف جديد */
   }
+  const next = {
+    ...existing,
+    dbMode: cfg.mode === "local" ? "local" : "cloud",
+    dbUrl: cfg.url,
+  };
+  if (cfg.mode === "local") next.localUrl = cfg.url;
+  else next.cloudUrl = cfg.url;
   try {
     mkdirSync(path.dirname(target), { recursive: true });
-    writeFileSync(
-      target,
-      `${JSON.stringify({ ...existing, dbMode: cfg.mode, dbUrl: cfg.url }, null, 2)}\n`,
-      "utf8",
-    );
+    writeFileSync(target, `${JSON.stringify(next, null, 2)}\n`, "utf8");
     return { ok: true, message: "تم الحفظ على جهازك" };
   } catch (err) {
     const message = err instanceof Error ? err.message : "تعذر الحفظ";
@@ -139,9 +163,27 @@ async function testLocalDbConnection(url) {
 function registerDbHandlers() {
   ipcMain.handle("cash-you:get-db-config", () => {
     const cfg = readLocalDbConfig();
-    return cfg
-      ? { saved: true, mode: cfg.mode, maskedUrl: maskDbUrl(cfg.url) }
-      : { saved: false, mode: "cloud", maskedUrl: "" };
+    /*
+     * في نسخة ويندوز «الاتصال المحفوظ» هو رابط العميل السحابي (الذي يختاره
+     * بنفسه) — أما قاعدة جهازه المحلية فتُنشأ تلقائياً وتُعرض منفصلة.
+     */
+    const mode = cfg.cloudUrl ? "cloud" : cfg.localUrl ? "local" : cfg.mode;
+    const masked = cfg.cloudUrl
+      ? maskDbUrl(cfg.cloudUrl)
+      : cfg.localUrl
+        ? maskDbUrl(cfg.localUrl)
+        : "";
+    return {
+      saved: Boolean(cfg.cloudUrl || cfg.localUrl),
+      mode,
+      maskedUrl: masked,
+      /* قاعدة العميل المحلية (تُنشأ تلقائياً) */
+      hasLocalDb: Boolean(cfg.localUrl),
+      localMasked: cfg.localUrl ? maskDbUrl(cfg.localUrl) : "",
+      /* رابط العميل السحابي (أضافه بنفسه) */
+      hasCloudDb: Boolean(cfg.cloudUrl),
+      cloudMasked: cfg.cloudUrl ? maskDbUrl(cfg.cloudUrl) : "",
+    };
   });
 
   ipcMain.handle("cash-you:save-db-config", (_event, payload) => {
@@ -170,15 +212,15 @@ function registerDbHandlers() {
    * السبب: القاعدة المحلية على جهاز العميل لا يراها السيرفر البعيد.
    */
   ipcMain.handle("cash-you:sync-databases", async (_event, payload) => {
-    const localUrl = String((payload && payload.localUrl) || "").trim();
-    const cloudUrl = String((payload && payload.cloudUrl) || "").trim();
-    const direction =
-      payload && payload.direction === "push"
-        ? "push"
-        : payload && payload.direction === "pull"
-          ? "pull"
-          : "both";
-
+    /*
+     * قاعدة العميل المحلية تُملأ تلقائياً من إعدادات جهازه (لا يعرف العميل
+     * رابطها ولا كلمة مروره) — والرابط السحابي يُؤخذ مما حفظه بنفسه.
+     */
+    const cfg = readLocalDbConfig();
+    const localUrl =
+      String((payload && payload.localUrl) || "").trim() || cfg.localUrl || "";
+    const cloudUrl =
+      String((payload && payload.cloudUrl) || "").trim() || cfg.cloudUrl || "";
     if (!localUrl || !cloudUrl) {
       return { ok: false, message: "يلزم رابط القاعدتين: المحلية والسحابية", copied: 0, details: [] };
     }
@@ -235,8 +277,29 @@ function registerDbHandlers() {
     }
 
     try {
-      const report = await syncModule.syncDatabases(localClient, cloudClient, direction);
-      return { ...report, durationMs: Date.now() - started };
+      /* فحص هوية العميل: يمنع نقل الحسابات والإعدادات بين عملاء مختلفين */
+      const identity = await syncModule.checkCustomerIdentity(localClient, cloudClient);
+      if (!identity.ok) {
+        return {
+          ok: false,
+          message: identity.reason || "تم رفض المزامنة لحماية بيانات العملاء",
+          copied: 0,
+          pushed: 0,
+          pulled: 0,
+          details: [],
+          durationMs: Date.now() - started,
+        };
+      }
+
+      const report = await syncModule.syncDatabases(localClient, cloudClient, "both", { identity });
+      const blocked =
+        !syncModule.allowIdentityTablesFor(identity, "push") ||
+        !syncModule.allowIdentityTablesFor(identity, "pull");
+      const message = blocked
+        ? report.message +
+          " — لم تُنسخ الحسابات أو الإعدادات لأن القاعدتين تخصّان عميلين مختلفين"
+        : report.message;
+      return { ...report, message, durationMs: Date.now() - started };
     } catch (err) {
       return {
         ok: false,

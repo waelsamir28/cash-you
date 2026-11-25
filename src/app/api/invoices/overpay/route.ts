@@ -1,5 +1,6 @@
 import { settleOverpay } from "@/lib/data";
 import { withOfflineIdempotency } from "@/lib/offline-idempotency";
+import { withTenant } from "@/lib/tenant-routes";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
  * - `handOver` (تسليم الباقي نقداً): لا يُعدَّل رصيد العميل — يُخرج مبلغ من الخزينة.
  * - `credit`   (تنزيل من حسابه): يُخصم الباقي من مديونية العميل السابقة.
  */
-export async function POST(req: Request) {
+export const POST = withTenant(async (req: Request) => {
   return withOfflineIdempotency(req, async () => {
     try {
       const body = (await req.json()) as {
@@ -41,4 +42,4 @@ export async function POST(req: Request) {
       );
     }
   });
-}
+});
