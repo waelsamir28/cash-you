@@ -45,6 +45,15 @@ const PLATFORM_PACKAGES = {
 
 function fail(message) {
   console.error(`\n✗ ${message}`);
+  /*
+   * على GitHub Actions نُخرج سبب الفشل كتعليق (annotation) حتى يظهر في صفحة
+   * التشغيل دون الحاجة إلى سجل التفاصيل — وهو مهم لأن فشل هذه الخطوة يمنع
+   * نشر ملف التثبيت.
+   */
+  if (process.env.GITHUB_ACTIONS === "true") {
+    const flat = String(message).replace(/\r?\n/g, " | ").slice(0, 1200);
+    console.log(`::error title=Packaged PostgreSQL::${flat.replace(/%/g, "%25").replace(/\r/g, "")}`);
+  }
   process.exit(1);
 }
 
@@ -128,9 +137,12 @@ async function main() {
   /* 2) تشغيل الكود المعبّأ نفسه عبر Electron المرفق (بلا واجهة) */
   const electronBinary = findElectronBinary(unpackedDir);
   if (!electronBinary) {
-    console.log("… لم أجد ثنائي Electron في الحزمة — تخطّي تشغيل الكود المعبّأ");
-    return;
+    fail(
+      `لم أجد ثنائي Electron في ${unpackedDir}\n` +
+        `  الملفات الموجودة: ${fs.readdirSync(unpackedDir).slice(0, 25).join(", ")}`,
+    );
   }
+  ok(`ثنائي Electron: ${path.basename(electronBinary)}`);
 
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "cy-packaged-"));
   const scriptFile = path.join(workDir, "run.cjs");
@@ -173,6 +185,11 @@ const { Client } = require(${JSON.stringify(asarPg)});
 
   await localDb.stopEmbeddedPostgres();
   console.log("PACKAGED_OK");
+  /*
+   * خروج صريح: أي مقبض مفتوح متبقٍّ (خادم/اتصال) يجعل العملية معلّقة فينتهي
+   * spawnSync بمهلة بدل نجاح، وهو فشل مُضلّل لا علاقة له بقاعدة البيانات.
+   */
+  process.exit(0);
 })().catch((err) => {
   console.error("PACKAGED_FAIL " + (err && err.message ? err.message : err));
   process.exit(1);
