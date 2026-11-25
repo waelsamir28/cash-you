@@ -1,45 +1,26 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { FULL_SCHEMA_SQL } from "@/db/full-schema";
 
 /**
- * الترقية الذاتية لقاعدة البيانات:
- * تُنشئ جداول الحسابات والجلسات وعدّادات الفترة التجريبية إن لم تكن موجودة.
- * آمنة للتشغيل المتكرر (IF NOT EXISTS) وتعمل على قواعد بيانات قائمة قبل التحديث.
+ * الترقية الذاتية لقاعدة البيانات.
+ *
+ * تُنشئ مخطط كاش يو الكامل (22 جدولاً) إن لم يكن موجوداً، باستخدام
+ * `create table if not exists` فقط، فتكون آمنة على قاعدة بيانات قائمة
+ * ولا تحذف أو تغيّر أي بيانات موجودة.
+ *
+ * السبب: نسخة الويندوز تتصل بقاعدة بيانات قد تكون فاضية (أو لم يُشغَّل عليها
+ * `npm run db:push`)، فيجب أن يعمل البرنامج من أول طلب بدون خطوات يدوية.
  */
 let ensurePromise: Promise<void> | null = null;
 
-async function createTables(): Promise<void> {
-  await db.execute(sql`
-    create table if not exists "app_users" (
-      "id" serial primary key,
-      "username" text not null unique,
-      "full_name" text not null,
-      "password_hash" text not null,
-      "role" text not null default 'owner',
-      "created_at" timestamp not null default now(),
-      "last_login_at" timestamp
-    )
-  `);
-  await db.execute(sql`
-    create table if not exists "app_sessions" (
-      "token" text primary key,
-      "user_id" integer not null,
-      "created_at" timestamp not null default now(),
-      "expires_at" timestamp not null default now()
-    )
-  `);
-  await db.execute(sql`
-    create table if not exists "usage_counters" (
-      "key" text primary key,
-      "count" integer not null default 0,
-      "updated_at" timestamp not null default now()
-    )
-  `);
+async function createSchema(): Promise<void> {
+  await db.execute(sql.raw(FULL_SCHEMA_SQL));
 }
 
-export function ensureAuthSchema(): Promise<void> {
+export function ensureDatabaseSchema(): Promise<void> {
   if (!ensurePromise) {
-    ensurePromise = createTables().catch((error) => {
+    ensurePromise = createSchema().catch((error) => {
       /* نعيد المحاولة في الطلب التالي بدل تثبيت الفشل */
       ensurePromise = null;
       throw error;
@@ -47,3 +28,6 @@ export function ensureAuthSchema(): Promise<void> {
   }
   return ensurePromise;
 }
+
+/** اسم قديم محفوظ للتوافق مع بقية الملفات */
+export const ensureAuthSchema = ensureDatabaseSchema;
