@@ -1,20 +1,24 @@
 /*
  * فحص الثنائيات الأصلية داخل الحزمة النهائية بعد electron-builder.
  *
- * يكمل `tools/test-asar-paths.cjs`:
- *  - هذا الملف يتحقق من أن electron-builder نفسه أخرج الثنائيات فعلياً إلى
- *    `resources/app.asar.unpacked` (أي أن glob الخاص بـ `asarUnpack` صحيح).
- *  - ويشغّل الكود المعبّأ **داخل الحزمة الحقيقية** عبر Electron المرفق
- *    (ELECTRON_RUN_AS_NODE) فيُهيّئ عنقود PostgreSQL حقيقياً ويتحقق من
- *    الترميز UTF8 ومن كتابة/قراءة نص عربي.
+ * ماذا يتحقق؟
+ *  1) أن electron-builder أخرج ثنائيات PostgreSQL فعلياً إلى
+ *     `resources/app.asar.unpacked` (أي أن glob الخاص بـ `asarUnpack` صحيح).
+ *  2) أن الكود المعبّأ **داخل app.asar الحقيقي** يستطيع تشغيل PostgreSQL
+ *     وتهيئته، مع ترميز UTF8 وقراءة نص عربي.
+ *
+ * لماذا نفكّ ASAR بدل تشغيل الحزمة كما هي؟
+ * لأن تشغيل الكود داخل Electron الحقيقي يتطلب نافذة/دورة حياة تطبيق كاملة
+ * (و`require("electron")` غير متاح تحت ELECTRON_RUN_AS_NODE). فنستخرج محتوى
+ * `app.asar` إلى مجلد مؤقت ونضع بجواره الثنائيات من `app.asar.unpacked` —
+ * وهذا يعيد إنتاج الظرف الذي فشل فيه الإصدار 1.3.0 بدقة: الكود في مجلد
+ * «حزمة» والثنائيات في مجلد «unpacked» منفصل.
  *
  * التشغيل: node tools/test-packaged-postgres.cjs [مجلد الحزمة]
- * الافتراضي: release/win-unpacked على ويندوز، أو release/linux-unpacked.
  */
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { spawnSync } = require("node:child_process");
 
 const root = path.join(__dirname, "..");
 
@@ -46,13 +50,12 @@ const PLATFORM_PACKAGES = {
 function fail(message) {
   console.error(`\n✗ ${message}`);
   /*
-   * على GitHub Actions نُخرج سبب الفشل كتعليق (annotation) حتى يظهر في صفحة
-   * التشغيل دون الحاجة إلى سجل التفاصيل — وهو مهم لأن فشل هذه الخطوة يمنع
-   * نشر ملف التثبيت.
+   * نُخرج السبب كتعليق على GitHub Actions حتى يظهر في صفحة التشغيل دون
+   * الحاجة لتنزيل السجلات (فشل هذه الخطوة يمنع نشر ملف التثبيت).
    */
   if (process.env.GITHUB_ACTIONS === "true") {
     const flat = String(message).replace(/\r?\n/g, " | ").slice(0, 1200);
-    console.log(`::error title=Packaged PostgreSQL::${flat.replace(/%/g, "%25").replace(/\r/g, "")}`);
+    console.log(`::error title=Packaged PostgreSQL::${flat.replace(/%/g, "%25")}`);
   }
   process.exit(1);
 }
@@ -61,34 +64,29 @@ function ok(message) {
   console.log(`✓ ${message}`);
 }
 
-/**
- * يبحث عن ثنائي Electron الحقيقي داخل الحزمة.
- *
- * الملف الرئيسي اسمه من `productName` (هنا "CASH YOU.exe"). نستبعاد
- * المساعدين (elevate/notification_helper) لأن تشغيلها لا ينفّذ سكربتاً.
- */
-function findElectronBinary(dir) {
-  const SKIP = /^(setup|uninstall|elevate|notification_helper|crashpad|chrome_crashpad)/i;
-  let entries = [];
-  try {
-    entries = fs.readdirSync(dir);
-  } catch {
-    return null;
-  }
-  const exeFiles = entries.filter((entry) => {
-    if (!entry.toLowerCase().endsWith(".exe")) return false;
-    if (SKIP.test(entry)) return false;
-    try {
-      return fs.statSync(path.join(dir, entry)).isFile();
-    } catch {
-      return false;
+/** نسخ شجرة مع الحفاظ على الأذونات والروابط */
+function copyTree(src, dst) {
+  fs.mkdirSync(dst, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const from = path.join(src, entry.name);
+    const to = path.join(dst, entry.name);
+    if (entry.isSymbolicLink()) {
+      try {
+        fs.symlinkSync(fs.readlinkSync(from), to);
+      } catch {
+        /* منصة لا تسمح بالروابط */
+      }
+    } else if (entry.isDirectory()) {
+      copyTree(from, to);
+    } else {
+      fs.copyFileSync(from, to);
+      try {
+        fs.chmodSync(to, fs.statSync(from).mode);
+      } catch {
+        /* تجاهل */
+      }
     }
-  });
-  if (exeFiles.length === 0) return null;
-
-  /* نُفضّل ملفاً يحمل اسم المنتج، وإلا أول ملف غير مستبعد */
-  const preferred = exeFiles.find((entry) => /cash\s*you/i.test(entry));
-  return path.join(dir, preferred ?? exeFiles[0]);
+  }
 }
 
 async function main() {
@@ -106,149 +104,126 @@ async function main() {
   const mapping = PLATFORM_PACKAGES[key];
   if (!mapping) {
     console.log(`… منصة غير معروفة (${key}) — تخطّي فحص الثنائيات`);
-  } else {
-    const [pkgName, binaries] = mapping;
-    const binDir = path.join(unpackedRoot, "node_modules", pkgName, "native", "bin");
-    for (const name of binaries) {
-      const file = path.join(binDir, name);
-      if (!fs.existsSync(file)) {
-        fail(
-          `الثنائي مفقود من الحزمة خارج ASAR:\n  ${file}\n` +
-            `  electron-builder يجب أن يضع ملفات @embedded-postgres في app.asar.unpacked.`,
-        );
-      }
-      const size = fs.statSync(file).size;
-      if (size < 1024) fail(`${name} صغير بشكل غير منطقي (${size} بايت)`);
+    return;
+  }
+  const [pkgName, binaries] = mapping;
+  const platformRoot = path.join(unpackedRoot, "node_modules", pkgName);
+  const binDir = path.join(platformRoot, "native", "bin");
+
+  for (const name of binaries) {
+    const file = path.join(binDir, name);
+    if (!fs.existsSync(file)) {
+      fail(
+        `الثنائي مفقود من الحزمة خارج ASAR:\n  ${file}\n` +
+          `  electron-builder يجب أن يضع ملفات @embedded-postgres في app.asar.unpacked.`,
+      );
     }
-    ok(`كل ثنائيات PostgreSQL على القرص: ${binaries.join(", ")}`);
-
-    /* مكتبات التشغيل يجب أن تكون بجوار الثنائيات */
-    const shareDir = path.join(unpackedRoot, "node_modules", pkgName, "native", "share");
-    if (!fs.existsSync(shareDir)) fail(`مجلد share مفقود: ${shareDir}`);
-    ok("مجلد share (ملفات الترميز/التهيئة) موجود خارج ASAR");
-
-    /*
-     * ملاحظة: لا يمكن فحص ما «داخل» app.asar هنا بـ fs العادي — قراءة ASAR
-     * تحتاج `fs` المعدّل في Electron. الوحدة تُختبر فعلياً في الخطوة التالية
-     * حيث تعمل داخل Electron الحقيقي.
-     */
+    const size = fs.statSync(file).size;
+    if (size < 1024) fail(`${name} صغير بشكل غير منطقي (${size} بايت)`);
   }
+  ok(`كل ثنائيات PostgreSQL على القرص: ${binaries.join(", ")}`);
 
-  /* 2) تشغيل الكود المعبّأ نفسه عبر Electron المرفق (بلا واجهة) */
-  const electronBinary = findElectronBinary(unpackedDir);
-  if (!electronBinary) {
-    fail(
-      `لم أجد ثنائي Electron في ${unpackedDir}\n` +
-        `  الملفات الموجودة: ${fs.readdirSync(unpackedDir).slice(0, 25).join(", ")}`,
-    );
+  const shareDir = path.join(platformRoot, "native", "share");
+  if (!fs.existsSync(shareDir)) fail(`مجلد share مفقود: ${shareDir}`);
+  ok("مجلد share (ملفات الترميز/التهيئة) موجود خارج ASAR");
+
+  /* مكتبات التشغيل يجب أن تكون بجوار الثنائيات (DLLs على ويندوز) */
+  const dlls = fs.readdirSync(binDir).filter((f) => f.toLowerCase().endsWith(".dll"));
+  if (process.platform === "win32") {
+    if (dlls.length < 5) fail(`عدد DLLs غير منطقي في bin: ${dlls.length}`);
+    ok(`${dlls.length} مكتبة DLL بجوار الثنائيات`);
   }
-  ok(`ثنائي Electron: ${path.basename(electronBinary)}`);
+  const libDir = path.join(platformRoot, "native", "lib");
+  if (!fs.existsSync(libDir)) fail(`مجلد lib مفقود: ${libDir}`);
+  ok("مجلد lib موجود خارج ASAR");
 
-  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "cy-packaged-"));
-  const scriptFile = path.join(workDir, "run.cjs");
-  const asarLocalDb = path.join(appAsar, "electron", "local-db.cjs");
-  const asarPg = path.join(appAsar, "node_modules", "pg");
-  const platformPkg = PLATFORM_PACKAGES[`${process.platform}-${process.arch}`]?.[0] ?? "";
-
-  fs.writeFileSync(
-    scriptFile,
-    `
-/* هنا نعمل داخل Electron الحقيقي: resourcesPath يشير إلى مجلد resources */
-console.log("PROBE resourcesPath:", process.resourcesPath);
-console.log("PROBE platform:", process.platform, process.arch);
-
-/* داخل Electron نستطيع سرد محتوى app.asar، وهو ما يتعذر على Node العادي */
-const fs = require("node:fs");
-const path = require("node:path");
-const asarRoot = path.join(process.resourcesPath, "app.asar");
-const platformPkg = ${JSON.stringify(platformPkg)};
-
-function describe(target) {
+  /* 2) نفكّ app.asar ونشغّل الكود المعبّأ بجوار الثنائيات */
+  let asar;
   try {
-    return fs.statSync(target).isDirectory() ? "dir" : "file";
-  } catch (e) {
-    return "MISSING (" + e.code + ")";
-  }
-}
-
-console.log("PROBE asar:", asarRoot);
-console.log("PROBE app.asar/electron:", describe(path.join(asarRoot, "electron")));
-console.log("PROBE app.asar/node_modules:", describe(path.join(asarRoot, "node_modules")));
-if (platformPkg) {
-  console.log(
-    "PROBE app.asar/" + platformPkg + ":",
-    describe(path.join(asarRoot, "node_modules", platformPkg)),
-  );
-  console.log(
-    "PROBE unpacked/" + platformPkg + "/native/bin:",
-    describe(path.join(process.resourcesPath, "app.asar.unpacked", "node_modules", platformPkg, "native", "bin")),
-  );
-}
-
-const localDb = require(${JSON.stringify(asarLocalDb)});
-const { Client } = require(${JSON.stringify(asarPg)});
-
-(async () => {
-  const url = await localDb.startEmbeddedPostgres();
-  if (!url) {
-    const reason = typeof localDb.embeddedDatabaseError === "function"
-      ? localDb.embeddedDatabaseError()
-      : "(لا تفاصيل)";
-    throw new Error("startEmbeddedPostgres أعاد null — السبب: " + reason);
-  }
-
-  const client = new Client({ connectionString: url });
-  await client.connect();
-
-  const enc = await client.query("show server_encoding");
-  if (enc.rows[0].server_encoding !== "UTF8") {
-    throw new Error("ترميز الخادم ليس UTF8: " + enc.rows[0].server_encoding);
-  }
-
-  const text = "CASH YOU — وائل الجمال 01222355769";
-  await client.query("create table if not exists packaged_probe (v text)");
-  await client.query("insert into packaged_probe (v) values ($1)", [text]);
-  const back = await client.query("select v from packaged_probe order by v desc limit 1");
-  if (back.rows[0].v !== text) throw new Error("فشلت قراءة النص العربي بعد الكتابة");
-  await client.end();
-
-  await localDb.stopEmbeddedPostgres();
-  console.log("PACKAGED_OK");
-  /*
-   * خروج صريح: أي مقبض مفتوح متبقٍّ (خادم/اتصال) يجعل العملية معلّقة فينتهي
-   * spawnSync بمهلة بدل نجاح، وهو فشل مُضلّل لا علاقة له بقاعدة البيانات.
-   */
-  process.exit(0);
-})().catch((err) => {
-  console.error("PACKAGED_FAIL " + (err && err.message ? err.message : err));
-  process.exit(1);
-});
-`,
-    "utf8",
-  );
-
-  const result = spawnSync(electronBinary, [scriptFile], {
-    cwd: workDir,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
-    encoding: "utf8",
-    timeout: 300000,
-  });
-
-  const output = `${result.stdout || ""}\n${result.stderr || ""}`;
-
-  try {
-    fs.rmSync(workDir, { recursive: true, force: true });
+    asar = require("@electron/asar");
   } catch {
-    /* تجاهل */
+    fail("الحزمة @electron/asar غير متاحة — لا يمكن فحص محتوى app.asar");
   }
 
-  if (result.status !== 0 || !output.includes("PACKAGED_OK")) {
-    const detail = output.trim().split(/\r?\n/).slice(-25).join("\n");
-    fail(`فشل تشغيل PostgreSQL المدمج من الحزمة النهائية:\n${detail}`);
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "cy-packaged-"));
+  const extracted = path.join(work, "app");
+  try {
+    asar.extractAll(appAsar, extracted);
+  } catch (err) {
+    fail(`تعذّر فك app.asar: ${err && err.message ? err.message : err}`);
+  }
+  ok(`فُكّ app.asar (${fs.readdirSync(extracted).length} عنصراً)`);
+
+  const localDbFile = path.join(extracted, "electron", "local-db.cjs");
+  if (!fs.existsSync(localDbFile)) fail(`electron/local-db.cjs مفقود داخل app.asar`);
+  if (!fs.existsSync(path.join(extracted, "node_modules", "pg"))) {
+    fail("node_modules/pg مفقود داخل app.asar");
+  }
+  ok("الكود ووحدات pg موجودة داخل app.asar");
+
+  /*
+   * نضع الثنائيات في موضع «unpacked» بجوار مجلد الكود، بنفس الترتيب الذي
+   * يتوقعه الكود بعد التغليف: <resources>/app.asar.unpacked/...
+   */
+  const fakeResources = path.join(work, "resources");
+  fs.mkdirSync(fakeResources, { recursive: true });
+  fs.renameSync(extracted, path.join(fakeResources, "app.asar"));
+  copyTree(unpackedRoot, path.join(fakeResources, "app.asar.unpacked"));
+
+  const asarDir = path.join(fakeResources, "app.asar");
+  const userData = path.join(work, "userData");
+  fs.mkdirSync(userData, { recursive: true });
+
+  /* نحاكي `electron.app.getPath` — الكود يحتاج electron، ونوفّر بديلاً بسيطاً */
+  const Module = require("node:module");
+  const originalLoad = Module._load;
+  Module._load = function (request, parent, isMain) {
+    if (request === "electron") return { app: { getPath: () => userData } };
+    return originalLoad.call(this, request, parent, isMain);
+  };
+
+  try {
+    const localDb = require(path.join(asarDir, "electron", "local-db.cjs"));
+    const { Client } = require(path.join(asarDir, "node_modules", "pg"));
+
+    const url = await localDb.startEmbeddedPostgres();
+    if (!url) {
+      const reason =
+        typeof localDb.embeddedDatabaseError === "function"
+          ? localDb.embeddedDatabaseError()
+          : "(لا تفاصيل)";
+      throw new Error(`startEmbeddedPostgres أعاد null — السبب: ${reason}`);
+    }
+    ok(`تشغيل PostgreSQL من الحزمة: ${url.replace(/:[^:@]+@/, ":••••@")}`);
+
+    const client = new Client({ connectionString: url });
+    await client.connect();
+    const enc = await client.query("show server_encoding");
+    if (enc.rows[0].server_encoding !== "UTF8") {
+      throw new Error(`ترميز الخادم ليس UTF8: ${enc.rows[0].server_encoding}`);
+    }
+    const text = "CASH YOU — وائل الجمال 01222355769";
+    await client.query("create table if not exists packaged_probe (v text)");
+    await client.query("insert into packaged_probe (v) values ($1)", [text]);
+    const back = await client.query("select v from packaged_probe order by v desc limit 1");
+    if (back.rows[0].v !== text) throw new Error("فشلت قراءة النص العربي بعد الكتابة");
+    await client.end();
+    ok("server_encoding=UTF8 والنص العربي سليم");
+
+    await localDb.stopEmbeddedPostgres();
+    ok("إيقاف الخادم بنظافة");
+  } finally {
+    Module._load = originalLoad;
+    try {
+      fs.rmSync(work, { recursive: true, force: true });
+    } catch {
+      /* قد تكون ملفات الخادم مقفلة لحظياً على ويندوز */
+    }
   }
 
-  ok("تشغيل المدمج من داخل app.asar + UTF8 + قراءة عربية + إيقاف نظيف");
   console.log("\n✅ PostgreSQL المدمج يعمل من الحزمة النهائية كما يعمل عند العميل");
+  /* خروج صريح: أي مقبض مفتوح متبقٍّ قد يُعلّق العملية */
+  process.exit(0);
 }
 
-main().catch((err) => fail(err && err.stack ? err.stack : String(err)));
+main().catch((err) => fail(err && err.message ? err.message : String(err)));
