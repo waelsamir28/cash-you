@@ -1,82 +1,69 @@
 /*
- * فحص سريع لـ PostgreSQL المدمج المرفق مع نسخة ويندوز.
+ * فحص قاعدة البيانات المحلية المدمجة — يعمل على ويندوز ولينكس.
  *
- * الهدف: التأكد أن القاعدة المدمجة تعمل فعلاً على نظام ويندوز — تهيئة،
- * تشغيل، إنشاء قاعدة، وكتابة وقراءة بيانات — قبل أن نطمئن أن العميل
- * ستفتح له البرنامج قاعدة محلية بلا أي تثبيت.
+ * الهدف: التأكد أن ما يعمله العميل فعلاً عند أول تشغيل:
+ *  - تشغيل PostgreSQL المدمج تلقائياً (عبر pg_ctl على ويندوز — لأن
+ *    postgres.exe يرفض العمل داخل جلسة إدارية).
+ *  - إنشاء قاعدة `cash_you` تلقائياً.
+ *  - قراءة وكتابة بيانات فيها.
+ *  - إيقاف الخادم بشكل نظيف.
  *
  * التشغيل: node tools/test-embedded-postgres.cjs
  */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const Module = require("node:module");
 const os = require("node:os");
 const path = require("node:path");
 
 const root = path.join(__dirname, "..");
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cy-embedded-"));
-const user = "cashyou";
-const password = "cy_test_password";
-const database = "cash_you";
-let port = 40000 + Math.floor(Math.random() * 10000);
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), "cy-embedded-"));
+
+/* electron/local-db.cjs يعتمد على electron — نوفّر بديلاً بسيطاً */
+const originalLoad = Module._load;
+Module._load = function (request, parent, isMain) {
+  if (request === "electron") {
+    return { app: { getPath: () => userData } };
+  }
+  return originalLoad.call(this, request, parent, isMain);
+};
+const localDb = require("../electron/local-db.cjs");
+Module._load = originalLoad;
 
 async function main() {
-  const { default: EmbeddedPostgres } = await import("embedded-postgres");
-  assert.ok(EmbeddedPostgres, "embedded-postgres غير متاح");
+  const url = await localDb.startEmbeddedPostgres();
+  assert.ok(url, "PostgreSQL المدمج يجب أن يعمل — تأكد من وجود الحزمة على هذا النظام");
+  console.log("✓ تشغيل PostgreSQL المدمج:", url.replace(/:[^:@]+@/, ":••••@"));
 
-  const instance = new EmbeddedPostgres({
-    databaseDir: dataDir,
-    user,
-    password,
-    port,
-    persistent: true,
-    autoRehydrateSymlinks: true,
-    onLog: () => undefined,
-    onError: () => undefined,
-  });
-
-  /* تهيئة العنقود */
-  await instance.initialise();
-  assert.ok(fs.existsSync(path.join(dataDir, "PG_VERSION")), "لم تُنشأ نسخة العنقود");
-  console.log("✓ تهيئة عنقود PostgreSQL المدمج");
-
-  /* التشغيل */
-  await instance.start();
-  console.log("✓ تشغيل PostgreSQL المدمج على المنفذ", port);
-
-  /* إنشاء قاعدة العميل */
-  await instance.createDatabase(database);
-  console.log("✓ إنشاء قاعدة", database);
+  /* قاعدة العميل أُنشئت تلقائياً */
+  const { Client } = require("pg");
+  const client = new Client({ connectionString: url });
+  await client.connect();
+  const databases = await client.query("select current_database() as name");
+  assert.equal(databases.rows[0].name, "cash_you", "قاعدة cash_you لم تُنشأ");
 
   /* كتابة وقراءة */
-  const { Client } = require("pg");
-  const client = new Client({
-    host: "127.0.0.1",
-    port,
-    user,
-    password,
-    database,
-  });
-  await client.connect();
-  await client.query("create table smoke_test (id serial primary key, label text)");
+  await client.query("create table if not exists smoke_test (id serial primary key, label text)");
   await client.query("insert into smoke_test (label) values ($1)", ["ok"]);
-  const rows = await client.query("select label from smoke_test");
+  const rows = await client.query("select label from smoke_test order by id desc limit 1");
   assert.equal(rows.rows[0].label, "ok", "القراءة من القاعدة المدمجة فشلت");
   await client.end();
-  console.log("✓ كتابة وقراءة بيانات في القاعدة المدمجة");
+  console.log("✓ إنشاء قاعدة cash_you + كتابة وقراءة بيانات");
 
-  /* الإيقاف */
-  await instance.stop();
+  /* إيقاف نظيف */
+  await localDb.stopEmbeddedPostgres();
   console.log("✓ إيقاف PostgreSQL المدمج");
 
-  fs.rmSync(dataDir, { recursive: true, force: true });
+  fs.rmSync(userData, { recursive: true, force: true });
   console.log("\n✅ PostgreSQL المدمج يعمل بشكل صحيح");
   process.exit(0);
 }
 
 main().catch((err) => {
   console.error("❌ فشل فحص PostgreSQL المدمج:", err && err.message ? err.message : err);
+  if (err && err.stack) console.error(err.stack);
   try {
-    fs.rmSync(dataDir, { recursive: true, force: true });
+    fs.rmSync(userData, { recursive: true, force: true });
   } catch {
     /* تجاهل */
   }

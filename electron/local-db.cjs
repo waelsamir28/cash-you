@@ -14,6 +14,7 @@
  * قاعدةه السحابية بنفسه من داخل البرنامج.
  */
 const { app } = require("electron");
+const { spawn } = require("node:child_process");
 const { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
@@ -27,6 +28,13 @@ const LOCAL_DB_USER = "cashyou";
 let runningInstance = null;
 /** pid لنسخة متبقية من تشغيل سابق نتولاها ثم نوقفها عند الخروج */
 let adoptedPid = null;
+/** هل شغّلنا الخادم عبر pg_ctl (ويندوز)؟ */
+let startedWithPgCtl = false;
+/** مجلد بيانات الخادم العامل حالياً */
+let runningDataDir = null;
+
+/** هل نحن على ويندوز؟ */
+const isWindows = process.platform === "win32";
 
 /** مجلد بيانات المستخدم */
 function userDataDir() {
@@ -125,6 +133,127 @@ async function loadEmbeddedPostgres() {
 }
 
 /**
+ * مسارات ثنائيات PostgreSQL المدمج حسب النظام.
+ * (نفس منطق حزمة `embedded-postgres` — نحتاج `pg_ctl` تحديداً على ويندوز.)
+ */
+async function embeddedBinaries() {
+  const map = {
+    "win32-x64": "@embedded-postgres/windows-x64",
+    "linux-x64": "@embedded-postgres/linux-x64",
+    "linux-arm64": "@embedded-postgres/linux-arm64",
+    "linux-arm": "@embedded-postgres/linux-arm",
+    "linux-ia32": "@embedded-postgres/linux-ia32",
+    "linux-ppc64": "@embedded-postgres/linux-ppc64",
+    "darwin-x64": "@embedded-postgres/darwin-x64",
+    "darwin-arm64": "@embedded-postgres/darwin-arm64",
+  };
+  const key = `${process.platform}-${process.arch}`;
+  const pkg = map[key];
+  if (!pkg) return null;
+  try {
+    const mod = await import(pkg);
+    const binDir = path.dirname(mod.postgres || "");
+    if (!mod.postgres || !existsSync(binDir)) return null;
+    return { postgres: mod.postgres, initdb: mod.initdb, pgCtl: mod.pg_ctl, binDir };
+  } catch {
+    return null;
+  }
+}
+
+/** ينفّذ أمراً ويعيد مخرجاته (يرمي خطأً واضحاً عند الفشل) */
+function runCommand(command, args, timeoutMs = 120000) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { windowsHide: true });
+    let out = "";
+    let err = "";
+    child.stdout?.on("data", (buf) => {
+      out += buf.toString();
+    });
+    child.stderr?.on("data", (buf) => {
+      err += buf.toString();
+    });
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error(`انتهت مهلة الأمر: ${path.basename(command)}`));
+    }, timeoutMs);
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) {
+        resolve({ out, err });
+        return;
+      }
+      reject(
+        new Error(
+          `فشل ${path.basename(command)} (رمز ${code}): ${(err || out).trim().slice(-800)}`,
+        ),
+      );
+    });
+  });
+}
+
+/** آخر أسطر سجل الخادم (لإ diagnosing الفشل) */
+function tailServerLog(databaseDir, lines = 12) {
+  try {
+    const content = readFileSync(path.join(databaseDir, "server.log"), "utf8");
+    return content.split(/\r?\n/).filter(Boolean).slice(-lines).join("\n");
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * تشغيل الخادم عبر `pg_ctl` — **ضروري على ويندوز**:
+ * `postgres.exe` يرفض العمل داخل جلسة إدارية ("Execution of PostgreSQL by a user
+ * with administrative permissions is not permitted")، بينما `pg_ctl` يشغّله
+ * بتوكن محدود فيعمل حتى مع صلاحيات المدير.
+ */
+async function startWithPgCtl(binaries, databaseDir, port) {
+  const pgCtl = binaries.pgCtl;
+  if (!pgCtl || !existsSync(pgCtl)) throw new Error("pg_ctl غير متوفر");
+  const logFile = path.join(databaseDir, "server.log");
+  try {
+    await runCommand(
+      pgCtl,
+      [
+        "-D",
+        databaseDir,
+        "-l",
+        logFile,
+        "-o",
+        `-p ${port} -h 127.0.0.1`,
+        "-w",
+        "-t",
+        "60",
+        "start",
+      ],
+      90000,
+    );
+  } catch (err) {
+    const log = tailServerLog(databaseDir);
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`${message}${log ? `\nسجل الخادم:\n${log}` : ""}`);
+  }
+}
+
+/** إيقاف الخادم عبر `pg_ctl` (أرخص من القتل القسري) */
+async function stopWithPgCtl(binaries, databaseDir) {
+  if (!binaries?.pgCtl || !existsSync(binaries.pgCtl)) return;
+  try {
+    await runCommand(
+      binaries.pgCtl,
+      ["-D", databaseDir, "stop", "-m", "fast", "-w", "-t", "30"],
+      60000,
+    );
+  } catch {
+    /* الخادم قد يكون متوقفاً أصلاً */
+  }
+}
+
+/**
  * يقرأ معلومات postmaster.pid (المنفذ و pid) لمجلد بيانات PostgreSQL.
  */
 function readPostmasterInfo(databaseDir) {
@@ -191,6 +320,15 @@ async function stopEmbeddedPostgres() {
       /* تجاهل — سنغلقها بالـ pid أدناه إن لزم */
     }
   }
+
+  const dataDir = runningDataDir;
+  runningDataDir = null;
+  if (startedWithPgCtl && dataDir) {
+    startedWithPgCtl = false;
+    const binaries = await embeddedBinaries();
+    await stopWithPgCtl(binaries, dataDir);
+  }
+
   const pid = adoptedPid;
   adoptedPid = null;
   if (pid && isProcessAlive(pid)) {
@@ -210,6 +348,9 @@ async function startEmbeddedPostgres() {
   if (!embeddedPostgresAvailable()) return null;
   const EmbeddedPostgres = await loadEmbeddedPostgres();
   if (!EmbeddedPostgres) return null;
+
+  const binaries = await embeddedBinaries();
+  if (!binaries) return null;
 
   const password = localPassword();
   const databaseDir = embeddedDataDir();
@@ -237,10 +378,15 @@ async function startEmbeddedPostgres() {
         );
         return reuseUrl;
       }
-      try {
-        process.kill(existing.pid, "SIGTERM");
-      } catch {
-        /* تجاهل */
+      /* خادم سابق لا يمكن استخدامه → نغلقه ونبدأ من جديد */
+      if (isWindows) {
+        await stopWithPgCtl(binaries, databaseDir);
+      } else {
+        try {
+          process.kill(existing.pid, "SIGTERM");
+        } catch {
+          /* تجاهل */
+        }
       }
       await new Promise((resolve) => setTimeout(resolve, 1200));
     }
@@ -253,35 +399,58 @@ async function startEmbeddedPostgres() {
 
   const port = await freePort();
 
-  const instance = new EmbeddedPostgres({
-    databaseDir,
-    user: LOCAL_DB_USER,
-    password,
-    port,
-    persistent: true,
-    /* initdb لا يقبل التشغيل كـ root */
-    onLog: () => undefined,
-    onError: () => undefined,
-  });
-
   try {
     /* تهيئة العنقود مرة واحدة فقط */
     if (!existsSync(path.join(databaseDir, "PG_VERSION"))) {
-      await instance.initialise();
+      const setup = new EmbeddedPostgres({
+        databaseDir,
+        user: LOCAL_DB_USER,
+        password,
+        port,
+        persistent: true,
+        onLog: () => undefined,
+        onError: () => undefined,
+      });
+      await setup.initialise();
     }
     /* كلمة المرور تُحفظ بعد التهيئة (initdb يتطلب مجلداً فارغاً) */
     saveLocalSecret(password);
-    await instance.start();
-    await instance.createDatabase(LOCAL_DB_NAME).catch(() => undefined);
-    runningInstance = instance;
+
+    if (isWindows) {
+      /*
+       * على ويندوز نشغّل الخادم عبر `pg_ctl` لا عبر `postgres.exe` مباشرة:
+       * الأخير يرفض العمل داخل جلسة إدارية ("Execution of PostgreSQL by a user
+       * with administrative permissions is not permitted") — وهو شائع جداً
+       * عند العملاء. أما `pg_ctl` فيشغّله بتوكن محدود فيعمل دائماً.
+       */
+      await startWithPgCtl(binaries, databaseDir, port);
+      startedWithPgCtl = true;
+      runningDataDir = databaseDir;
+    } else {
+      const instance = new EmbeddedPostgres({
+        databaseDir,
+        user: LOCAL_DB_USER,
+        password,
+        port,
+        persistent: true,
+        onLog: () => undefined,
+        onError: () => undefined,
+      });
+      await instance.start();
+      runningInstance = instance;
+      runningDataDir = databaseDir;
+    }
+
+    /* إنشاء قاعدة العميل (إن لم تكن موجودة) */
+    const url = `postgresql://${LOCAL_DB_USER}:${password}@127.0.0.1:${port}/${LOCAL_DB_NAME}`;
+    await ensureDatabaseExists(url);
+    return url;
   } catch (err) {
     process.stdout.write(
       `[local-db] تعذّر تشغيل PostgreSQL المدمج: ${err && err.message ? err.message : err}\n`,
     );
     return null;
   }
-
-  return `postgresql://${LOCAL_DB_USER}:${password}@127.0.0.1:${port}/${LOCAL_DB_NAME}`;
 }
 
 /** خوادم PostgreSQL المحلية الشائعة على جهاز العميل */
