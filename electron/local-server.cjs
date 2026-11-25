@@ -27,12 +27,24 @@ function pickPort() {
   return 34000 + Math.floor(Math.random() * 1000);
 }
 
-/** مجلد بناء Next standalone داخل حزمة التطبيق */
+/**
+ * مجلد بناء Next standalone داخل حزمة التطبيق.
+ *
+ * في النسخة المعبّأة تُنسخ الحزمة إلى مجلد resources (خارج app.asar) لأن
+ * Next يحتاج ملفات حقيقية على القرص، ولأن electron-builder يستثني node_modules
+ * من محتويات app.asar.
+ */
 function standaloneDir() {
+  const resources = process.resourcesPath || "";
   const roots = [
+    /* النسخة المعبّأة: resources/standalone */
+    path.join(resources, "standalone"),
+    /* احتياط: داخل app.asar.unpacked */
+    path.join(resources, "app.asar.unpacked", ".next", "standalone"),
+    /* احتياط: داخل app.asar */
+    path.join(resources, "app.asar", ".next", "standalone"),
+    /* التطوير المحلي: من مجلد المشروع */
     path.join(__dirname, "..", ".next", "standalone"),
-    path.join(process.resourcesPath || "", "app.asar", ".next", "standalone"),
-    path.join(process.resourcesPath || "", "app.asar.unpacked", ".next", "standalone"),
   ];
   for (const dir of roots) {
     if (existsSync(path.join(dir, "server.js"))) return dir;
@@ -83,6 +95,9 @@ async function startLocalServer(databaseUrl) {
     cwd: dir,
     env: {
       ...process.env,
+      /* في النسخة المعبّأة process.execPath هو Electron نفسه وليس Node.
+         هذا المتغير يجعله يعمل كـ Node عادي لتشغيل خادم Next. */
+      ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
       PORT: String(port),
       HOSTNAME: "127.0.0.1",
