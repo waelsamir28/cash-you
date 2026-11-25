@@ -15,6 +15,7 @@ import {
   IcoPrint,
   IcoSound,
   IcoUndo,
+  IcoWallet,
   IcoWarn,
   IcoX,
 } from "@/components/icons";
@@ -373,9 +374,20 @@ export function CustomerDisplay({
 
 /* ============================ إيصال الطباعة ============================ */
 
+/** أغلفة قوالب الفاتورة: الإطار والزوايا */
+const SHELL: Record<string, string> = {
+  classic: "rounded-lg border border-dashed border-slate-300 px-3 py-3",
+  modern: "rounded-xl border border-slate-200 px-3 py-3 shadow-sm",
+  minimal: "px-2 py-2",
+  bordered: "rounded-md border-2 border-slate-800 px-3 py-3",
+  "dark-band": "rounded-xl border border-slate-200 px-3 py-3 overflow-hidden shadow-sm",
+  ticket: "border border-dashed border-slate-400 px-3 py-3",
+};
+
 export type ReceiptData = {
   number: number;
   createdAt: string;
+  customerId?: number | null;
   customerName: string;
   paymentMethod: string;
   saleType: string;
@@ -396,10 +408,16 @@ export function ReceiptModal({
   receiptFooter = "",
   thanks = true,
   accent = "#f59e0b",
+  style = "classic",
+  fontStack,
   onClose,
 }: {
   receipt: ReceiptData;
   shop: { name: string; phone: string };
+  /** قالب شكل الفاتورة */
+  style?: "classic" | "modern" | "minimal" | "bordered" | "dark-band" | "ticket";
+  /** خط الفاتورة المختار من الإعدادات */
+  fontStack?: string;
   /** مقاس ورق الفاتورة */
   paper?: "58mm" | "80mm" | "a5";
   /** شعار المحل (data-URL) */
@@ -425,19 +443,43 @@ export function ReceiptModal({
     >
       <div
         id="cy-print-area"
-        className={`mx-auto ${width} ${textSize} rounded-lg border border-dashed border-slate-300 bg-white px-3 py-3 text-black cy-scroll max-h-[58vh] overflow-y-auto`}
+        className={`cy-receipt mx-auto ${width} ${textSize} bg-white text-black cy-scroll max-h-[58vh] overflow-y-auto ${SHELL[style]}`}
+        style={{ fontFamily: fontStack }}
       >
-        {/* رأس الإيصال */}
-        <div className="text-center">
-          {logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logo} alt={shop.name} className="mx-auto mb-1.5 h-14 w-14 object-contain" />
-          ) : null}
-          <div className="text-[15px] font-black leading-tight tracking-wide">{shop.name}</div>
-          {address ? <div className="mt-0.5 text-[10px] font-semibold text-black/70">{address}</div> : null}
-          <div className="cy-num text-[10.5px] font-bold">ت: {shop.phone}</div>
-          <div className="mx-auto mt-2 h-[3px] w-16 rounded-full" style={{ background: accent }} />
-        </div>
+        {/* ===== قالب «شريط داكن»: رأس ملوّن كامل ===== */}
+        {style === "dark-band" ? (
+          <div className="-mx-3 -mt-3 mb-2 px-3 py-2.5 text-center text-white" style={{ background: accent }}>
+            {logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logo} alt={shop.name} className="mx-auto mb-1 h-10 w-10 rounded bg-white/95 object-contain p-0.5" />
+            ) : null}
+            <div className="text-[14px] font-black leading-tight">{shop.name}</div>
+            {address ? <div className="mt-0.5 text-[9.5px] font-semibold opacity-85">{address}</div> : null}
+            <div className="cy-num text-[10px] font-bold opacity-90">ت: {shop.phone}</div>
+          </div>
+        ) : (
+          <div className="text-center">
+            {logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={logo}
+                alt={shop.name}
+                className={`mx-auto mb-1.5 object-contain ${style === "modern" ? "h-12 w-12" : "h-14 w-14"}`}
+              />
+            ) : null}
+            <div className="text-[15px] font-black leading-tight tracking-wide">{shop.name}</div>
+            {address ? <div className="mt-0.5 text-[10px] font-semibold text-black/70">{address}</div> : null}
+            <div className="cy-num text-[10.5px] font-bold">ت: {shop.phone}</div>
+            {/* القالب العصري: شريط ملوّن عريض؛ الباقي خط رفيع */}
+            {style === "modern" ? (
+              <div className="-mx-3 mt-2 h-1.5" style={{ background: accent }} />
+            ) : style !== "minimal" ? (
+              <div className="mx-auto mt-2 h-[3px] w-16 rounded-full" style={{ background: accent }} />
+            ) : (
+              <div className="mx-auto mt-2 h-px w-full bg-black/20" />
+            )}
+          </div>
+        )}
 
         {/* بيانات الفاتورة */}
         <div className="mt-2 rounded-md border border-dashed border-slate-300 px-2 py-1">
@@ -465,7 +507,7 @@ export function ReceiptModal({
           </thead>
           <tbody className="cy-num">
             {receipt.items.map((it, i) => (
-              <tr key={i} className={`align-top ${i % 2 ? "bg-slate-50" : ""}`}>
+              <tr key={i} className={`align-top ${style === "minimal" ? "" : i % 2 ? "bg-slate-50" : ""}`}>
                 <td className="py-[3px] pl-1 text-right leading-tight">{it.name}</td>
                 <td className="py-[3px] text-center">{qtyText(it.qty)}</td>
                 <td className="py-[3px] text-center">{money(it.price)}</td>
@@ -477,13 +519,12 @@ export function ReceiptModal({
 
         {/* الإجماليات */}
         <div className="mt-2 space-y-0.5 border-t border-dashed border-slate-400 pt-2 cy-num">
-          <Row2 k="الإجمالي قبل الخصم" v={money(receipt.subtotal)} />
-          {receipt.discountPercent > 0 && (
-            <Row2 k={`الخصم (${receipt.discountPercent}%)`} v={money(receipt.subtotal - receipt.total)} />
-          )}
+          <Row2 k="الإجمالي" v={money(receipt.subtotal)} />
           <div
-            className="mt-1 flex items-center justify-between rounded-md px-2 py-1.5 text-[13px] font-black"
-            style={{ background: accentSoft }}
+            className={`mt-1 flex items-center justify-between px-2 py-1.5 text-[13px] font-black ${
+              style === "bordered" || style === "ticket" ? "rounded-none border-y-2 border-slate-800" : "rounded-md"
+            }`}
+            style={style === "minimal" ? { borderTop: `2px solid ${accent}`, borderBottom: `2px solid ${accent}` } : { background: accentSoft }}
           >
             <span>الصافي المطلوب</span>
             <span className="cy-num text-[15px]">{money(receipt.total)}</span>
@@ -1020,6 +1061,157 @@ export function MinimizedBar({
           </span>
         </span>
       </button>
+    </div>
+  );
+}
+/* ============================ نافذة دفع مبلغ أكبر من الفاتورة ============================ */
+
+/**
+ * تظهر تلقائياً عندما يدفع العميل أكثر من إجمالي الفاتورة.
+ * خانات صغيرة للأرقام + زرّان: تسليم الباقي للعميل أو تنزيله من حسابه.
+ */
+export function OverpayModal({
+  previousBalance,
+  invoiceTotal,
+  paid,
+  customerName,
+  onHandOver,
+  onCredit,
+  onClose,
+}: {
+  /** رصيد العميل قبل الفاتورة */
+  previousBalance: number;
+  /** إجمالي الفاتورة */
+  invoiceTotal: number;
+  /** المبلغ المدفوع فعلياً */
+  paid: number;
+  customerName: string;
+  /** تسليم الباقي نقداً للعميل */
+  onHandOver: () => void;
+  /** تنزيل الباقي رصيداً دائناً في حساب العميل */
+  onCredit: () => void;
+  onClose: () => void;
+}) {
+  const change = Math.max(0, Math.round((paid - invoiceTotal) * 100) / 100);
+  const afterHandOver = previousBalance;
+  const afterCredit = Math.round((previousBalance - change) * 100) / 100;
+  void afterHandOver;
+
+  return (
+    <div className="fixed inset-0 z-[150] grid place-items-center p-4" dir="rtl">
+      <button className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm" onClick={onClose} aria-label="إغلاق" />
+      <div className="cy-pop relative w-full max-w-md overflow-hidden rounded-2xl border border-line bg-white shadow-2xl">
+        {/* الرأس */}
+        <div className="flex items-center gap-2 bg-gradient-to-l from-emerald-600 to-emerald-500 px-4 py-3 text-white">
+          <IcoWallet className="h-5 w-5 shrink-0" />
+          <div className="flex-1 text-center">
+            <h3 className="text-[14px] font-black leading-tight">العميل دفع أكثر من قيمة الفاتورة</h3>
+            <p className="text-[10.5px] font-semibold text-white/85">{customerName || "عميل نقدي"}</p>
+          </div>
+          <button onClick={onClose} className="grid h-7 w-7 place-items-center rounded-lg bg-white/20 hover:bg-white/30" aria-label="إغلاق">
+            <IcoX className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* الأرقام: خانات صغيرة متساوية */}
+        <div className="grid grid-cols-3 gap-1.5 p-3">
+          <SmallStat label="الرصيد السابق" value={money(previousBalance)} tone="slate" />
+          <SmallStat label="إجمالي الفاتورة" value={money(invoiceTotal)} tone="ink" />
+          <SmallStat label="المدفوع" value={money(paid)} tone="amber" />
+        </div>
+
+        {/* الباقي */}
+        <div className="mx-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 px-3 py-2.5 text-center">
+          <div className="text-[10.5px] font-black text-emerald-800">الباقي المستحق للعميل</div>
+          <div className="cy-num text-[24px] font-black leading-tight text-emerald-700">{money(change)}</div>
+        </div>
+
+        {/* الخياران */}
+        <div className="mt-2.5 grid grid-cols-2 gap-2 p-3 pt-0">
+          <button
+            onClick={onHandOver}
+            className="flex flex-col items-center gap-1 rounded-xl border-2 border-ink-800 bg-ink-800 px-2 py-2.5 text-white cy-press hover:bg-ink-900"
+          >
+            <span className="text-[12px] font-black">تسليم الباقي للعميل</span>
+            <span className="cy-num text-[10px] font-bold text-white/75">نقداً — رصيده يبقى {money(previousBalance)}</span>
+          </button>
+          <button
+            onClick={onCredit}
+            className="flex flex-col items-center gap-1 rounded-xl border-2 border-emerald-600 bg-emerald-50 px-2 py-2.5 text-emerald-900 cy-press hover:bg-emerald-100"
+          >
+            <span className="text-[12px] font-black">تنزيل من حسابه</span>
+            <span className="cy-num text-[10px] font-bold text-emerald-700/80">يصبح {money(afterCredit)}</span>
+          </button>
+        </div>
+
+        <p className="px-3 pb-3 text-center text-[10px] font-semibold leading-4 text-slate-500">
+          «تنزيل من حسابه» يخصم الباقي من مديونية العميل السابقة — و«تسليم الباقي» يُسلَّم نقداً ويبقى حسابه كما هو.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** خانة رقمية صغيرة موحّدة */
+function SmallStat({ label, value, tone }: { label: string; value: string; tone: "slate" | "ink" | "amber" }) {
+  const cls =
+    tone === "ink"
+      ? "bg-ink-800 border-ink-900 text-white"
+      : tone === "amber"
+        ? "bg-amber-soft border-amber-brand/70 text-amber-900"
+        : "bg-slate-100 border-line text-ink-800";
+  return (
+    <div className={`rounded-lg border px-1.5 py-1.5 text-center ${cls}`}>
+      <div className="truncate text-[9px] font-black opacity-75">{label}</div>
+      <div className="cy-num text-[13px] font-black leading-tight">{value}</div>
+    </div>
+  );
+}
+
+export function PrintConfirmModal({
+  receipt,
+  onPrint,
+  onCancel,
+}: {
+  receipt: ReceiptData;
+  onPrint: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[145] grid place-items-center p-4" dir="rtl">
+      <button className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm" onClick={onCancel} aria-label="إلغاء" />
+      <div className="cy-pop relative w-full max-w-sm overflow-hidden rounded-2xl border border-line bg-white shadow-2xl">
+        <div className="bg-ink-800 px-4 py-3 text-center">
+          <div className="mx-auto mb-1.5 grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white">
+            <IcoPrint className="h-5 w-5" />
+          </div>
+          <h3 className="text-[14px] font-black text-white">تم حفظ الفاتورة رقم {receipt.number}</h3>
+          <p className="text-[10.5px] font-semibold text-slate-300">هل تريد طباعة الإيصال الآن؟</p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1.5 p-3">
+          <SmallStat label="إجمالي الفاتورة" value={money(receipt.total)} tone="ink" />
+          <SmallStat label="المدفوع" value={money(receipt.paid)} tone="amber" />
+          <SmallStat label="المتبقي" value={money(Math.abs(receipt.remaining))} tone="slate" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+          <button
+            onClick={onPrint}
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-cash-green-deep px-2 py-2.5 text-[12.5px] font-black text-white cy-press hover:brightness-110"
+          >
+            <IcoPrint className="h-4 w-4" />
+            طباعة
+          </button>
+          <button
+            onClick={onCancel}
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-line bg-slate-200 px-2 py-2.5 text-[12.5px] font-black text-ink-800 cy-press hover:bg-slate-300"
+          >
+            <IcoX className="h-4 w-4" />
+            إلغاء
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

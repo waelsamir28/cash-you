@@ -5,6 +5,7 @@ import type { Bootstrap, Product } from "@/lib/types";
 import type { Draft, Totals } from "@/lib/draft";
 import { lineTotal } from "@/lib/draft";
 import { money, qtyText } from "@/lib/format";
+import { show, type ShopSettings } from "@/lib/settings";
 import {
   IcoBarcode,
   IcoChevronLeft,
@@ -54,6 +55,7 @@ export function PosScreen({
   barcodeRef,
   saving,
   stamp,
+  settings,
 }: {
   data: Bootstrap;
   draft: Draft;
@@ -62,6 +64,7 @@ export function PosScreen({
   barcodeRef: React.RefObject<HTMLInputElement | null>;
   saving: boolean;
   stamp: { date: string; time: string };
+  settings: ShopSettings;
 }) {
   const [code, setCode] = useState("");
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -103,14 +106,14 @@ export function PosScreen({
 
   return (
     <section
-      className="flex-1 min-h-0 flex flex-col gap-1.5 p-1.5 overflow-y-auto lg:overflow-hidden cy-scroll"
+      className="flex-1 min-h-0 flex flex-col gap-1 overflow-hidden p-1"
       style={{ background: "var(--cy-paper)" }}
       dir="rtl"
     >
       {/* ============ لافتة العنوان ============ */}
-      <div className="relative shrink-0 rounded-xl overflow-hidden shadow-[0_6px_18px_-8px_rgba(15,23,42,0.8)]" style={{ background: "var(--cy-header)" }}>
+      {show(settings, "topBarTitle") && <div className="relative shrink-0 rounded-xl overflow-hidden shadow-[0_6px_18px_-8px_rgba(15,23,42,0.8)]" style={{ background: "var(--cy-header)" }}>
         <div className="pointer-events-none absolute inset-0 cy-aurora opacity-90" />
-        <div className="relative flex items-center gap-2 px-2 h-[46px]">
+        <div className="relative flex items-center gap-2 px-2 h-[38px]">
           {/* يمين: التاريخ + نقدي/آجل + شاشة الزبون */}
           <div className="flex items-center gap-1.5 shrink-0">
             <button
@@ -155,11 +158,11 @@ export function PosScreen({
             </span>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* ============ شريط العميل والباركود ============ */}
-      <div className="shrink-0 rounded-xl bg-white border border-line shadow-sm px-2 py-1.5">
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className="shrink-0 rounded-lg bg-white border border-line shadow-sm px-1.5 py-1">
+        <div className="flex flex-wrap items-center gap-1">
           <Field label="العميل" grow>
             <select
               value={draft.customerId ?? ""}
@@ -240,24 +243,24 @@ export function PosScreen({
       </div>
 
       {/* ============ لافتة التعليمات ============ */}
-      <div className="shrink-0 relative overflow-hidden rounded-lg bg-ink-600 h-[30px] grid place-items-center">
+      {show(settings, "marquee") && <div className="shrink-0 relative overflow-hidden rounded-lg bg-ink-600 h-[24px] grid place-items-center">
         <div className="pointer-events-none absolute inset-y-0 w-1/3 cy-marquee bg-gradient-to-l from-transparent via-white/10 to-transparent" />
-        <p className="relative text-white text-[12px] sm:text-[13px] font-bold text-center px-2">
+        <p className="relative text-white text-[10.5px] sm:text-[11.5px] font-bold text-center px-2">
           امسح الباركود بالماسح الليزري في خانة الكود أو اضغط صنفاً من القائمة
         </p>
-      </div>
+      </div>}
 
       {/* ============ التصنيفات: قائمة منسدلة ============ */}
-      <div className="shrink-0 flex items-center gap-1.5 flex-wrap">
-        <label className="flex items-center gap-1.5 h-9 rounded-xl bg-white border border-line px-2.5 shadow-sm">
-          <span className="text-[11px] font-black text-slate-500 whitespace-nowrap">التصنيف</span>
+      {show(settings, "categoryBar") && <div className="shrink-0 flex items-center gap-1.5 flex-wrap">
+        <label className="flex items-center gap-1 h-8 rounded-lg bg-white border border-line px-2 shadow-sm">
+          <span className="text-[10.5px] font-black text-slate-500 whitespace-nowrap">التصنيف</span>
           <select
             value={draft.categoryId === "all" ? "all" : String(draft.categoryId)}
             onChange={(e) => {
               const v = e.target.value;
               actions.patch({ categoryId: v === "all" ? "all" : Number(v), page: 0 });
             }}
-            className="bg-transparent outline-none text-[12.5px] font-black text-ink-800 min-w-[150px] cursor-pointer"
+            className="bg-transparent outline-none text-[11.5px] font-black text-ink-800 min-w-[130px] cursor-pointer"
           >
             <option value="all">كل التصنيفات ({data.products.length})</option>
             {data.categories.map((c) => {
@@ -280,17 +283,16 @@ export function PosScreen({
             × إلغاء الفلتر
           </button>
         )}
-      </div>
+      </div>}
 
       {/* ============ مساحة العمل ============ */}
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-1.5">
-        {/* الجدول 60% */}
-        <div className="flex-[3] min-h-[220px] lg:min-h-0 flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm">
-          <div className="shrink-0 grid grid-cols-[38px_92px_74px_82px_74px_66px_1fr_78px] text-[11.5px] font-black" style={{ background: "var(--cy-header)", color: "var(--cy-header-text)" }}>
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-1 overflow-hidden">
+        {/* الجدول 60% — هو الوحيد الذي يتمرر */}
+        <div className="flex-[3] min-h-0 flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm">
+          <div className="shrink-0 grid grid-cols-[34px_92px_80px_74px_64px_1fr_78px] text-[10.5px] font-black" style={{ background: "var(--cy-header)", color: "var(--cy-header-text)" }}>
             {[
               "×",
               "الإجمالي",
-              "خصم",
               "السعر",
               "الكمية",
               "الوحدة",
@@ -299,7 +301,7 @@ export function PosScreen({
             ].map((h, i) => (
               <div
                 key={h}
-                className={`px-1.5 py-2 border-l border-white/10 last:border-l-0 ${
+                className={`px-1 py-1 border-l border-white/10 last:border-l-0 ${
                   i === 6 ? "text-right" : "text-center"
                 }`}
               >
@@ -311,7 +313,6 @@ export function PosScreen({
           <div
             ref={gridRef}
             className="flex-1 min-h-0 overflow-y-auto cy-scroll"
-            style={{ minHeight: "calc(12 * 40px)" }}
           >
             {draft.items.length === 0 ? (
               <div className="h-full grid place-items-center p-6 text-center">
@@ -332,7 +333,7 @@ export function PosScreen({
                 <div
                   key={li.uid}
                   data-last={draft.lastAddedUid === li.uid ? "1" : "0"}
-                  className={`grid grid-cols-[38px_92px_74px_82px_74px_66px_1fr_78px] items-stretch h-10 text-[12.5px] border-b border-slate-200 ${
+                  className={`grid grid-cols-[34px_92px_80px_74px_64px_1fr_78px] items-stretch h-[34px] text-[11.5px] border-b border-slate-200 ${
                     draft.lastAddedUid === li.uid
                       ? "cy-flash"
                       : idx % 2 === 0
@@ -351,11 +352,6 @@ export function PosScreen({
                   <div className="grid place-items-center font-black text-ink-900 cy-num border-l border-slate-200 bg-slate-50/60">
                     {money(lineTotal(li))}
                   </div>
-                  <CellInput
-                    value={li.discount}
-                    onCommit={(v) => actions.updateLine(li.uid, { discount: Math.max(0, v) })}
-                    tone="text-cash-red"
-                  />
                   <CellInput
                     value={li.price}
                     onCommit={(v) => actions.updateLine(li.uid, { price: Math.max(0, v) })}
@@ -407,7 +403,7 @@ export function PosScreen({
             )}
           </div>
 
-          <div className="shrink-0 h-8 bg-paper border-t border-line flex items-center justify-between px-3 text-[11.5px] font-bold text-ink-700">
+          {show(settings, "tableFooter") && <div className="shrink-0 h-7 bg-paper border-t border-line flex items-center justify-between px-2 text-[10.5px] font-bold text-ink-700">
             <span>
               عدد الأسطر: <span className="cy-num text-ink-900">{draft.items.length}</span>
             </span>
@@ -416,22 +412,16 @@ export function PosScreen({
               <span className="cy-num text-ink-900">{qtyText(totals.count)}</span>
             </span>
             <span>
-              الإجمالي قبل الخصم:{" "}
+              الإجمالي:{" "}
               <span className="cy-num text-ink-900">{money(totals.subtotal)}</span>
             </span>
-            {draft.discountPercent > 0 && (
-              <span className="text-cash-red">
-                خصم {draft.discountPercent}% ={" "}
-                <span className="cy-num">{money(totals.discountValue)}</span>
-              </span>
-            )}
-          </div>
+          </div>}
         </div>
 
         {/* شبكة اللمس 40% */}
-        <div className="flex-[2] min-h-[260px] lg:min-h-0 flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm">
-          <div className="shrink-0 h-8 px-3 flex items-center justify-between bg-paper border-b border-line">
-            <span className="text-[11.5px] font-black text-ink-800">
+        {show(settings, "productGrid") && <div className="flex-[2] min-h-0 flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm">
+          <div className="shrink-0 h-[22px] px-2 flex items-center justify-between bg-paper border-b border-line">
+            <span className="text-[10.5px] font-black text-ink-800">
               قائمة الأصناف — اضغط للإضافة
             </span>
             <span className="text-[11px] font-bold text-slate-500 cy-num">
@@ -484,7 +474,7 @@ export function PosScreen({
             )}
           </div>
 
-          <div className="shrink-0 h-10 bg-paper border-t border-line flex items-center justify-between px-2 gap-2">
+          <div className="shrink-0 h-7 bg-paper border-t border-line flex items-center justify-between px-2 gap-1">
             <PagerBtn
               disabled={page === 0}
               onClick={() => actions.patch({ page: Math.max(0, page - 1) })}
@@ -503,7 +493,7 @@ export function PosScreen({
               <IcoChevronLeft className="w-3.5 h-3.5" />
             </PagerBtn>
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* ============ البطاقات المالية (مقاسات موحّدة) ============ */}
@@ -518,7 +508,7 @@ export function PosScreen({
           action={
             <button
               onClick={actions.payFull}
-              className="text-[9.5px] font-black text-amber-900/70 hover:text-cash-red"
+              className="text-[8px] font-black text-amber-900/70 hover:text-cash-red"
               title="دفع كامل (F12)"
             >
               دفع كامل F12
@@ -528,30 +518,55 @@ export function PosScreen({
         <MoneyCard
           label={totals.remaining < 0 ? "الباقي للزبون" : "المتبقي"}
           value={money(Math.abs(totals.remaining))}
-          tone={totals.remaining > 0 ? "red" : "green"}
-          hint={totals.remaining > 0 ? "غير مسدد" : "مسدد بالكامل"}
+          tone={totals.remaining > 0 ? "red" : totals.remaining < 0 ? "amber" : "green"}
+          hint={
+            totals.remaining > 0
+              ? "غير مسدد"
+              : totals.remaining < 0
+                ? "يُسلَّم أو يُخصم"
+                : "مسدد بالكامل"
+          }
         />
         <MoneyCard label="الرصيد السابق" value={money(prevBalance)} tone="slate" />
         <MoneyCard label="الرصيد بعد الفاتورة" value={money(afterBalance)} tone="cyan" />
       </div>
 
       {/* ============ مفاتيح الوظائف ============ */}
-      <div className="shrink-0 grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-        <FnKey onClick={actions.newInvoice} k="F4" tone="light">
-          فاتورة جديدة
-        </FnKey>
-        <FnKey onClick={actions.payFull} k="F12" tone="orange">
-          دفع كامل
-        </FnKey>
-        <FnKey onClick={() => actions.save(true)} k="F10" tone="savePrint" busy={saving}>
-          <span className="inline-flex items-center gap-1.5">
-            <IcoPrint className="w-4 h-4" />
-            حفظ وطباعة
-          </span>
-        </FnKey>
-        <FnKey onClick={() => actions.save(false)} k="F5" tone="save" busy={saving}>
-          حفظ
-        </FnKey>
+      <div className="shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+        {settings.fnButtons
+          .filter((b) => b.visible)
+          .map((b) => {
+            const onSave = b.id === "save" || b.id === "savePrint";
+            const icon =
+              b.id === "savePrint" || b.id === "save" ? <IcoPrint className="h-4 w-4" /> : undefined;
+            return (
+              <FnKey
+                key={b.id}
+                onClick={() => {
+                  if (b.id === "newInvoice") actions.newInvoice();
+                  else if (b.id === "payFull") actions.payFull();
+                  else if (b.id === "savePrint") actions.save(true);
+                  else if (b.id === "save") actions.save(false);
+                }}
+                k={b.shortcut}
+                tone={
+                  b.id === "newInvoice"
+                    ? "light"
+                    : b.id === "payFull"
+                      ? "orange"
+                      : b.id === "savePrint"
+                        ? "savePrint"
+                        : "save"
+                }
+                busy={onSave ? saving : undefined}
+              >
+                <span className="inline-flex items-center justify-center gap-1.5">
+                  {icon}
+                  {b.label}
+                </span>
+              </FnKey>
+            );
+          })}
       </div>
 
     </section>
@@ -573,11 +588,11 @@ function Field({
 }) {
   return (
     <label
-      className={`flex items-center gap-1.5 h-9 rounded-xl bg-paper-2 border border-line px-2.5 focus-within:border-amber-brand focus-within:bg-white transition-colors ${
+      className={`flex items-center gap-1 h-[30px] rounded-lg bg-paper-2 border border-line px-2 focus-within:border-amber-brand focus-within:bg-white transition-colors ${
         grow ? "flex-1 min-w-[150px]" : ""
       }`}
     >
-      <span className="text-[11px] font-black text-slate-500 whitespace-nowrap">{label}</span>
+      <span className="text-[10px] font-black text-slate-500 whitespace-nowrap">{label}</span>
       {icon}
       {children}
     </label>
@@ -714,10 +729,10 @@ function MoneyCard({
   onInput?: (v: string) => void;
 }) {
   return (
-    <div className={`relative overflow-hidden rounded-xl border-2 px-2 py-1.5 h-[64px] flex flex-col justify-between ${MONEY_TONES[tone]}`}>
+    <div className={`relative overflow-hidden rounded-lg border-2 px-1.5 py-1 h-[50px] flex flex-col justify-between ${MONEY_TONES[tone]}`}>
       <div className="flex items-baseline justify-between gap-1">
-        <span className="truncate text-[10.5px] font-black opacity-80">{label}</span>
-        {action ?? (hint ? <span className="shrink-0 text-[9.5px] font-bold opacity-70 cy-num">{hint}</span> : null)}
+        <span className="truncate text-[9.5px] font-black opacity-80">{label}</span>
+        {action ?? (hint ? <span className="shrink-0 text-[8.5px] font-bold opacity-70 cy-num">{hint}</span> : null)}
       </div>
       {editable ? (
         <input
@@ -726,10 +741,10 @@ function MoneyCard({
           onFocus={(e) => e.currentTarget.select()}
           inputMode="decimal"
           aria-label={label}
-          className="w-full bg-transparent text-center text-[17px] font-black leading-none cy-num outline-none focus:bg-white/60 rounded"
+          className="w-full bg-transparent text-center text-[15px] font-black leading-none cy-num outline-none focus:bg-white/60 rounded"
         />
       ) : (
-        <div className="w-full text-center text-[17px] font-black leading-none cy-num truncate">{value}</div>
+        <div className="w-full text-center text-[15px] font-black leading-none cy-num truncate">{value}</div>
       )}
     </div>
   );
@@ -786,7 +801,7 @@ function FnKey({
     <button
       onClick={onClick}
       disabled={busy}
-      className={`relative h-[52px] rounded-xl border cy-press cy-focus flex flex-col items-center justify-center gap-0.5 font-black text-[13px] shadow-[0_6px_16px_-10px_rgba(15,23,42,0.9)] disabled:opacity-60 ${
+      className={`cy-fnkey relative h-[40px] border cy-press cy-focus flex flex-col items-center justify-center gap-0 font-black text-[12px] disabled:opacity-60 ${
         FN_TONES[tone] ?? FN_TONES.light
       }`}
     >

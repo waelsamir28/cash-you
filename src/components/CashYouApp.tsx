@@ -26,7 +26,7 @@ import { ExpensesScreen, InstallmentsScreen, ReportsScreen, TreasuryScreen } fro
 import { InstallmentDialog } from "@/components/InstallmentDialog";
 import { UsersScreen } from "@/components/UsersScreen";
 import { SettingsScreen } from "@/components/SettingsScreen";
-import { mergeSettings, themeCssVars, themeOf, type ShopSettings } from "@/lib/settings";
+import { appCssVars, fontOf, mergeSettings, show, themeOf, type ShopSettings } from "@/lib/settings";
 import { ActivationScreen } from "@/components/ActivationScreen";
 import { readOfflineBootstrap, saveOfflineBootstrap } from "@/lib/offline-cache";
 import {
@@ -35,6 +35,7 @@ import {
   DiscountDialog,
   InvoiceDetail,
   MinimizedBar,
+  OverpayModal,
   PromptDialog,
   ReceiptModal,
   ShutdownScreen,
@@ -50,9 +51,10 @@ type Overlay =
   | { kind: "customerScreen" }
   | { kind: "addCustomer" }
   | { kind: "addPayment" }
-  | { kind: "discount" }
   | { kind: "close" }
   | { kind: "receipt"; receipt: ReceiptData }
+  /** العميل دفع أكثر من الفاتورة: تسليم الباقي أو تنزيله من الحساب */
+  | { kind: "overpay"; receipt: ReceiptData; previousBalance: number }
   | { kind: "invoice"; invoice: InvoiceRow }
   | { kind: "installment"; print: boolean };
 
@@ -376,6 +378,8 @@ export default function CashYouApp({
       setSaving(true);
       const snapshot = draft;
       const t = computeTotals(snapshot);
+      /* رصيد العميل قبل هذه الفاتورة — نحتاجه لو دفع أكثر من الإجمالي */
+      const prevCustomerBalance = data.customers.find((c) => c.id === snapshot.customerId)?.balance ?? 0;
       try {
         const res = await apiFetch("/api/invoices", {
           method: "POST",
@@ -406,6 +410,7 @@ export default function CashYouApp({
         const receipt: ReceiptData = {
           number: json.number,
           createdAt: json.createdAt,
+          customerId: snapshot.customerId,
           customerName: snapshot.customerName,
           paymentMethod: snapshot.paymentMethod,
           saleType: snapshot.saleType,
@@ -413,7 +418,8 @@ export default function CashYouApp({
           subtotal: t.subtotal,
           total: json.total,
           paid: json.paid,
-          remaining: json.remaining,
+          /* إن كان المدفوع أكبر، نُظهر الباقي سالباً ليعرضه الإيصال بوضوح */
+          remaining: json.paid > json.total ? Math.round((json.total - json.paid) * 100) / 100 : json.remaining,
           items: snapshot.items.map((li) => ({
             name: li.name,
             code: li.code,
@@ -470,8 +476,13 @@ export default function CashYouApp({
 
         await refreshData();
         sfxSave();
-        // Both save actions show the saved receipt so the user can print or cancel.
-        setOverlay({ kind: "receipt", receipt });
+        /* العميل دفع أكثر من قيمة الفاتورة: اسأله أولاً ماذا يفعل بالباقي */
+        if (t.remaining < 0) {
+          setOverlay({ kind: "overpay", receipt, previousBalance: prevCustomerBalance });
+        } else {
+          /* كلاهما يعرضان الإيصال — وهو الشاشة العائمة بشكل الفاتورة + زر طباعة + زر إلغاء */
+          setOverlay({ kind: "receipt", receipt });
+        }
         window.setTimeout(() => barcodeRef.current?.focus(), 80);
       } catch (err) {
         sfxError();
@@ -480,7 +491,7 @@ export default function CashYouApp({
         setSaving(false);
       }
     },
-    [activeId, activeTab, draft, saving, toast, refreshData],
+    [activeId, activeTab, draft, saving, toast, refreshData, data.customers],
   );
 
   /* ---------------- اختصارات لوحة المفاتيح ---------------- */
@@ -510,10 +521,6 @@ export default function CashYouApp({
         if (kindRef.current !== "invoice") return;
         if (e.key === "F5") void saveRef.current(false);
         if (e.key === "F10") void saveRef.current(true);
-        if (e.key === "F11") {
-          sfxKey();
-          setOverlay({ kind: "discount" });
-        }
         if (e.key === "F12") payRef.current();
         return;
       }
@@ -556,10 +563,8 @@ export default function CashYouApp({
       save: (p: boolean) => void save(p),
       newInvoice,
       payFull,
-      openDiscount: () => {
-        sfxKey();
-        setOverlay({ kind: "discount" });
-      },
+      /* الخصم أُزيل نهائياً — تُبقي الواجهة الدالة للتوافق فقط */
+      openDiscount: () => toast("warn", "الخصم أُزيل من البرنامج نهائياً"),
       openCustomerScreen: () => {
         sfxToggle();
         setOverlay({ kind: "customerScreen" });
@@ -573,7 +578,7 @@ export default function CashYouApp({
         setOverlay({ kind: "addPayment" });
       },
     }),
-    [patch, addProduct, addByCode, updateLine, removeLine, save, newInvoice, payFull],
+    [patch, addProduct, addByCode, updateLine, removeLine, save, newInvoice, payFull, toast],
   );
 
   /* ---------------- إضافة عميل / طريقة دفع ---------------- */
@@ -635,9 +640,11 @@ export default function CashYouApp({
 
   return (
     <div
-      className="h-[100dvh] w-full flex flex-col bg-ink-950 overflow-hidden"
-      style={themeCssVars(theme) as React.CSSProperties}
+      className="cy-app-shell h-[100dvh] w-full flex flex-col bg-ink-950 overflow-hidden"
+      style={appCssVars(settings) as React.CSSProperties}
       data-theme={theme.id}
+      data-motion={settings.motion}
+      data-align={settings.centerText ? "center" : "right"}
     >
       <TitleBar
         data={data}
@@ -674,7 +681,7 @@ export default function CashYouApp({
         </div>
       )}
 
-      <TabStrip
+      {show(settings, "tabStrip") && <TabStrip
         tabs={tabs}
         activeId={activeId}
         onSelect={(id) => {
@@ -683,13 +690,13 @@ export default function CashYouApp({
         }}
         onClose={closeTab}
         onNew={openInvoiceTab}
-      />
+      />}
 
       <div className="flex-1 min-h-0 flex">
-        <IconRail
+        {show(settings, "rail") && <IconRail
           activeKind={activeTab?.kind ?? "home"}
           onRail={(kind, label) => openModule(kind, label)}
-        />
+        />}
 
         <main className="flex-1 min-w-0 flex flex-col">
           {activeTab?.kind === "home" && (
@@ -746,12 +753,13 @@ export default function CashYouApp({
               barcodeRef={barcodeRef}
               saving={saving}
               stamp={stamp}
+              settings={settings}
             />
           )}
         </main>
       </div>
 
-      <StatusBar
+      {show(settings, "footer") && <StatusBar
         clock={now}
         dateText={stamp.date}
         timeText={stamp.time}
@@ -760,7 +768,8 @@ export default function CashYouApp({
         user={user}
         trial={trial}
         onOpenActivation={() => openModule("activation", "تفعيل النسخة")}
-      />
+        showBadge={show(settings, "statusBadge")}
+      />}
 
       {/* ---------------- الطبقات العلوية ---------------- */}
       {overlay.kind === "customerScreen" && (
@@ -798,20 +807,6 @@ export default function CashYouApp({
         />
       )}
 
-      {overlay.kind === "discount" && (
-        <DiscountDialog
-          current={draft.discountPercent}
-          subtotal={totals.subtotal}
-          onClose={() => setOverlay({ kind: "none" })}
-          onApply={(percent) => {
-            patch({ discountPercent: percent });
-            setOverlay({ kind: "none" });
-            sfxCash();
-            toast("ok", `تم تطبيق خصم ${percent}% على الفاتورة`);
-          }}
-        />
-      )}
-
       {overlay.kind === "installment" && (
         <InstallmentDialog
           total={totals.total}
@@ -821,6 +816,56 @@ export default function CashYouApp({
             setOverlay({ kind: "none" });
             void save(overlay.kind === "installment" ? overlay.print : false, cfg);
           }}
+        />
+      )}
+
+      {overlay.kind === "overpay" && (
+        <OverpayModal
+          previousBalance={overlay.previousBalance}
+          invoiceTotal={overlay.receipt.total}
+          paid={overlay.receipt.paid}
+          customerName={overlay.receipt.customerName}
+          /* تسليم الباقي نقداً: يخرج من الدرج ويبقى رصيد العميل كما هو */
+          onHandOver={async () => {
+            const rec = overlay.receipt;
+            const change = Math.round((rec.paid - rec.total) * 100) / 100;
+            setOverlay({ kind: "receipt", receipt: rec });
+            if (change <= 0) return;
+            try {
+              await apiFetch("/api/invoices/overpay", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ invoiceNumber: rec.number, action: "handOver", amount: change }),
+              });
+              toast("ok", `سُلّم للعميل ${money(change)} نقداً وخرجت من الدرج`);
+              await refreshData();
+            } catch (err) {
+              toast("err", err instanceof Error ? err.message : "تعذر تسجيل الباقي");
+            }
+          }}
+          /* تنزيل الباقي من الحساب: يقلّل مديونية العميل */
+          onCredit={async () => {
+            const rec = overlay.receipt;
+            const change = Math.round((rec.paid - rec.total) * 100) / 100;
+            setOverlay({ kind: "receipt", receipt: rec });
+            if (change <= 0) return;
+            if (!rec.customerId) {
+              toast("warn", "عميل نقدي — لا يوجد حساب لتنزيل الباقي فيه");
+              return;
+            }
+            try {
+              await apiFetch("/api/invoices/overpay", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ invoiceNumber: rec.number, action: "credit", amount: change }),
+              });
+              toast("ok", `تم تنزيل ${money(change)} من حساب العميل`);
+              await refreshData();
+            } catch (err) {
+              toast("err", err instanceof Error ? err.message : "تعذر تنزيل الباقي من الحساب");
+            }
+          }}
+          onClose={() => setOverlay({ kind: "receipt", receipt: overlay.receipt })}
         />
       )}
 
@@ -834,6 +879,8 @@ export default function CashYouApp({
           receiptFooter={settings.invoiceFooter}
           thanks={settings.invoiceThanks}
           accent={theme.vars.accent}
+          style={settings.receiptStyle}
+          fontStack={fontOf(settings.font).stack}
           onClose={() => setOverlay({ kind: "none" })}
         />
       )}
@@ -860,7 +907,7 @@ export default function CashYouApp({
       {welcome && settings.welcomeEnabled && (
         <WelcomeToast
           name={user?.fullName ?? "بك"}
-          logo={settings.shopLogo}
+          logo={show(settings, "welcomeLogo") ? settings.shopLogo : ""}
           shopName={settings.shopName}
           muted={muted}
           onToggleMute={toggleMute}

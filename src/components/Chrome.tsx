@@ -583,6 +583,7 @@ export function StatusBar({
   user,
   trial,
   onOpenActivation,
+  showBadge = true,
 }: {
   clock: Date;
   dateText: string;
@@ -592,6 +593,8 @@ export function StatusBar({
   user?: SessionUser | null;
   trial?: TrialStatus | null;
   onOpenActivation?: () => void;
+  /** إخفاء شارة حالة النظام من صفحة الإعدادات */
+  showBadge?: boolean;
 }) {
   void clock;
   return (
@@ -620,7 +623,7 @@ export function StatusBar({
         </span>
       </div>
 
-      <div className="flex items-center gap-1.5 shrink-0">
+      {showBadge && <div className="flex items-center gap-1.5 shrink-0">
         <span className="w-2 h-2 rounded-full bg-cash-green cy-ring" />
         <span className="font-bold text-cash-green">النظام متصل</span>
         {trial && (
@@ -641,7 +644,7 @@ export function StatusBar({
             </button>
           </>
         )}
-      </div>
+      </div>}
     </footer>
   );
 }

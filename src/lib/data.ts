@@ -167,7 +167,9 @@ export async function saveInvoice(p: SavePayload): Promise<SavedInvoice> {
   const discountValue = r2(subtotal * discountPercent / 100);
   const total = r2(subtotal - discountValue);
   const paid = r2(Math.max(0, p.installment ? p.installment.downPayment : p.paid || 0));
-  const remaining = r2(total - paid);
+  /* المبلغ المطبَّق على الفاتورة لا يزيد عن إجماليها — الزيادة «باقٍ» يُسلَّم أو يُنزَّل من الحساب */
+  const applied = r2(Math.min(paid, total));
+  const remaining = r2(total - applied);
   const number = Number.parseInt(await getSetting("next_invoice", "1"), 10);
   const inserted = await db.insert(invoices).values({
     number, customerId: p.customerId, customerName: p.customerName || "عميل نقدي",
@@ -211,9 +213,49 @@ export async function saveInvoice(p: SavePayload): Promise<SavedInvoice> {
     newCustomerBalance = r2((current[0]?.balance ?? 0) + remaining + interestValue);
     await db.update(customers).set({ balance: newCustomerBalance }).where(eq(customers.id, p.customerId));
   }
-  if (paid > 0) await db.insert(treasuryMovements).values({ direction: "وارد", source: "مبيعات", reference: `بيع-${number}`, partyName: p.customerName || "عميل نقدي", amount: paid, notes: p.saleType === "تقسيط" ? "مقدم تعاقد تقسيط" : "مدفوع فاتورة مبيعات" });
+  if (applied > 0) await db.insert(treasuryMovements).values({ direction: "وارد", source: "مبيعات", reference: `بيع-${number}`, partyName: p.customerName || "عميل نقدي", amount: applied, notes: p.saleType === "تقسيط" ? "مقدم تعاقد تقسيط" : "مدفوع فاتورة مبيعات" });
   await setSetting("next_invoice", String(number + 1));
   return { id: invoiceId, number, total, paid, remaining, customerName: p.customerName || "عميل نقدي", createdAt: inserted[0].createdAt.toISOString(), newCustomerBalance, nextInvoiceNumber: number + 1, installmentPlanId, installmentIds };
+}
+
+/**
+ * معالجة الباقي عندما يدفع العميل أكثر من إجمالي الفاتورة.
+ *
+ * handOver: يُخرج الباقي من الخزينة نقداً ويبقى رصيد العميل كما هو.
+ * credit:   يُخصم الباقي من مديونية العميل (رصيده المدين).
+ */
+export async function settleOverpay(p: {
+  invoiceNumber: number;
+  action: "handOver" | "credit";
+  amount: number;
+}): Promise<{ ok: true; action: "handOver" | "credit"; amount: number; newCustomerBalance: number | null }> {
+  const amount = r2(Math.max(0, p.amount));
+  if (amount <= 0) throw new Error("قيمة الباقي غير صالحة");
+  const rows = await db.select().from(invoices).where(eq(invoices.number, p.invoiceNumber)).limit(1);
+  const inv = rows[0];
+  if (!inv) throw new Error("الفاتورة غير موجودة");
+  const already = await getSetting(`overpay.${p.invoiceNumber}`, "");
+  if (already) throw new Error("سبق معالجة باقي هذه الفاتورة");
+
+  let newCustomerBalance: number | null = null;
+  if (p.action === "credit") {
+    if (!inv.customerId) throw new Error("عميل نقدي — لا يوجد حساب لتنزيل الباقي فيه");
+    const cur = await db.select().from(customers).where(eq(customers.id, inv.customerId)).limit(1);
+    newCustomerBalance = r2((cur[0]?.balance ?? 0) - amount);
+    await db.update(customers).set({ balance: newCustomerBalance }).where(eq(customers.id, inv.customerId));
+  } else {
+    /* تسليم الباقي نقداً: مبلغ يخرج من الدرج */
+    await db.insert(treasuryMovements).values({
+      direction: "منصرف",
+      source: "باقي عميل",
+      reference: `باقي-${p.invoiceNumber}`,
+      partyName: inv.customerName,
+      amount,
+      notes: `تسليم باقي الفاتورة رقم ${p.invoiceNumber} نقداً`,
+    });
+  }
+  await setSetting(`overpay.${p.invoiceNumber}`, p.action);
+  return { ok: true, action: p.action, amount, newCustomerBalance };
 }
 
 export async function markInvoicePrinted(number: number): Promise<void> {
