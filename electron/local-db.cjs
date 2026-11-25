@@ -42,31 +42,49 @@ function embeddedDataDir() {
   return path.join(userDataDir(), "pgdata");
 }
 
-/** ملف يحفظ كلمة مرور القاعدة المحلية */
+/**
+ * ملف كلمة مرور القاعدة المحلية.
+ *
+ * تعيش مع مجلد بيانات العنقود نفسه — لأن كلمة المرور مرتبطة بعنقود
+ * PostgreSQL: لو فُصلت بينهما لفقد العميل الوصول إلى بياناته. ويُكتب
+ * نسخة أخرى في مجلد بيانات المستخدم (للتوافق مع الإصدارات السابقة).
+ */
 function localSecretPath() {
+  return path.join(embeddedDataDir(), "cash-you-local.json");
+}
+
+/** النسخة القديمة في مجلد بيانات المستخدم */
+function legacySecretPath() {
   return path.join(userDataDir(), "cash-you-local.json");
 }
 
-/** يقرأ/ينشئ كلمة مرور عشوائية ويحفظها على جهاز العميل */
+/** يقرأ كلمة المرور المحفوظة (أو يولّد واحدة جديدة) */
 function localPassword() {
-  try {
-    const json = JSON.parse(readFileSync(localSecretPath(), "utf8"));
-    if (typeof json.password === "string" && json.password) return json.password;
-  } catch {
-    /* ملف جديد */
+  for (const file of [localSecretPath(), legacySecretPath()]) {
+    try {
+      const json = JSON.parse(readFileSync(file, "utf8"));
+      if (typeof json.password === "string" && json.password) return json.password;
+    } catch {
+      /* ملف غير موجود أو غير صالح */
+    }
   }
-  const password = `cy_${require("node:crypto").randomBytes(12).toString("hex")}`;
-  try {
-    mkdirSync(path.dirname(localSecretPath()), { recursive: true });
-    writeFileSync(
-      localSecretPath(),
-      `${JSON.stringify({ password, createdAt: new Date().toISOString() }, null, 2)}\n`,
-      "utf8",
-    );
-  } catch {
-    /* لا يهم — سنستخدم كلمة المرور في الذاكرة */
+  return `cy_${require("node:crypto").randomBytes(12).toString("hex")}`;
+}
+
+/**
+ * يحفظ كلمة المرور على جهاز العميل.
+ * تُكتب داخل مجلد العنقود **بعد** تهيئته — لأن `initdb` يرفض مجلداً غير فارغ.
+ */
+function saveLocalSecret(password) {
+  const content = `${JSON.stringify({ password, createdAt: new Date().toISOString() }, null, 2)}\n`;
+  for (const file of [localSecretPath(), legacySecretPath()]) {
+    try {
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, content, "utf8");
+    } catch {
+      /* لا يهم — سنستخدم كلمة المرور في الذاكرة */
+    }
   }
-  return password;
 }
 
 /** منفذ حر على الجهاز */
@@ -251,6 +269,8 @@ async function startEmbeddedPostgres() {
     if (!existsSync(path.join(databaseDir, "PG_VERSION"))) {
       await instance.initialise();
     }
+    /* كلمة المرور تُحفظ بعد التهيئة (initdb يتطلب مجلداً فارغاً) */
+    saveLocalSecret(password);
     await instance.start();
     await instance.createDatabase(LOCAL_DB_NAME).catch(() => undefined);
     runningInstance = instance;
