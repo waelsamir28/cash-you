@@ -14,7 +14,8 @@
  */
 import { Client } from "pg";
 import {
-  countOwners,
+  CUSTOMER_IDENTITY_KEY,
+  newCustomerIdentity,
   readCustomerIdentity,
   stampCustomerIdentity,
 } from "@/lib/customer-identity";
@@ -293,6 +294,8 @@ export async function copyTable(
   let skipped = 0;
 
   for (const row of srcRows) {
+    /* بصمة العميل هي علامة الربط نفسها — لا تُنسخ بين القواعد */
+    if (spec.name === "settings" && row.key === CUSTOMER_IDENTITY_KEY) continue;
     const prepared: Row = { ...row };
 
     /* ترجمة المفاتيح الأجنبية */
@@ -437,20 +440,33 @@ export function allowIdentityTablesFor(
   return direction === "push" ? !cloudIdentity : !localIdentity;
 }
 
-/** يربط القاعدة غير المرتبطة ببصمة العميل */
-export async function bindIdentity(
-  client: Client,
+/**
+ * يربط القاعدتين ببصمة العميل.
+ *
+ * - قاعدتان مرتبطتان → نُبقيهما كما هما (تطابقهما شرط المزامنة أصلاً).
+ * - واحدة مرتبطة والأخرى غير → غير المرتبطة تتبنّى بصمة المرتبطة.
+ * - ولا واحدة مرتبطة → نبصمة جديدة ونختم بها القاعدتين — فتصيران قاعدتي
+ *   نفس العميل، وأي مزامنة لاحقة مع قاعدة عميل آخر تُرفض.
+ */
+export async function bindIdentities(
+  local: Client,
+  cloud: Client,
   identity: IdentityCheck,
-  direction: "push" | "pull",
 ): Promise<void> {
   const { localIdentity, cloudIdentity } = identity;
   if (localIdentity && cloudIdentity) return;
-  if (direction === "push" && localIdentity && !cloudIdentity) {
-    await stampCustomerIdentity(client, localIdentity);
+  if (localIdentity) {
+    await stampCustomerIdentity(cloud, localIdentity);
+    return;
   }
-  if (direction === "pull" && cloudIdentity && !localIdentity) {
-    await stampCustomerIdentity(client, cloudIdentity);
+  if (cloudIdentity) {
+    await stampCustomerIdentity(local, cloudIdentity);
+    return;
   }
+  /* قاعدتان غير مرتبطتين → نصنع بصمة عميل جديدة */
+  const fresh = newCustomerIdentity();
+  await stampCustomerIdentity(local, fresh);
+  await stampCustomerIdentity(cloud, fresh);
 }
 
 /* ============================== تنفيذ المزامنة ============================== */
@@ -506,12 +522,13 @@ export async function syncDatabases(
         });
       }
     }
-    /* نربط القاعدة غير المرتبطة ببصمة العميل */
-    try {
-      await bindIdentity(pair.to, identity, pair.direction);
-    } catch {
-      /* الربط غير حرج */
-    }
+  }
+
+  /* نربط القاعدتين ببصمة العميل (مرة واحدة بعد كل الاتجاهات) */
+  try {
+    await bindIdentities(local, cloud, identity);
+  } catch {
+    /* الربط غير حرج */
   }
 
   const copied = details.reduce((s, d) => s + d.copied, 0);

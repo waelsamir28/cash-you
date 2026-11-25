@@ -2,10 +2,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { FULL_SCHEMA_SQL } from "@/db/full-schema";
 import { currentTenantContext } from "@/db/tenant-context";
-import {
-  CUSTOMER_IDENTITY_KEY,
-  newCustomerIdentity,
-} from "@/lib/customer-identity";
+import { CUSTOMER_IDENTITY_KEY } from "@/lib/customer-identity";
 
 /**
  * الترقية الذاتية لقاعدة البيانات.
@@ -36,9 +33,13 @@ async function createSchema(): Promise<void> {
  *
  * البصمة تميّز قاعدة العميل عن غيرها، وتُستخدم لمنع المزامنة من نقل
  * الحسابات والإعدادات (ومنها حالة التجربة والترخيص) بين عملاء مختلفين.
- * في وضع المستأجرين: البصمة هي مفتاح وحدة العزل نفسه.
+ *
+ * - وحدة عزل في السحابة: البصمة هي مفتاح الوحدة نفسه (مصدر موثوق).
+ * - قاعدة محلية على جهاز العميل: **لا** تُكتب لها بصمة قبل أول مزامنة،
+ *   فتبنّي بصمة قاعدة العميل السحابية — وبذلك تُربط قاعدتاه ببعضهما،
+ *   وتُرفض أي محاولة لمزامنة قاعدة عميل آخر.
  */
-export async function ensureCustomerIdentity(): Promise<string> {
+export async function ensureCustomerIdentity(): Promise<string | null> {
   const tenant = currentTenantContext()?.tenant;
   const expected = tenant && tenant.kind !== "legacy" ? tenant.key : null;
 
@@ -49,14 +50,16 @@ export async function ensureCustomerIdentity(): Promise<string> {
 
   if (current && current.trim()) return current.trim();
 
-  const identity = expected ?? newCustomerIdentity();
+  /* قاعدة محلية: ننتظر أول مزامنة لتثبيت البصمة */
+  if (!expected) return null;
+
   await db.execute(
     sql.raw(
-      `insert into settings (key, value) values ('${CUSTOMER_IDENTITY_KEY}', '${identity}')
+      `insert into settings (key, value) values ('${CUSTOMER_IDENTITY_KEY}', '${expected}')
        on conflict (key) do update set value = excluded.value`,
     ),
   );
-  return identity;
+  return expected;
 }
 
 export function ensureDatabaseSchema(): Promise<void> {

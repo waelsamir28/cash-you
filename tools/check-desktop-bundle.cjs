@@ -50,10 +50,15 @@ const appSamples = [
   "electron/main.cjs",
   "electron/db-config.cjs",
   "electron/local-server.cjs",
+  "electron/local-db.cjs",
   "electron/preload.cjs",
   ".next/static/chunks/main.js",
   "public/desktop/icon.ico",
   "package.json",
+  /* PostgreSQL المدمج — لازم يكون داخل الحزمة ليعمل البرنامج بلا تثبيت */
+  "node_modules/embedded-postgres/dist/index.js",
+  "node_modules/@embedded-postgres/windows-x64/native/bin/postgres.exe",
+  "node_modules/exit-hook/index.js",
 ];
 
 /*

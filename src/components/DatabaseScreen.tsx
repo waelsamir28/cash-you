@@ -46,11 +46,18 @@ export function DatabaseScreen({
   const [cloudUrl, setCloudUrl] = useState("");
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncReport, setSyncReport] = useState<SyncReport | null>(null);
+  /* في السحابة: لكل عميل قاعدة خاصة تُحدَّد تلقائياً — لا نطلب منه رابطاً */
+  const [cloudLocked, setCloudLocked] = useState(false);
 
   useEffect(() => {
     void loadDbConfig()
       .then(setSaved)
       .catch(() => setSaved(null));
+    /* هل نحن على نسخة متعددة المستأجرين؟ (قاعدة العميل تُحدَّد من الخادم) */
+    void fetch("/api/bootstrap", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => setCloudLocked(Boolean(json?.tenant?.isolated)))
+      .catch(() => setCloudLocked(false));
   }, []);
 
   const run = async (action: "test" | "save") => {
@@ -100,14 +107,14 @@ export function DatabaseScreen({
   /* ---------- تشغيل المزامنة ---------- */
   const runSync = async () => {
     if (syncBusy) return;
-    if (!localUrl.trim() || !cloudUrl.trim()) {
-      notify("err", "أدخل رابط القاعدتين: المحلية والسحابية");
+    if (!localUrl.trim() || (!cloudLocked && !cloudUrl.trim())) {
+      notify("err", "أدخل رابط القاعدة المحلية");
       return;
     }
     setSyncBusy(true);
     setSyncReport(null);
     try {
-      const report = await syncDatabases(localUrl.trim(), cloudUrl.trim());
+      const report = await syncDatabases(localUrl.trim(), cloudUrl.trim(), cloudLocked);
       setSyncReport(report);
       if (report.ok) {
         notify("ok", report.message);
@@ -278,17 +285,26 @@ export function DatabaseScreen({
                 />
               </label>
 
-              <label className="block">
-                <span className="mb-1 block text-[10.5px] font-black text-slate-500">رابط القاعدة السحابية</span>
-                <input
-                  value={cloudUrl}
-                  onChange={(e) => setCloudUrl(e.target.value)}
-                  dir="ltr"
-                  placeholder="postgresql://user:password@host:5432/dbname?sslmode=require"
-                  spellCheck={false}
-                  className="h-10 w-full rounded-lg border border-line bg-paper-2 px-2.5 font-mono text-[11px] font-bold text-ink-900 outline-none focus:border-amber-brand focus:bg-white"
-                />
-              </label>
+              {cloudLocked ? (
+                <div className="rounded-lg border border-line bg-paper-2 px-2.5 py-2">
+                  <span className="block text-[10.5px] font-black text-slate-500">رابط القاعدة السحابية</span>
+                  <span className="mt-1 block text-[11px] font-bold text-ink-900">
+                    قاعدة سحابية خاصة بك — تُحدَّد تلقائياً ولا يراها غيرك
+                  </span>
+                </div>
+              ) : (
+                <label className="block">
+                  <span className="mb-1 block text-[10.5px] font-black text-slate-500">رابط القاعدة السحابية</span>
+                  <input
+                    value={cloudUrl}
+                    onChange={(e) => setCloudUrl(e.target.value)}
+                    dir="ltr"
+                    placeholder="postgresql://user:password@host:5432/dbname?sslmode=require"
+                    spellCheck={false}
+                    className="h-10 w-full rounded-lg border border-line bg-paper-2 px-2.5 font-mono text-[11px] font-bold text-ink-900 outline-none focus:border-amber-brand focus:bg-white"
+                  />
+                </label>
+              )}
 
               <p className="rounded-lg border border-cash-green/30 bg-cash-green/10 px-2.5 py-1.5 text-[10px] font-bold leading-4 text-cash-green-deep">
                 المزامنة ثنائية الاتجاه تلقائياً: تُرفع السجلات الأحدث وتُنزل السجلات الأحدث،
@@ -298,7 +314,7 @@ export function DatabaseScreen({
               <button
                 type="button"
                 onClick={() => void runSync()}
-                disabled={syncBusy || !localUrl.trim() || !cloudUrl.trim()}
+                disabled={syncBusy || !localUrl.trim() || (!cloudLocked && !cloudUrl.trim())}
                 className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-cash-cyan text-[12.5px] font-black text-white cy-press hover:brightness-110 disabled:opacity-50"
               >
                 <IcoSync className={`h-4 w-4 ${syncBusy ? "animate-spin" : ""}`} />

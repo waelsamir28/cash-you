@@ -152,6 +152,8 @@ export async function saveDbConfig(mode: DbMode, url: string): Promise<DbTestRes
 export async function syncDatabases(
   localUrl: string,
   cloudUrl: string,
+  /** في السحابة: القاعدة السحابية تُحدَّد من الخادم (قاعدة العميل) */
+  cloudLocked = false,
 ): Promise<SyncReport> {
   const bridge = typeof window !== "undefined" ? (window as CashYouWindow).cashYou : undefined;
   if (bridge?.syncDatabases) {
@@ -173,7 +175,7 @@ export async function syncDatabases(
     const res = await fetch("/api/db-sync", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ localUrl, cloudUrl }),
+      body: JSON.stringify({ localUrl, cloudUrl, useSessionTenant: cloudLocked }),
     });
     const json = (await res.json()) as SyncReport;
     return json;
