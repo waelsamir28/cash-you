@@ -27,14 +27,6 @@ function getDeviceCode() {
   return `CYD-${digest.match(/.{1,4}/g).join("-")}`;
 }
 
-function readConfig() {
-  try {
-    return JSON.parse(readFileSync(path.join(__dirname, "app-config.json"), "utf8"));
-  } catch {
-    return { url: "" };
-  }
-}
-
 const windowIcon = path.join(__dirname, "icon.png");
 
 ipcMain.handle("cash-you:get-device-code", () => getDeviceCode());
