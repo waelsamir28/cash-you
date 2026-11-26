@@ -79,6 +79,28 @@ function setSplashStatus(win, text) {
 }
 
 ipcMain.handle("cash-you:get-device-code", () => getDeviceCode());
+
+ipcMain.handle("cash-you:check-update", async () => {
+  try {
+    const res = await fetch("https://api.github.com/repos/waelsamir28/cash-you/releases/latest", {
+      headers: { "User-Agent": "CASH-YOU-Desktop" },
+    });
+    if (!res.ok) return { ok: false, error: "تعذر الاتصال بخادم التحديثات" };
+    const data = await res.json();
+    const latest = String(data.tag_name || "").replace(/^desktop-v/, "");
+    const current = app.getVersion();
+    const exeAsset = (data.assets || []).find((a) => String(a.name).endsWith(".exe"));
+    return {
+      ok: true,
+      current,
+      latest,
+      hasUpdate: Boolean(latest && latest !== current),
+      downloadUrl: exeAsset?.browser_download_url || data.html_url || "",
+    };
+  } catch {
+    return { ok: false, error: "لا يوجد اتصال بالإنترنت" };
+  }
+});
 ipcMain.handle("cash-you:get-activation-record", () => {
   const file = path.join(app.getPath("userData"), "cash-you-license.bin");
   try {

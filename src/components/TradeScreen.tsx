@@ -103,6 +103,7 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
   const [categoryId, setCategoryId] = useState<number | "all">("all");
   const [page, setPage] = useState(0);
   const [code, setCode] = useState("");
+  const [origInvoice, setOrigInvoice] = useState("");
   const [paid, setPaid] = useState("0");
   const [discountPercent, setDiscount] = useState(0);
   const [reference, setReference] = useState("");
@@ -180,6 +181,30 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
     }
     sfxScan();
     add(hit);
+  };
+
+  /** تحميل أصناف فاتورة أصلية في المرتجع */
+  const loadOriginalInvoice = async () => {
+    const num = Number(origInvoice.trim());
+    if (!num) { notify("warn", "أدخل رقم الفاتورة الأصلية"); return; }
+    const res = await apiFetch(`/api/invoices/${num}`);
+    if (!res.ok) { notify("err", `الفاتورة رقم ${num} غير موجودة`); sfxError(); return; }
+    const json = await res.json();
+    const items = (json.items ?? []) as { productId: number | null; code: string; name: string; unit: string; qty: number; price: number }[];
+    if (!items.length) { notify("warn", "الفاتورة الأصلية فارغة"); return; }
+    const newLines: Line[] = items.map((it) => {
+      const prod = data.products.find((p) => p.id === it.productId) ?? data.products.find((p) => p.code === it.code);
+      return {
+        uid: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        product: prod ?? { id: it.productId ?? 0, code: it.code, name: it.name, unit: it.unit, price: it.price, wholesalePrice: it.price, cost: it.price, stock: 0, minStockLimit: 0, categoryId: 0, sortOrder: 0 },
+        qty: it.qty,
+        price: it.price,
+      };
+    });
+    setLines((prev) => [...prev, ...newLines]);
+    setOrigInvoice("");
+    notify("ok", `تم تحميل ${newLines.length} صنف من الفاتورة رقم ${num}`);
+    sfxScan();
   };
 
   const setLine = (lineUid: string, patch: Partial<Pick<Line, "qty" | "price">>) =>
@@ -392,6 +417,26 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
             </select>
             <MiniAdd title={`إضافة ${cfg.party} جديد`} onClick={() => { sfxKey(); setShowParty(true); }} />
           </Field>
+
+          {(kind === "salesReturn" || kind === "purchaseReturn") && (
+            <Field label="مسح الفاتورة الأصلية" icon={<IcoBarcode className="w-4 h-4 text-cash-orange" />} grow>
+              <input
+                value={origInvoice}
+                onChange={(e) => setOrigInvoice(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void loadOriginalInvoice();
+                  }
+                }}
+                placeholder="رقم الفاتورة الأصلية ثم Enter لتحميل أصنافها"
+                className="flex-1 min-w-0 bg-transparent outline-none text-[13px] font-mono font-bold text-ink-900 placeholder:text-slate-400 placeholder:font-sans placeholder:font-normal h-full"
+              />
+              {origInvoice && (
+                <button onClick={() => void loadOriginalInvoice()} className="h-7 px-2 rounded bg-cash-orange text-white font-black text-[11px] shrink-0">تحميل</button>
+              )}
+            </Field>
+          )}
 
           <Field label="الكود / الباركود" icon={<IcoBarcode className="w-4 h-4 text-amber-600" />} grow>
             <input

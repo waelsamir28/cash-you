@@ -6,6 +6,7 @@ import type { Draft, Totals } from "@/lib/draft";
 import { lineTotal } from "@/lib/draft";
 import { money, qtyText } from "@/lib/format";
 import { show, type ShopSettings } from "@/lib/settings";
+import { CameraBarcodeModal } from "./Overlays";
 import {
   IcoBarcode,
   IcoChevronLeft,
@@ -82,6 +83,7 @@ export function PosScreen({
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const page = Math.min(draft.page, pages - 1);
+  const [showCamera, setShowCamera] = useState(false);
   const slice = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
   const hueOf = (catId: number) =>
@@ -205,7 +207,21 @@ export function PosScreen({
               inputMode="numeric"
               className="flex-1 min-w-0 bg-transparent outline-none text-[13px] font-mono font-bold text-ink-900 placeholder:text-slate-400 placeholder:font-sans placeholder:font-normal h-full"
             />
+            <button
+              type="button"
+              onClick={() => setShowCamera(true)}
+              title="مسح بالكاميرا"
+              className="h-7 px-2 rounded bg-ink-800 hover:bg-ink-900 text-white text-[11px] font-black shrink-0"
+            >
+              📷
+            </button>
           </Field>
+          {showCamera && (
+            <CameraBarcodeModal
+              onDetected={(c) => actions.addByCode(c)}
+              onClose={() => setShowCamera(false)}
+            />
+          )}
 
           <Field label="بحث الصنف" icon={<IcoSearch className="w-4 h-4 text-slate-400" />} grow>
             <input
