@@ -1,5 +1,3 @@
-import Image from "next/image";
-
 type P = { className?: string };
 
 const base = "shrink-0";
@@ -123,12 +121,6 @@ export const IcoMute = ({ className = "w-4 h-4" }: P) => (
   </svg>
 );
 
-export const IcoPhone = ({ className = "w-4 h-4" }: P) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${base} ${className}`}>
-    <path d="M6.5 3h3l1.5 4-2 1.5a12 12 0 006.5 6.5l1.5-2 4 1.5v3a2 2 0 01-2.2 2A17 17 0 014.5 5.2 2 2 0 016.5 3z" strokeLinejoin="round" />
-  </svg>
-);
-
 export const IcoCheck = ({ className = "w-4 h-4" }: P) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" className={`${base} ${className}`}>
     <path d="M4.5 12.5l5 5 10-11" />
@@ -139,13 +131,6 @@ export const IcoWarn = ({ className = "w-4 h-4" }: P) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" className={`${base} ${className}`}>
     <path d="M12 3.6L22 20H2z" strokeLinejoin="round" />
     <path d="M12 9.6v4.2M12 17h.01" />
-  </svg>
-);
-
-export const IcoSync = ({ className = "w-4 h-4" }: P) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" className={`${base} ${className}`}>
-    <path d="M20 11a8 8 0 00-14.3-4.6M4 13a8 8 0 0014.3 4.6" />
-    <path d="M20 4.5V11h-6.5M4 19.5V13h6.5" />
   </svg>
 );
 
@@ -189,92 +174,17 @@ export const IcoWallet = ({ className = "w-4 h-4" }: P) => (
 );
 
 export const IcoLogo = ({ className = "w-8 h-8" }: P) => (
-  <Image
-    src="/icon.png"
-    alt="CASH YOU"
-    width={256}
-    height={256}
-    priority
-    draggable={false}
-    className={`${base} rounded-[22%] object-contain ${className}`}
-  />
-);
-/* ---------- أيقونات إضافية (الإعدادات · الترحيب · التكبير) ---------- */
-
-export const IcoSliders = ({ className = "w-4 h-4" }: P) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`${base} ${className}`}>
-    <path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" />
-    <circle cx="15" cy="6" r="2" />
-    <circle cx="9" cy="12" r="2" />
-    <circle cx="17" cy="18" r="2" />
+  <svg viewBox="0 0 48 48" className={`${base} ${className}`}>
+    <defs>
+      <linearGradient id="cyLogoG" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#fbbf24" />
+        <stop offset="55%" stopColor="#f59e0b" />
+        <stop offset="100%" stopColor="#f97316" />
+      </linearGradient>
+    </defs>
+    <rect x="2" y="2" width="44" height="44" rx="13" fill="url(#cyLogoG)" />
+    <rect x="2" y="2" width="44" height="44" rx="13" fill="none" stroke="#fde68a" strokeWidth="1.5" />
+    <path d="M31 17.5a8.5 8.5 0 100 13" fill="none" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
+    <path d="M24 12v24" stroke="#1e293b" strokeWidth="2.6" strokeLinecap="round" opacity="0.55" />
   </svg>
 );
-
-export const IcoPalette = ({ className = "w-4 h-4" }: P) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" className={`${base} ${className}`}>
-    <path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.8 0-.9-.7-1.6-1.6-1.6H10a3 3 0 0 1 0-6h8a3 3 0 0 0 3-3A8.4 8.4 0 0 0 12 3Z" />
-    <circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none" />
-    <circle cx="10" cy="7" r="1" fill="currentColor" stroke="none" />
-    <circle cx="14.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
-  </svg>
-);
-
-export const IcoExpand = ({ className = "w-4 h-4" }: P) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" className={`${base} ${className}`}>
-    <path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5" />
-  </svg>
-);
-
-export const IcoReceipt = ({ className = "w-4 h-4" }: P) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${base} ${className}`}>
-    <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" />
-    <path d="M9 8h6M9 12h6M9 16h3" />
-  </svg>
-);
-
-/* أيقونة القائمة (الهامبرجر) */
-export function IcoMenu({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" aria-hidden>
-      <path d="M4 6h16M4 12h16M4 18h16" />
-    </svg>
-  );
-}
-
-export function IcoCloud({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M17.5 19a4.5 4.5 0 0 0 .5-8.96A6 6 0 0 0 6.2 9.2A4 4 0 0 0 7 17h10.5Z" />
-    </svg>
-  );
-}
-
-export function IcoDatabase({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <ellipse cx="12" cy="5.5" rx="7" ry="2.8" /><path d="M5 5.5v6c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-6" /><path d="M5 11.5v6c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-6" />
-    </svg>
-  );
-}
-
-/* قفل — لشاشة الدخول */
-export function IcoLock({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="4.5" y="10.5" width="15" height="9.5" rx="2.2" />
-      <path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7" />
-      <circle cx="12" cy="15.2" r="1.2" />
-    </svg>
-  );
-}
-
-/* آلة حاسبة */
-export function IcoCalc({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="5" y="3" width="14" height="18" rx="2.5" />
-      <path d="M8.5 7h7" />
-      <path d="M8.5 11h.01M12 11h.01M15.5 11h.01M8.5 14.5h.01M12 14.5h.01M15.5 14.5h.01M8.5 18h.01M12 18h.01M15.5 18h.01" />
-    </svg>
-  );
-}

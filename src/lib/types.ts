@@ -160,35 +160,6 @@ export type LineItem = {
   discount: number;
 };
 
-export type SessionUser = {
-  id: number;
-  username: string;
-  fullName: string;
-  role: "owner" | "manager" | "cashier";
-};
-
-export type TrialLimitKey = "products" | "invoices" | "customers" | "suppliers";
-
-export type LicenseInfo = {
-  active: boolean;
-  validUntil: string | null;
-  daysLeft: number;
-};
-
-export type TrialStatus = {
-  trial: boolean;
-  /** هل النسخة مفعّلة بكود HMAC */
-  licensed: boolean;
-  /** تفاصيل الترخيص المدفوع */
-  license: LicenseInfo;
-  startedAt: string | null;
-  endsAt: string | null;
-  daysLeft: number;
-  expired: boolean;
-  usage: Record<TrialLimitKey, number>;
-  limits: Record<TrialLimitKey, number>;
-};
-
 export type Bootstrap = {
   categories: Category[];
   products: Product[];
@@ -208,13 +179,6 @@ export type Bootstrap = {
   nextInvoiceNumber: number;
   nextPurchaseNumber: number;
   shop: { name: string; phone: string };
-  /** إعدادات المتجر والثيم والفاتورة (تُحمَّل مع بيانات النظام) */
-  settings?: ShopSettings;
-  trial?: TrialStatus;
-  /** إصدار البرنامج (يُعرض في صفحة الدعم الفني) */
-  appVersion?: string;
-  /** معلومات عزل بيانات العميل (للتشخيص) */
-  tenant?: { key: string; kind: string; isolated: boolean };
 };
 
 export type InstallmentInput = {
@@ -240,8 +204,6 @@ export type SavedInvoice = {
   installmentIds?: number[];
 };
 
-export type ShopSettings = import("@/lib/settings").ShopSettings;
-
 export type ModuleKind =
   | "home"
   | "invoice"
@@ -254,71 +216,4 @@ export type ModuleKind =
   | "installments"
   | "expenses"
   | "treasury"
-  | "reports"
-  | "users"
-  | "activation"
-  | "support"
-  | "settings"
-  /* شاشات مضافة (مستوحاة من FATORA) */
-  | "invoiceHistory"
-  | "suspended"
-  | "shortages"
-  | "stockMovements"
-  | "activityLog"
-  | "deletedInvoices"
-  | "backup"
-  | "dashboard"
-  | "itemCard"
-  | "stocktake"
-  | "barcodePrint"
-  | "smartPurchase"
-  | "priceKiosk"
-  | "health";
-
-/* ============================ أنواع المميزات المضافة ============================ */
-
-export type StockMovement = {
-  id: number;
-  productId: number;
-  productCode: string;
-  productName: string;
-  movementType: string;
-  qty: number;
-  balanceAfter: number;
-  referenceType: string;
-  referenceNumber: number | null;
-  userName: string;
-  notes: string;
-  createdAt: string;
-};
-
-export type ActivityEntry = {
-  id: number;
-  userId: number | null;
-  userName: string;
-  action: string;
-  entityType: string;
-  entityId: number | null;
-  details: string;
-  createdAt: string;
-};
-
-export type DeletedInvoice = {
-  id: number;
-  invoiceNumber: number;
-  customerName: string;
-  total: number;
-  itemsJson: string;
-  deleteReason: string;
-  deletedBy: string;
-  deletedAt: string;
-};
-
-export type SuspendedInvoice = {
-  id: number;
-  title: string;
-  draftJson: string;
-  userName: string;
-  createdAt: string;
-  updatedAt: string;
-};
+  | "reports";

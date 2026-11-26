@@ -1,7 +1,6 @@
 "use client";
 
 import { apiFetch } from "@/lib/offline-sync";
-import { MoneyCard } from "@/components/PosScreen";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Bootstrap, ModuleKind, Product } from "@/lib/types";
 import { money, qtyText, shortStamp, uid } from "@/lib/format";
@@ -21,7 +20,6 @@ import {
   IcoX,
 } from "@/components/icons";
 import { Empty, PrintDocumentModal, type PrintDoc } from "@/components/ModuleUI";
-import { show, type ShopSettings } from "@/lib/settings";
 
 type TradeKind = Extract<ModuleKind, "purchase" | "salesReturn" | "purchaseReturn">;
 type Line = { uid: string; product: Product; qty: number; price: number };
@@ -32,8 +30,6 @@ type Props = {
   refresh: () => Promise<void>;
   notify: (kind: "ok" | "err" | "warn" | "info", text: string) => void;
   stamp: { date: string; time: string };
-  /** إعدادات البرنامج — للتحكم في ظهور أجزاء الشاشة كما في شاشة المبيعات */
-  settings: ShopSettings;
 };
 
 const PAGE_SIZE = 24;
@@ -90,7 +86,7 @@ const CONFIG = {
 
 const r2 = (n: number) => Math.round((Number.isFinite(n) ? n : 0) * 100) / 100;
 
-export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Props) {
+export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
   const cfg = CONFIG[kind];
   const parties = kind === "salesReturn" ? data.customers : data.suppliers;
   const isPurchase = kind === "purchase";
@@ -103,7 +99,6 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
   const [categoryId, setCategoryId] = useState<number | "all">("all");
   const [page, setPage] = useState(0);
   const [code, setCode] = useState("");
-  const [origInvoice, setOrigInvoice] = useState("");
   const [paid, setPaid] = useState("0");
   const [discountPercent, setDiscount] = useState(0);
   const [reference, setReference] = useState("");
@@ -181,30 +176,6 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
     }
     sfxScan();
     add(hit);
-  };
-
-  /** تحميل أصناف فاتورة أصلية في المرتجع */
-  const loadOriginalInvoice = async () => {
-    const num = Number(origInvoice.trim());
-    if (!num) { notify("warn", "أدخل رقم الفاتورة الأصلية"); return; }
-    const res = await apiFetch(`/api/invoices/${num}`);
-    if (!res.ok) { notify("err", `الفاتورة رقم ${num} غير موجودة`); sfxError(); return; }
-    const json = await res.json();
-    const items = (json.items ?? []) as { productId: number | null; code: string; name: string; unit: string; qty: number; price: number }[];
-    if (!items.length) { notify("warn", "الفاتورة الأصلية فارغة"); return; }
-    const newLines: Line[] = items.map((it) => {
-      const prod = data.products.find((p) => p.id === it.productId) ?? data.products.find((p) => p.code === it.code);
-      return {
-        uid: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        product: prod ?? { id: it.productId ?? 0, code: it.code, name: it.name, unit: it.unit, price: it.price, wholesalePrice: it.price, cost: it.price, stock: 0, minStockLimit: 0, categoryId: 0, sortOrder: 0 },
-        qty: it.qty,
-        price: it.price,
-      };
-    });
-    setLines((prev) => [...prev, ...newLines]);
-    setOrigInvoice("");
-    notify("ok", `تم تحميل ${newLines.length} صنف من الفاتورة رقم ${num}`);
-    sfxScan();
   };
 
   const setLine = (lineUid: string, patch: Partial<Pick<Line, "qty" | "price">>) =>
@@ -359,13 +330,11 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
     notify("ok", `تمت إضافة «${json.name}» واختياره في المستند`);
   };
 
-  /* نفس أعمدة شاشة المبيعات — أضيق حتى لا يظهر تمرير أفقي */
-  const COLS = "grid-cols-[32px_86px_76px_68px_54px_minmax(0,1fr)_72px]";
+  const COLS = "grid-cols-[38px_92px_84px_78px_62px_1fr_96px_74px]";
 
   return (
     <section className="flex-1 min-h-0 flex flex-col gap-1.5 p-1.5 bg-paper overflow-y-auto lg:overflow-hidden cy-scroll" dir="rtl">
       {/* ============ لافتة العنوان ============ */}
-      {show(settings, "topBarTitle") && (
       <div className="relative shrink-0 rounded-xl bg-ink-700 overflow-hidden shadow-[0_6px_18px_-8px_rgba(15,23,42,0.8)]">
         <div className="pointer-events-none absolute inset-0 cy-aurora opacity-90" />
         <div className="relative flex items-center gap-2 px-2 h-[46px]">
@@ -397,7 +366,6 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
           </div>
         </div>
       </div>
-      )}
 
       {/* ============ شريط المورد والباركود ============ */}
       <div className="shrink-0 rounded-xl bg-white border border-line shadow-sm px-2 py-1.5">
@@ -417,26 +385,6 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
             </select>
             <MiniAdd title={`إضافة ${cfg.party} جديد`} onClick={() => { sfxKey(); setShowParty(true); }} />
           </Field>
-
-          {(kind === "salesReturn" || kind === "purchaseReturn") && (
-            <Field label="مسح الفاتورة الأصلية" icon={<IcoBarcode className="w-4 h-4 text-cash-orange" />} grow>
-              <input
-                value={origInvoice}
-                onChange={(e) => setOrigInvoice(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    void loadOriginalInvoice();
-                  }
-                }}
-                placeholder="رقم الفاتورة الأصلية ثم Enter لتحميل أصنافها"
-                className="flex-1 min-w-0 bg-transparent outline-none text-[13px] font-mono font-bold text-ink-900 placeholder:text-slate-400 placeholder:font-sans placeholder:font-normal h-full"
-              />
-              {origInvoice && (
-                <button onClick={() => void loadOriginalInvoice()} className="h-7 px-2 rounded bg-cash-orange text-white font-black text-[11px] shrink-0">تحميل</button>
-              )}
-            </Field>
-          )}
 
           <Field label="الكود / الباركود" icon={<IcoBarcode className="w-4 h-4 text-amber-600" />} grow>
             <input
@@ -534,9 +482,9 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
       {/* ============ مساحة العمل ============ */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-1.5">
         <div className="flex-[3] min-h-[220px] lg:min-h-0 flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm">
-          <div className={`shrink-0 grid ${COLS} bg-ink-800 text-white text-[10.5px] font-black`}>
-            {["×", "الإجمالي", isPurchase ? "سعر الشراء" : "السعر", "الكمية", "الوحدة", "اسم الصنف", "الكود"].map((h, i) => (
-              <div key={h} className={`px-1 py-1.5 border-l border-white/10 last:border-l-0 ${i === 5 ? "text-right" : "text-center"}`}>
+          <div className={`shrink-0 grid ${COLS} bg-ink-800 text-white text-[11.5px] font-black`}>
+            {["×", "الإجمالي", isPurchase ? "سعر الشراء" : "السعر", "الكمية", "الوحدة", "اسم الصنف", "الرصيد بعد", "الكود"].map((h, i) => (
+              <div key={h} className={`px-1.5 py-2 border-l border-white/10 last:border-l-0 ${i === 5 ? "text-right" : "text-center"}`}>
                 {h}
               </div>
             ))}
@@ -612,20 +560,18 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
                       <span className={`w-1.5 h-5 rounded-full shrink-0 ${hueOf(l.product.categoryId)}`} />
                       {l.product.name}
                     </div>
-                    <div className="grid place-items-center font-mono text-[10.5px] text-amber-800 bg-amber-50/70">
-                      <span>{l.product.code}</span>
-                      <span className={`text-[10px] font-bold cy-num ${short ? "text-cash-red" : "text-slate-500"}`}>
-                        {qtyText(after)}
-                      </span>
+                    <div className={`grid place-items-center cy-num font-bold border-l border-slate-200 ${short ? "text-cash-red bg-red-50" : "text-ink-700"}`}>
+                      <span className="text-[10px] text-slate-400">{qtyText(l.product.stock)} ←</span>
+                      <span className="text-[12px] -mt-0.5">{qtyText(after)}</span>
                     </div>
+                    <div className="grid place-items-center font-mono text-[11.5px] text-amber-800 bg-amber-50/70">{l.product.code}</div>
                   </div>
                 );
               })
             )}
           </div>
 
-          {show(settings, "tableFooter") && (
-          <div className="shrink-0 h-7 bg-paper border-t border-line flex items-center justify-between px-2 text-[10.5px] font-bold text-ink-700 gap-2 overflow-x-auto cy-scroll">
+          <div className="shrink-0 h-8 bg-paper border-t border-line flex items-center justify-between px-3 text-[11.5px] font-bold text-ink-700 gap-2 overflow-x-auto cy-scroll">
             <span>عدد الأسطر: <b className="cy-num text-ink-900">{lines.length}</b></span>
             <span>إجمالي الكميات: <b className="cy-num text-ink-900">{qtyText(qtyCount)}</b></span>
             <span>الإجمالي قبل الخصم: <b className="cy-num text-ink-900">{money(subtotal)}</b></span>
@@ -638,16 +584,12 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
               </span>
             )}
           </div>
-          )}
         </div>
 
-        {/* شبكة اللمس — نفس تصميم شاشة المبيعات */}
-        {show(settings, "productGrid") && (
-        <div className="flex-[2] min-h-[220px] lg:min-h-0 flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm">
-          <div className="shrink-0 h-[22px] px-2 flex items-center justify-between bg-paper border-b border-line">
-            <span className="text-[10.5px] font-black text-ink-800">
-              قائمة الأصناف — اضغط للإضافة
-            </span>
+        {/* شبكة اللمس */}
+        <div className="flex-[2] min-h-[260px] lg:min-h-0 flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm">
+          <div className="shrink-0 h-8 px-3 flex items-center justify-between bg-paper border-b border-line">
+            <span className="text-[11.5px] font-black text-ink-800">قائمة الأصناف — اضغط للإضافة</span>
             <span className="text-[11px] font-bold text-slate-500 cy-num">{filtered.length} صنف</span>
           </div>
 
@@ -655,25 +597,20 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
             {slice.length === 0 ? (
               <Empty text="لا توجد أصناف مطابقة" />
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1">
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-1.5">
                 {slice.map((p) => {
                   const low = p.stock <= p.minStockLimit;
-                  const price = kind === "salesReturn" ? p.price : p.cost;
                   return (
                     <button
                       key={p.id}
                       onClick={() => add(p)}
-                      className="group relative text-right rounded-lg border bg-white px-1.5 py-1 h-[56px] cy-press cy-focus overflow-hidden hover:border-amber-brand hover:shadow-[0_8px_20px_-12px_rgba(245,158,11,0.9)]"
+                      className="group relative text-right rounded-xl border border-line bg-white px-2 py-2 h-[74px] cy-press cy-focus overflow-hidden hover:border-amber-brand hover:shadow-[0_8px_20px_-12px_rgba(245,158,11,0.9)]"
                     >
-                      <span className={`absolute top-0 bottom-0 right-0 w-0.5 opacity-80 ${hueOf(p.categoryId)}`} />
-                      <span className="block text-[10.5px] font-bold leading-[1.3] text-ink-800 line-clamp-2 pr-1">
-                        {p.name}
-                      </span>
-                      <span className="absolute bottom-1 right-1.5 left-1.5 flex items-center justify-between">
-                        <span className="text-[10.5px] font-black text-cash-green-deep cy-num">{money(price)}</span>
-                        <span className={`text-[9px] font-bold cy-num ${low ? "text-cash-red" : "text-slate-400"}`}>
-                          {qtyText(p.stock)}
-                        </span>
+                      <span className={`absolute top-0 bottom-0 right-0 w-1 opacity-80 ${hueOf(p.categoryId)}`} />
+                      <span className="block text-[11.5px] font-bold leading-[1.35] text-ink-800 line-clamp-2 pr-1.5">{p.name}</span>
+                      <span className="absolute bottom-1.5 right-2 left-2 flex items-center justify-between pr-0.5">
+                        <span className="text-[12px] font-black text-cash-green-deep cy-num">{money(kind === "salesReturn" ? p.price : p.cost)}</span>
+                        <span className={`text-[10px] font-bold cy-num ${low ? "text-cash-red" : "text-slate-400"}`}>{qtyText(p.stock)}</span>
                       </span>
                     </button>
                   );
@@ -682,7 +619,7 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
             )}
           </div>
 
-          <div className="shrink-0 h-7 bg-paper border-t border-line flex items-center justify-between px-2 gap-1">
+          <div className="shrink-0 h-10 bg-paper border-t border-line flex items-center justify-between px-2 gap-2">
             <PagerBtn disabled={safePage === 0} onClick={() => setPage(Math.max(0, safePage - 1))}>
               <IcoChevronRight className="w-3.5 h-3.5" />
               السابق
@@ -696,49 +633,58 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
             </PagerBtn>
           </div>
         </div>
-        )}
       </div>
 
-      {/* ============ البطاقات المالية — نفس مقاسات شاشة المبيعات ============ */}
-      <div className="shrink-0 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
-        <MoneyCard
-          label="إجمالي المستند"
-          value={money(total)}
-          tone="ink"
-          hint={`${qtyText(qtyCount)} وحدة`}
-        />
-        <MoneyCard
-          label={cfg.cash}
-          value={paid}
-          tone="amber"
-          editable
-          onInput={(v) => setPaid(v)}
-          action={
-            <button
-              onClick={payFull}
-              className="text-[8px] font-black text-amber-900/70 hover:text-cash-red"
-              title="تسوية كاملة (F12)"
-            >
+      {/* ============ البطاقات المالية ============ */}
+      <div className="shrink-0 grid grid-cols-3 gap-1.5">
+        <div className="relative overflow-hidden rounded-xl bg-ink-800 border border-black/40 px-3 py-2 shadow-[0_10px_26px_-14px_rgba(15,23,42,1)]">
+          <div className="pointer-events-none absolute inset-0 cy-aurora opacity-80" />
+          <div className="relative flex items-baseline justify-between">
+            <span className="text-[11.5px] font-black text-slate-400">إجمالي المستند</span>
+            <span className="text-[10px] font-bold text-cash-cyan cy-num">{qtyText(qtyCount)} وحدة</span>
+          </div>
+          <div className="relative text-white font-black text-[26px] sm:text-[34px] leading-none cy-num mt-1 text-left">{money(total)}</div>
+        </div>
+
+        <div className="rounded-xl bg-amber-soft border-2 border-amber-brand/70 px-3 py-2">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[11.5px] font-black text-amber-800">{cfg.cash}</span>
+            <button onClick={payFull} className="text-[10px] font-black text-amber-900/70 hover:text-cash-red" title="تسوية كاملة (F12)">
               تسوية كاملة F12
             </button>
-          }
-        />
-        <MoneyCard
-          label={cfg.rest}
-          value={money(credit)}
-          tone={credit > 0 ? "red" : "green"}
-          hint={credit > 0 ? "على الحساب" : "مسدد بالكامل"}
-        />
-        <MoneyCard label={`رصيد ${cfg.party}`} value={money(party?.balance ?? 0)} tone="slate" />
-        <MoneyCard
-          label="الرصيد بعد المستند"
-          value={money(r2((party?.balance ?? 0) + (isPurchase ? credit : -credit)))}
-          tone="cyan"
-        />
+          </div>
+          <input
+            value={paid}
+            onChange={(e) => setPaid(e.target.value)}
+            onFocus={(e) => e.currentTarget.select()}
+            inputMode="decimal"
+            aria-label={cfg.cash}
+            className="w-full bg-transparent outline-none text-cash-green-deep font-black text-[26px] sm:text-[34px] leading-none cy-num mt-1 text-left focus:bg-white/60 rounded"
+          />
+        </div>
+
+        <div className={`rounded-xl border-2 px-3 py-2 transition-colors ${credit > 0 ? "bg-amber-cream border-cash-red/60" : "bg-amber-cream border-cash-green/60"}`}>
+          <div className="flex items-baseline justify-between">
+            <span className="text-[11.5px] font-black text-amber-800">{cfg.rest}</span>
+            <span className={`text-[10px] font-black ${credit > 0 ? "text-cash-red" : "text-cash-green-deep"}`}>
+              {credit > 0 ? "على الحساب" : "مسدد بالكامل"}
+            </span>
+          </div>
+          <div className={`font-black text-[26px] sm:text-[34px] leading-none cy-num mt-1 text-left ${credit > 0 ? "text-cash-red" : "text-cash-green-deep"}`}>
+            {money(credit)}
+          </div>
+        </div>
       </div>
 
-      {/* ============ شريط المستندات السابقة ============ */}
+      {/* ============ شريط الرصيد والمستندات السابقة ============ */}
       <div className="shrink-0 flex items-center gap-2 flex-wrap justify-center">
+        <Pill tone="slate">
+          <IcoWallet className="w-3.5 h-3.5" />
+          رصيد {cfg.party} الحالي: <b className="cy-num">{money(party?.balance ?? 0)}</b>
+        </Pill>
+        <Pill tone="amber">
+          الرصيد بعد المستند: <b className="cy-num">{money(r2((party?.balance ?? 0) + (isPurchase ? credit : -credit)))}</b>
+        </Pill>
         <div className="flex items-center gap-1.5 overflow-x-auto cy-scroll max-w-full">
           {history.length === 0 ? (
             <span className="text-[11px] font-bold text-slate-500">لا توجد مستندات سابقة لهذا الحساب</span>
@@ -754,11 +700,11 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, settings }: Pr
         </div>
       </div>
 
-      {/* ============ مفاتيح الوظائف — نفس شبكة شاشة المبيعات ============ */}
-      <div className="shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+      {/* ============ مفاتيح الوظائف ============ */}
+      <div className="shrink-0 grid grid-cols-3 sm:grid-cols-6 gap-1.5">
         <FnKey k="F4" tone="light" onClick={resetDoc}>مستند جديد</FnKey>
         <FnKey k="F3" tone="light" onClick={() => barcodeRef.current?.focus()}>بحث بالكود</FnKey>
-        <FnKey k="F11" tone="red" onClick={() => { sfxKey(); setShowDiscount(true); }}>خصم %</FnKey>
+        <FnKey k="F11" tone="red" onClick={() => { sfxKey(); setShowDiscount(true); }}>خصم</FnKey>
         <FnKey k="F12" tone="orange" onClick={payFull}>تسوية كاملة</FnKey>
         <FnKey k="F10" tone="ink" busy={busy} onClick={() => void save(true)}>
           <span className="inline-flex items-center gap-1.5">

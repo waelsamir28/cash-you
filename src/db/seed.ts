@@ -5,6 +5,8 @@ import {
   products,
   customers,
   paymentMethods,
+  invoices,
+  invoiceItems,
   settings,
 } from "@/db/schema";
 
@@ -35,6 +37,7 @@ const PRODS: ProdSeed[] = [
   ["1010", "طقم أقلام جاف 10 قطع", 1, "طقم", 42, 40],
   ["1011", "سن قلم رصاص 0.5", 1, "علبة", 9, 120],
   ["1012", "قلم حبر بايلوت أزرق", 1, "قطعة", 28, 35],
+
   ["2001", "كراسة 60 ورقة سلك", 2, "قطعة", 22, 300],
   ["2002", "كراسة 100 ورقة سلك", 2, "قطعة", 32, 260],
   ["2003", "كشكول 200 ورقة مجلد", 2, "قطعة", 68, 90],
@@ -43,6 +46,49 @@ const PRODS: ProdSeed[] = [
   ["2006", "كشكول 80 ورقة سلك", 2, "قطعة", 27, 175],
   ["2007", "كراسة موسيقى", 2, "قطعة", 30, 45],
   ["2008", "بلوك نوت صغير", 2, "قطعة", 11, 210],
+
+  ["3001", "دباسة مكتبية كبيرة", 3, "قطعة", 85, 26],
+  ["3002", "دبابيس 24/6", 3, "علبة", 8, 300],
+  ["3003", "مقص مكتبي 8 بوصة", 3, "قطعة", 34, 62],
+  ["3004", "شريط لاصق شفاف", 3, "قطعة", 9, 240],
+  ["3005", "صمغ عصا 21 جم", 3, "قطعة", 16, 130],
+  ["3006", "استيكة بيضاء", 3, "قطعة", 5, 380],
+  ["3007", "براية معدن", 3, "قطعة", 7, 190],
+  ["3008", "مشبك ورق 33 مم", 3, "علبة", 12, 145],
+  ["3009", "حامل أقلام معدني", 3, "قطعة", 55, 30],
+  ["3010", "ختم تاريخ دوّار", 3, "قطعة", 75, 18],
+  ["3011", "منظم مكتب 3 أدراج", 3, "قطعة", 145, 12],
+
+  ["4001", "علبة ألوان خشبية 12 لون", 4, "علبة", 48, 70],
+  ["4002", "علبة ألوان خشبية 24 لون", 4, "علبة", 92, 44],
+  ["4003", "ألوان فلوماستر 12 لون", 4, "علبة", 56, 58],
+  ["4004", "ألوان أكريليك 6 أنابيب", 4, "طقم", 110, 22],
+  ["4005", "فرشة رسم رقم 4", 4, "قطعة", 13, 96],
+  ["4006", "باليتة ألوان بلاستيك", 4, "قطعة", 17, 40],
+  ["4007", "قلم رصاص تلوين أسود", 4, "قطعة", 9, 88],
+
+  ["5001", "شنطة ظهر مدرسية", 5, "قطعة", 385, 24],
+  ["5002", "مقلمة قماش زيبر", 5, "قطعة", 45, 80],
+  ["5003", "مقلمة بلاستيك دورين", 5, "قطعة", 62, 36],
+  ["5004", "شنطة لابتوب 15 بوصة", 5, "قطعة", 420, 14],
+  ["5005", "حافظة مستندات A4", 5, "قطعة", 25, 120],
+
+  ["6001", "رزمة ورق A4 500 ورقة", 6, "رزمة", 165, 85],
+  ["6002", "دفتر 200 ورقة مجلد", 6, "قطعة", 78, 60],
+  ["6003", "ورق مقوى ملون A4", 6, "رزمة", 38, 74],
+  ["6004", "ملف بلاستيك كبس", 6, "قطعة", 10, 260],
+  ["6005", "فاصل ملفات ملون", 6, "طقم", 21, 95],
+  ["6006", "ورق فاكس حراري", 6, "رول", 19, 130],
+  ["6007", "دفتر إيصالات مرقم", 6, "قطعة", 26, 105],
+  ["6008", "رول كاشير 80 مم", 6, "رول", 14, 320],
+
+  ["7001", "فلاشة 32 جيجا", 7, "قطعة", 195, 42],
+  ["7002", "ماوس لاسلكي", 7, "قطعة", 175, 33],
+  ["7003", "كيبورد عربي USB", 7, "قطعة", 210, 21],
+  ["7004", "وصلة HDMI 2 متر", 7, "قطعة", 120, 28],
+  ["7005", "حبر طابعة أسود 803", 7, "قطعة", 340, 16],
+  ["7006", "منظف شاشات 250 مل", 7, "قطعة", 48, 52],
+  ["7007", "ماوس باد مريح", 7, "قطعة", 39, 66],
 ];
 
 const CUSTOMERS: [name: string, phone: string, balance: number][] = [
@@ -58,9 +104,6 @@ const CUSTOMERS: [name: string, phone: string, balance: number][] = [
 const PAYMENTS = ["نقدي", "فيزا", "محفظة إلكترونية", "تحويل بنكي", "شيك"];
 
 export async function ensureSeed(): Promise<void> {
-  /* قاعدة جديدة تماماً (قاعدة محلية مولّدة تلقائياً) — ننشئ المخطط أولاً */
-  const { ensureDatabaseSchema } = await import("@/lib/ensure-schema");
-  await ensureDatabaseSchema();
   const flag = await db
     .select()
     .from(settings)
@@ -68,39 +111,136 @@ export async function ensureSeed(): Promise<void> {
     .limit(1);
   if (flag.length > 0) return;
 
-  /* التهيئة داخل معاملة واحدة: إن فشل أي جزء فلا تبقى بيانات ناقصة،
-     وتُعاد المحاولة في التشغيل التالي بشكل سليم. */
-  await db.transaction(async (tx) => {
-    await tx.insert(categories).values(
-      CATS.map((c, i) => ({ name: c.name, hue: c.hue, sortOrder: i })),
-    );
+  await db.insert(categories).values(
+    CATS.map((c, i) => ({ name: c.name, hue: c.hue, sortOrder: i })),
+  );
 
-    await tx.insert(products).values(
-      PRODS.map((p, i) => ({
-        code: p[0],
-        name: p[1],
-        categoryId: p[2],
-        unit: p[3],
-        price: p[4],
-        cost: Math.round(p[4] * 0.72 * 100) / 100,
-        stock: p[5],
-        sortOrder: i,
-      })),
-    );
+  await db.insert(products).values(
+    PRODS.map((p, i) => ({
+      code: p[0],
+      name: p[1],
+      categoryId: p[2],
+      unit: p[3],
+      price: p[4],
+      cost: Math.round(p[4] * 0.72 * 100) / 100,
+      stock: p[5],
+      sortOrder: i,
+    })),
+  );
 
-    await tx.insert(customers).values(
-      CUSTOMERS.map((c) => ({ name: c[0], phone: c[1], balance: c[2] })),
-    );
+  await db.insert(customers).values(
+    CUSTOMERS.map((c) => ({ name: c[0], phone: c[1], balance: c[2] })),
+  );
 
-    await tx.insert(paymentMethods).values(PAYMENTS.map((n) => ({ name: n })));
+  await db.insert(paymentMethods).values(PAYMENTS.map((n) => ({ name: n })));
 
-    // النسخة تبدأ بلا فواتير تاريخية: كل رقم يُنشئه العميل فعلياً
+  // فواتير تاريخية للوحة الرئيسية
+  const now = Date.now();
+  const history: {
+    number: number;
+    customerName: string;
+    method: string;
+    type: string;
+    lines: [string, number][];
+    ago: number;
+    paidFull: boolean;
+  }[] = [
+    {
+      number: 4011,
+      customerName: "مكتبة النور - طنطا",
+      method: "تحويل بنكي",
+      type: "آجل",
+      lines: [["6001", 6], ["2002", 20], ["1010", 4]],
+      ago: 3600_000 * 26,
+      paidFull: false,
+    },
+    {
+      number: 4012,
+      customerName: "عميل نقدي",
+      method: "نقدي",
+      type: "نقدي",
+      lines: [["1001", 12], ["2005", 6]],
+      ago: 3600_000 * 20,
+      paidFull: true,
+    },
+    {
+      number: 4013,
+      customerName: "شركة الدلتا للتوريدات",
+      method: "فيزا",
+      type: "نقدي",
+      lines: [["7005", 3], ["7002", 5], ["6001", 10]],
+      ago: 3600_000 * 7,
+      paidFull: true,
+    },
+    {
+      number: 4014,
+      customerName: "مدرسة الأمل الخاصة",
+      method: "نقدي",
+      type: "آجل",
+      lines: [["5001", 8], ["5002", 20], ["4001", 15]],
+      ago: 3600_000 * 4,
+      paidFull: false,
+    },
+    {
+      number: 4015,
+      customerName: "سوبر ماركت الأصيل",
+      method: "محفظة إلكترونية",
+      type: "نقدي",
+      lines: [["6008", 40], ["3004", 12]],
+      ago: 3600_000 * 1.5,
+      paidFull: true,
+    },
+  ];
 
-    await tx.insert(settings).values([
-      { key: "seeded_v1", value: new Date().toISOString() },
-      { key: "next_invoice", value: "1" },
-      { key: "shop_name", value: "كاش يو للتجارة والتوريدات المكتبية" },
-      { key: "shop_phone", value: "01222355769" },
-    ]);
-  });
+  const allProducts = await db.select().from(products);
+  const byCode = new Map(allProducts.map((p) => [p.code, p]));
+
+  for (const h of history) {
+    let subtotal = 0;
+    const rows = h.lines.map(([code, qty]) => {
+      const p = byCode.get(code)!;
+      const lineTotal = p.price * qty;
+      subtotal += lineTotal;
+      return {
+        productId: p.id,
+        code: p.code,
+        name: p.name,
+        unit: p.unit,
+        qty,
+        price: p.price,
+        discount: 0,
+        total: lineTotal,
+      };
+    });
+    const total = Math.round(subtotal * 100) / 100;
+    const paid = h.paidFull ? total : Math.round(total * 0.4 * 100) / 100;
+    const inserted = await db
+      .insert(invoices)
+      .values({
+        number: h.number,
+        customerName: h.customerName,
+        paymentMethod: h.method,
+        saleType: h.type,
+        subtotal,
+        discountPercent: 0,
+        discountValue: 0,
+        total,
+        paid,
+        remaining: Math.round((total - paid) * 100) / 100,
+        itemsCount: rows.length,
+        printed: true,
+        createdAt: new Date(now - h.ago),
+      })
+      .returning({ id: invoices.id });
+    await db
+      .insert(invoiceItems)
+      .values(rows.map((r) => ({ ...r, invoiceId: inserted[0].id })));
+  }
+
+  await db.insert(settings).values([
+    { key: "seeded_v1", value: new Date().toISOString() },
+    { key: "next_invoice", value: "4016" },
+    { key: "shop_name", value: "كاش يو للتجارة والتوريدات المكتبية" },
+    { key: "shop_phone", value: "01222355769" },
+  ]);
 }
