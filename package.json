@@ -1,6 +1,6 @@
 {
   "name": "cash-you",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "description": "CASH YOU — نظام مبيعات ونقاط بيع عربي (سطح مكتب + ويب)",
   "author": "CASH YOU",
@@ -29,6 +29,8 @@
     "test:desktop-bundle": "node tools/check-desktop-bundle.cjs"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.6.0",
+    "@electric-sql/pglite-socket": "^0.3.0",
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.2",
     "next": "16.4.2",
@@ -37,14 +39,14 @@
     "react-dom": "19.2.6"
   },
   "devDependencies": {
-    "electron": "45.4.1",
-    "electron-builder": "26.18.0",
     "@tailwindcss/postcss": "4.1.17",
     "@types/node": "22.19.15",
     "@types/pg": "8.18.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "drizzle-kit": "0.31.10",
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0",
     "eslint": "9.39.4",
     "eslint-config-next": "16.4.2",
     "postcss": "8.5.23",
@@ -127,10 +129,10 @@
     "afterPack": "tools/copy-standalone.cjs"
   },
   "optionalDependencies": {
-    "embedded-postgres": "19.0.0-beta.20",
-    "@embedded-postgres/windows-x64": "19.0.0-beta.20",
-    "@embedded-postgres/linux-x64": "19.0.0-beta.20",
+    "@embedded-postgres/darwin-arm64": "19.0.0-beta.20",
     "@embedded-postgres/darwin-x64": "19.0.0-beta.20",
-    "@embedded-postgres/darwin-arm64": "19.0.0-beta.20"
+    "@embedded-postgres/linux-x64": "19.0.0-beta.20",
+    "@embedded-postgres/windows-x64": "19.0.0-beta.20",
+    "embedded-postgres": "19.0.0-beta.20"
   }
 }
