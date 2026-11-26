@@ -142,6 +142,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          trap 'echo "::error::Build Custom Electron GUI Installer failed at line $LINENO"' ERR
           APP_VERSION=$(node -p "require('./package.json').version")
           mkdir -p installer/bin
           cp node_modules/7zip-bin/win/x64/7za.exe installer/bin/7za.exe
