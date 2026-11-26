@@ -20,6 +20,7 @@ import {
   IcoX,
 } from "@/components/icons";
 import { Empty, PrintDocumentModal, type PrintDoc } from "@/components/ModuleUI";
+import { AmountTile } from "@/components/AmountTile";
 
 type TradeKind = Extract<ModuleKind, "purchase" | "salesReturn" | "purchaseReturn">;
 type Line = { uid: string; product: Product; qty: number; price: number };
@@ -33,6 +34,13 @@ type Props = {
 };
 
 const PAGE_SIZE = 24;
+
+/* مقاسات الجدول والأشرطة مطابقة لشاشة فاتورة المبيعات */
+const ROW_H = 25;
+const HEAD_H = 32;
+const FOOT_H = 32;
+/* ×، الإجمالي، السعر، الكمية، الوحدة، اسم الصنف، الرصيد بعد، الكود */
+const COLS_T = "38px 100px 96px 118px 72px 1fr 110px 100px";
 
 const HUE: Record<string, string> = {
   amber: "bg-amber-500",
@@ -330,44 +338,50 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
     notify("ok", `تمت إضافة «${json.name}» واختياره في المستند`);
   };
 
-  const COLS = "grid-cols-[38px_92px_84px_78px_62px_1fr_96px_74px]";
+  const balanceAfter = r2((party?.balance ?? 0) + (isPurchase ? credit : -credit));
 
   return (
-    <section className="flex-1 min-h-0 flex flex-col gap-1.5 p-1.5 bg-paper overflow-y-auto lg:overflow-hidden cy-scroll" dir="rtl">
-      {/* ============ لافتة العنوان ============ */}
+    <section className="flex-1 min-h-0 flex flex-col gap-1.5 p-1.5 bg-paper overflow-hidden" dir="rtl">
+      {/* ============ لافتة العنوان (نفس نمط فاتورة المبيعات) ============ */}
       <div className="relative shrink-0 rounded-xl bg-ink-700 overflow-hidden shadow-[0_6px_18px_-8px_rgba(15,23,42,0.8)]">
         <div className="pointer-events-none absolute inset-0 cy-aurora opacity-90" />
-        <div className="relative flex items-center gap-2 px-2 h-[46px]">
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className="hidden sm:flex flex-col leading-none px-2">
-              <span className="text-[10px] text-slate-400 font-semibold">{stamp.date}</span>
-              <span className="text-[12px] text-slate-100 font-bold cy-num mt-0.5">{stamp.time}</span>
-            </div>
-            <span className="hidden md:flex h-8 px-2.5 items-center gap-1.5 rounded-lg bg-ink-800 border border-white/15 text-[11.5px] font-bold text-slate-200">
+        <div className="relative grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 h-[44px]">
+          <div className="flex items-center gap-1.5 justify-self-start min-w-0">
+            <span
+              className={`h-8 px-3 rounded-lg border text-[12px] font-black text-white flex items-center whitespace-nowrap ${cfg.accent}`}
+            >
+              {isPurchase ? "إضافة للمخزن +" : addsStock ? "إرجاع للمخزن +" : "خصم من المخزن −"}
+            </span>
+            <span className="cy-h-balances hidden md:flex h-8 px-2.5 items-center gap-1.5 rounded-lg bg-ink-800 border border-white/15 text-[11.5px] font-bold text-slate-200 whitespace-nowrap">
               <IcoUsers className="w-3.5 h-3.5 text-cash-cyan" />
               رصيد {cfg.party}:
               <b className={`cy-num ${(party?.balance ?? 0) > 0 ? "text-cash-red" : "text-cash-green"}`}>{money(party?.balance ?? 0)}</b>
             </span>
-            <span className={`h-8 px-2.5 grid place-items-center rounded-lg border text-[11.5px] font-black ${isPurchase ? "bg-cash-cyan/15 border-cash-cyan/50 text-cash-cyan" : "bg-cash-orange/15 border-cash-orange/50 text-cash-orange"}`}>
-              {isPurchase ? "إضافة للمخزن +" : addsStock ? "إرجاع للمخزن +" : "خصم من المخزن −"}
+            <span className="hidden xl:flex flex-col leading-none">
+              <span className="text-[10px] text-slate-400 font-semibold">{stamp.date}</span>
+              <span className="text-[12px] text-slate-100 font-bold cy-num mt-0.5">{stamp.time}</span>
             </span>
           </div>
 
-          <h1 className="flex-1 text-center text-white font-black text-[15px] sm:text-[18px] tracking-wide drop-shadow">
+          <h1 className="text-center text-white font-black text-[16px] sm:text-[18px] tracking-wide drop-shadow whitespace-nowrap">
             {cfg.title}
             <span className="hidden sm:inline text-slate-400 text-[12px] font-bold"> — {cfg.sub}</span>
           </h1>
 
-          <div className="shrink-0 flex items-center gap-1.5">
+          <div className="justify-self-end flex items-center gap-1.5">
             <span className="text-[10.5px] text-slate-400 font-bold hidden sm:inline">رقم المستند</span>
-            <span className={`min-w-[62px] h-8 px-3 grid place-items-center rounded-lg border-2 font-black text-[15px] cy-num ${isPurchase ? "bg-cyan-100 border-cash-cyan text-ink-900" : "bg-amber-soft border-amber-brand text-ink-900"}`}>
+            <span
+              className={`min-w-[66px] h-8 px-3 grid place-items-center rounded-lg border-2 font-black text-[15px] cy-num text-ink-900 ${
+                isPurchase ? "bg-cyan-100 border-cash-cyan" : "bg-amber-soft border-amber-brand shadow-[0_0_16px_-4px_rgba(245,158,11,0.8)]"
+              }`}
+            >
               {isPurchase ? data.nextPurchaseNumber : "جديد"}
             </span>
           </div>
         </div>
       </div>
 
-      {/* ============ شريط المورد والباركود ============ */}
+      {/* ============ شريط الحساب والباركود والبحث (نفس نمط شاشة البيع) ============ */}
       <div className="shrink-0 rounded-xl bg-white border border-line shadow-sm px-2 py-1.5">
         <div className="flex flex-wrap items-center gap-1.5">
           <Field label={cfg.party} grow>
@@ -456,46 +470,34 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
       </div>
 
       {/* ============ لافتة التعليمات ============ */}
-      <div className="shrink-0 relative overflow-hidden rounded-lg bg-ink-600 h-[30px] grid place-items-center">
+      <div className="shrink-0 relative overflow-hidden rounded-lg bg-ink-600 h-[28px] grid place-items-center">
         <div className="pointer-events-none absolute inset-y-0 w-1/3 cy-marquee bg-gradient-to-l from-transparent via-white/10 to-transparent" />
-        <p className="relative text-white text-[12px] sm:text-[13px] font-bold text-center px-2">{cfg.banner}</p>
+        <p className="relative text-white text-[12px] font-bold text-center px-2">{cfg.banner}</p>
       </div>
 
-      {/* ============ شريط التصنيفات ============ */}
-      <div className="shrink-0 flex items-center gap-1.5 overflow-x-auto cy-scroll pb-1">
-        <CatChip active={categoryId === "all"} onClick={() => { setCategoryId("all"); setPage(0); }} className="bg-ink-800 text-white border-ink-900" dot="bg-amber-brand">
-          الكل
-        </CatChip>
-        {data.categories.map((c) => (
-          <CatChip
-            key={c.id}
-            active={categoryId === c.id}
-            onClick={() => { setCategoryId(c.id); setPage(0); }}
-            className={`${HUE[c.hue] ?? HUE.slate} text-white border-black/20`}
-            dot={HUE[c.hue] ?? HUE.slate}
-          >
-            {c.name}
-          </CatChip>
-        ))}
-      </div>
-
-      {/* ============ مساحة العمل ============ */}
+      {/* ============ مساحة العمل: المستند + قائمة الأصناف ============ */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-1.5">
-        <div className="flex-[3] min-h-[220px] lg:min-h-0 flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm">
-          <div className={`shrink-0 grid ${COLS} bg-ink-800 text-white text-[11.5px] font-black`}>
-            {["×", "الإجمالي", isPurchase ? "سعر الشراء" : "السعر", "الكمية", "الوحدة", "اسم الصنف", "الرصيد بعد", "الكود"].map((h, i) => (
-              <div key={h} className={`px-1.5 py-2 border-l border-white/10 last:border-l-0 ${i === 5 ? "text-right" : "text-center"}`}>
-                {h}
-              </div>
-            ))}
+        {/* جدول أصناف المستند */}
+        <div className="flex-[3] min-h-0 flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm">
+          <div
+            className="shrink-0 grid bg-ink-800 text-white text-[12px] font-black"
+            style={{ gridTemplateColumns: COLS_T, height: HEAD_H }}
+          >
+            {["×", "الإجمالي", isPurchase ? "سعر الشراء" : "السعر", "الكمية", "الوحدة", "اسم الصنف", "الرصيد بعد", "الكود"].map(
+              (h) => (
+                <div key={h} className="flex items-center justify-center px-1.5 border-l border-white/10 last:border-l-0">
+                  {h}
+                </div>
+              ),
+            )}
           </div>
 
           <div ref={gridRef} className="flex-1 min-h-0 overflow-y-auto cy-scroll">
             {lines.length === 0 ? (
               <div className="h-full grid place-items-center p-6 text-center">
                 <div>
-                  <div className="mx-auto w-14 h-14 rounded-2xl bg-slate-100 grid place-items-center text-slate-400 mb-3">
-                    <IcoBarcode className="w-7 h-7" />
+                  <div className="mx-auto w-12 h-12 rounded-2xl bg-slate-100 grid place-items-center text-slate-400 mb-2">
+                    <IcoBarcode className="w-6 h-6" />
                   </div>
                   <p className="text-[13.5px] font-bold text-ink-700">لا توجد أصناف في المستند بعد</p>
                   <p className="text-[12px] text-slate-500 mt-1">{cfg.banner}</p>
@@ -505,13 +507,15 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
               lines.map((l, idx) => {
                 const after = r2(l.product.stock + (addsStock ? l.qty : -l.qty));
                 const short = after < 0;
+                const isLast = lastUid === l.uid;
                 return (
                   <div
                     key={l.uid}
-                    data-last={lastUid === l.uid ? "1" : "0"}
-                    className={`grid ${COLS} items-stretch text-[12.5px] border-b border-slate-200 ${
-                      lastUid === l.uid ? "cy-flash" : idx % 2 === 0 ? "bg-white" : "bg-paper-2"
-                    } hover:bg-amber-50/70 transition-colors`}
+                    data-last={isLast ? "1" : "0"}
+                    className={`cy-row grid items-stretch text-[12.5px] border-b border-slate-200 transition-colors hover:bg-amber-50/70 ${
+                      isLast ? "cy-flash" : idx % 2 === 0 ? "bg-white" : "bg-paper-2"
+                    }`}
+                    style={{ gridTemplateColumns: COLS_T, height: ROW_H }}
                   >
                     <button
                       onClick={() => removeLine(l.uid)}
@@ -529,12 +533,12 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
                       min={0}
                       value={l.price}
                       onChange={(e) => setLine(l.uid, { price: Math.max(0, Number(e.target.value) || 0) })}
-                      className="w-full text-center bg-transparent outline-none font-bold text-ink-800 cy-num border-l border-slate-200 focus:bg-amber-100"
+                      className="w-full h-full text-center bg-transparent outline-none font-bold text-ink-800 cy-num border-l border-slate-200 focus:bg-amber-100"
                     />
                     <div className="flex items-center justify-center gap-0.5 border-l border-slate-200">
                       <button
                         onClick={() => setLine(l.uid, { qty: Math.max(0.01, r2(l.qty - 1)) })}
-                        className="w-4 h-6 grid place-items-center rounded text-slate-500 hover:bg-ink-800 hover:text-white text-[13px] font-black"
+                        className="w-5 h-6 grid place-items-center rounded text-slate-500 hover:bg-ink-800 hover:text-white text-[13px] font-black"
                         aria-label="إنقاص"
                       >
                         −
@@ -549,20 +553,25 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
                       />
                       <button
                         onClick={() => setLine(l.uid, { qty: r2(l.qty + 1) })}
-                        className="w-4 h-6 grid place-items-center rounded text-slate-500 hover:bg-ink-800 hover:text-white text-[13px] font-black"
+                        className="w-5 h-6 grid place-items-center rounded text-slate-500 hover:bg-ink-800 hover:text-white text-[13px] font-black"
                         aria-label="زيادة"
                       >
                         +
                       </button>
                     </div>
                     <div className="grid place-items-center text-[11.5px] text-slate-600 border-l border-slate-200">{l.product.unit}</div>
-                    <div className="px-2 py-1.5 font-bold text-ink-800 truncate border-l border-slate-200 flex items-center gap-1.5">
-                      <span className={`w-1.5 h-5 rounded-full shrink-0 ${hueOf(l.product.categoryId)}`} />
-                      {l.product.name}
+                    <div className="cy-box px-2 font-bold text-ink-800 truncate border-l border-slate-200 flex items-center justify-center gap-1.5">
+                      <span className={`w-1.5 h-4 rounded-full shrink-0 ${hueOf(l.product.categoryId)}`} />
+                      <span className="truncate">{l.product.name}</span>
                     </div>
-                    <div className={`grid place-items-center cy-num font-bold border-l border-slate-200 ${short ? "text-cash-red bg-red-50" : "text-ink-700"}`}>
-                      <span className="text-[10px] text-slate-400">{qtyText(l.product.stock)} ←</span>
-                      <span className="text-[12px] -mt-0.5">{qtyText(after)}</span>
+                    <div
+                      className={`flex items-center justify-center gap-1 cy-num text-[11.5px] font-bold border-l border-slate-200 ${
+                        short ? "text-cash-red bg-red-50" : "text-ink-700"
+                      }`}
+                      title={`الرصيد الحالي ${qtyText(l.product.stock)}`}
+                    >
+                      <span className="text-[10px] text-slate-400">{qtyText(l.product.stock)}←</span>
+                      <span>{qtyText(after)}</span>
                     </div>
                     <div className="grid place-items-center font-mono text-[11.5px] text-amber-800 bg-amber-50/70">{l.product.code}</div>
                   </div>
@@ -571,12 +580,23 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
             )}
           </div>
 
-          <div className="shrink-0 h-8 bg-paper border-t border-line flex items-center justify-between px-3 text-[11.5px] font-bold text-ink-700 gap-2 overflow-x-auto cy-scroll">
-            <span>عدد الأسطر: <b className="cy-num text-ink-900">{lines.length}</b></span>
-            <span>إجمالي الكميات: <b className="cy-num text-ink-900">{qtyText(qtyCount)}</b></span>
-            <span>الإجمالي قبل الخصم: <b className="cy-num text-ink-900">{money(subtotal)}</b></span>
+          <div
+            className="cy-h-tableTotals shrink-0 bg-paper border-t border-line flex items-center justify-between px-3 text-[11.5px] font-bold text-ink-700 gap-2 overflow-x-auto cy-scroll"
+            style={{ height: FOOT_H }}
+          >
+            <span>
+              عدد الأسطر: <b className="cy-num text-ink-900">{lines.length}</b>
+            </span>
+            <span>
+              إجمالي الكميات: <b className="cy-num text-ink-900">{qtyText(qtyCount)}</b>
+            </span>
+            <span>
+              الإجمالي قبل الخصم: <b className="cy-num text-ink-900">{money(subtotal)}</b>
+            </span>
             {discountPercent > 0 && (
-              <span className="text-cash-red">خصم {discountPercent}% = <b className="cy-num">{money(discountValue)}</b></span>
+              <span className="text-cash-red">
+                خصم {discountPercent}% = <b className="cy-num">{money(discountValue)}</b>
+              </span>
             )}
             {isPurchase && lines.length > 0 && (
               <span className={marginPct >= 0 ? "text-cash-green-deep" : "text-cash-red"}>
@@ -586,31 +606,53 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
           </div>
         </div>
 
-        {/* شبكة اللمس */}
-        <div className="flex-[2] min-h-[260px] lg:min-h-0 flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm">
-          <div className="shrink-0 h-8 px-3 flex items-center justify-between bg-paper border-b border-line">
-            <span className="text-[11.5px] font-black text-ink-800">قائمة الأصناف — اضغط للإضافة</span>
-            <span className="text-[11px] font-bold text-slate-500 cy-num">{filtered.length} صنف</span>
+        {/* قائمة الأصناف (اللمس) */}
+        <div className="flex-[2] min-h-0 flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm">
+          <div className="shrink-0 px-2 flex items-center justify-between gap-2 bg-paper border-b border-line" style={{ height: HEAD_H }}>
+            <span className="text-[12px] font-black text-ink-800 whitespace-nowrap">الأصناف</span>
+            <select
+              value={categoryId}
+              onChange={(e) => {
+                setCategoryId(e.target.value === "all" ? "all" : Number(e.target.value));
+                setPage(0);
+              }}
+              aria-label="التصنيف"
+              className="cy-h-categories flex-1 min-w-0 max-w-[220px] h-7 rounded-lg border border-line bg-white px-2 text-[12px] font-bold text-ink-800 outline-none focus:border-amber-brand"
+            >
+              <option value="all">كل التصنيفات</option>
+              {data.categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <span className="text-[11px] font-bold text-slate-500 cy-num whitespace-nowrap">{filtered.length} صنف</span>
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto cy-scroll p-1.5">
             {slice.length === 0 ? (
-              <Empty text="لا توجد أصناف مطابقة" />
+              <div className="h-full grid place-items-center text-[12.5px] text-slate-500 font-bold">لا توجد أصناف مطابقة</div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-3 xl:grid-cols-4 gap-1">
                 {slice.map((p) => {
                   const low = p.stock <= p.minStockLimit;
+                  const h = HUE[data.categories.find((c) => c.id === p.categoryId)?.hue ?? "slate"] ?? HUE.slate;
                   return (
                     <button
                       key={p.id}
                       onClick={() => add(p)}
-                      className="group relative text-right rounded-xl border border-line bg-white px-2 py-2 h-[74px] cy-press cy-focus overflow-hidden hover:border-amber-brand hover:shadow-[0_8px_20px_-12px_rgba(245,158,11,0.9)]"
+                      title={p.name}
+                      className="group relative text-right rounded-lg border border-line bg-white px-1.5 pt-1.5 pb-1 h-[58px] cy-press cy-focus overflow-hidden flex flex-col justify-between hover:border-amber-brand hover:shadow-[0_6px_16px_-10px_rgba(245,158,11,0.9)]"
                     >
-                      <span className={`absolute top-0 bottom-0 right-0 w-1 opacity-80 ${hueOf(p.categoryId)}`} />
-                      <span className="block text-[11.5px] font-bold leading-[1.35] text-ink-800 line-clamp-2 pr-1.5">{p.name}</span>
-                      <span className="absolute bottom-1.5 right-2 left-2 flex items-center justify-between pr-0.5">
-                        <span className="text-[12px] font-black text-cash-green-deep cy-num">{money(kind === "salesReturn" ? p.price : p.cost)}</span>
-                        <span className={`text-[10px] font-bold cy-num ${low ? "text-cash-red" : "text-slate-400"}`}>{qtyText(p.stock)}</span>
+                      <span className={`absolute top-0 bottom-0 right-0 w-0.5 ${h} opacity-80`} />
+                      <span className="block text-[11px] font-bold leading-[1.3] text-ink-800 line-clamp-2 pr-1">{p.name}</span>
+                      <span className="flex items-center justify-between gap-1 pr-1">
+                        <span className="text-[11.5px] font-black text-cash-green-deep cy-num">
+                          {money(kind === "salesReturn" ? p.price : p.cost)}
+                        </span>
+                        <span className={`cy-h-stock text-[9.5px] font-bold cy-num ${low ? "text-cash-red" : "text-slate-400"}`}>
+                          {qtyText(p.stock)}
+                        </span>
                       </span>
                     </button>
                   );
@@ -619,13 +661,13 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
             )}
           </div>
 
-          <div className="shrink-0 h-10 bg-paper border-t border-line flex items-center justify-between px-2 gap-2">
+          <div className="shrink-0 bg-paper border-t border-line flex items-center justify-between px-2 gap-2" style={{ height: FOOT_H }}>
             <PagerBtn disabled={safePage === 0} onClick={() => setPage(Math.max(0, safePage - 1))}>
               <IcoChevronRight className="w-3.5 h-3.5" />
               السابق
             </PagerBtn>
             <span className="text-[11.5px] font-black text-ink-800 cy-num">
-              {safePage + 1} / {pages} - {filtered.length} صنف
+              {safePage + 1} / {pages}
             </span>
             <PagerBtn disabled={safePage >= pages - 1} onClick={() => setPage(Math.min(pages - 1, safePage + 1))}>
               التالي
@@ -635,55 +677,68 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
         </div>
       </div>
 
-      {/* ============ البطاقات المالية ============ */}
-      <div className="shrink-0 grid grid-cols-3 gap-1.5">
-        <div className="relative overflow-hidden rounded-xl bg-ink-800 border border-black/40 px-3 py-2 shadow-[0_10px_26px_-14px_rgba(15,23,42,1)]">
-          <div className="pointer-events-none absolute inset-0 cy-aurora opacity-80" />
-          <div className="relative flex items-baseline justify-between">
-            <span className="text-[11.5px] font-black text-slate-400">إجمالي المستند</span>
-            <span className="text-[10px] font-bold text-cash-cyan cy-num">{qtyText(qtyCount)} وحدة</span>
-          </div>
-          <div className="relative text-white font-black text-[26px] sm:text-[34px] leading-none cy-num mt-1 text-left">{money(total)}</div>
-        </div>
+      {/* ============ خانات المبالغ الكبيرة (نفس خانات شاشة البيع وتتحكم فيها الإعدادات) ============ */}
+      <div className="shrink-0 flex flex-wrap items-stretch justify-center gap-1.5">
+        <AmountTile k="net" label="إجمالي المستند">
+          {money(total)}
+        </AmountTile>
 
-        <div className="rounded-xl bg-amber-soft border-2 border-amber-brand/70 px-3 py-2">
-          <div className="flex items-baseline justify-between">
-            <span className="text-[11.5px] font-black text-amber-800">{cfg.cash}</span>
-            <button onClick={payFull} className="text-[10px] font-black text-amber-900/70 hover:text-cash-red" title="تسوية كاملة (F12)">
+        <AmountTile
+          k="paid"
+          label={cfg.cash}
+          aside={
+            <button
+              onClick={payFull}
+              className="text-[10px] font-black opacity-80 hover:text-cash-red"
+              title="تسوية كاملة (F12)"
+            >
               تسوية كاملة F12
             </button>
-          </div>
+          }
+        >
           <input
             value={paid}
             onChange={(e) => setPaid(e.target.value)}
             onFocus={(e) => e.currentTarget.select()}
             inputMode="decimal"
             aria-label={cfg.cash}
-            className="w-full bg-transparent outline-none text-cash-green-deep font-black text-[26px] sm:text-[34px] leading-none cy-num mt-1 text-left focus:bg-white/60 rounded"
+            style={{ textAlign: "var(--cy-amt-paid-na)" as React.CSSProperties["textAlign"] }}
+            className="w-full bg-transparent outline-none font-black leading-none cy-num focus:bg-white/60 rounded"
           />
-        </div>
+        </AmountTile>
 
-        <div className={`rounded-xl border-2 px-3 py-2 transition-colors ${credit > 0 ? "bg-amber-cream border-cash-red/60" : "bg-amber-cream border-cash-green/60"}`}>
-          <div className="flex items-baseline justify-between">
-            <span className="text-[11.5px] font-black text-amber-800">{cfg.rest}</span>
-            <span className={`text-[10px] font-black ${credit > 0 ? "text-cash-red" : "text-cash-green-deep"}`}>
-              {credit > 0 ? "على الحساب" : "مسدد بالكامل"}
-            </span>
-          </div>
-          <div className={`font-black text-[26px] sm:text-[34px] leading-none cy-num mt-1 text-left ${credit > 0 ? "text-cash-red" : "text-cash-green-deep"}`}>
-            {money(credit)}
-          </div>
+        <AmountTile
+          k="rem"
+          label={cfg.rest}
+          aside={<span className="text-[9.5px] font-black">{credit > 0 ? "على الحساب" : "مسدد بالكامل"}</span>}
+        >
+          {money(credit)}
+        </AmountTile>
+
+        <div className="cy-h-balances flex flex-wrap gap-1.5">
+          <AmountTile k="prev" label={`رصيد ${cfg.party} الحالي`}>
+            {money(party?.balance ?? 0)}
+          </AmountTile>
+
+          <AmountTile k="after" label="الرصيد بعد المستند">
+            {money(balanceAfter)}
+          </AmountTile>
         </div>
       </div>
 
-      {/* ============ شريط الرصيد والمستندات السابقة ============ */}
+      <div className="shrink-0 text-center text-[11px] font-bold text-slate-500">
+        {cfg.party}: <span className="text-ink-800">{party?.name ?? "—"}</span> · الخصم:{" "}
+        <span className="text-ink-800 cy-num">{discountPercent}%</span>
+      </div>
+
+      {/* ============ سجل المستندات السابقة للحساب ============ */}
       <div className="shrink-0 flex items-center gap-2 flex-wrap justify-center">
         <Pill tone="slate">
           <IcoWallet className="w-3.5 h-3.5" />
           رصيد {cfg.party} الحالي: <b className="cy-num">{money(party?.balance ?? 0)}</b>
         </Pill>
         <Pill tone="amber">
-          الرصيد بعد المستند: <b className="cy-num">{money(r2((party?.balance ?? 0) + (isPurchase ? credit : -credit)))}</b>
+          الرصيد بعد المستند: <b className="cy-num">{money(balanceAfter)}</b>
         </Pill>
         <div className="flex items-center gap-1.5 overflow-x-auto cy-scroll max-w-full">
           {history.length === 0 ? (
@@ -700,22 +755,30 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
         </div>
       </div>
 
-      {/* ============ مفاتيح الوظائف ============ */}
-      <div className="shrink-0 grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-        <FnKey k="F4" tone="light" onClick={resetDoc}>مستند جديد</FnKey>
-        <FnKey k="F3" tone="light" onClick={() => barcodeRef.current?.focus()}>بحث بالكود</FnKey>
-        <FnKey k="F11" tone="red" onClick={() => { sfxKey(); setShowDiscount(true); }}>خصم</FnKey>
-        <FnKey k="F12" tone="orange" onClick={payFull}>تسوية كاملة</FnKey>
-        <FnKey k="F10" tone="ink" busy={busy} onClick={() => void save(true)}>
-          <span className="inline-flex items-center gap-1.5">
-            <IcoPrint className="w-4 h-4" />
-            حفظ وطباعة
-          </span>
+      {/* ============ مفاتيح الوظائف (نفس أزرار شاشة البيع) ============ */}
+      <div className="cy-h-fnKeys shrink-0 grid grid-cols-2 sm:grid-cols-6 gap-1.5">
+        <FnKey onClick={resetDoc} k="F4" tone="light">
+          مستند جديد
         </FnKey>
-        <FnKey k="F5" tone="slate" busy={busy} onClick={() => void save(false)}>
+        <FnKey onClick={() => barcodeRef.current?.focus()} k="F3" tone="light">
+          بحث بالكود
+        </FnKey>
+        <FnKey onClick={() => { sfxKey(); setShowDiscount(true); }} k="F11" tone="red">
+          خصم
+        </FnKey>
+        <FnKey onClick={payFull} k="F12" tone="orange">
+          تسوية كاملة
+        </FnKey>
+        <FnKey onClick={() => void save(false)} k="F5" tone="save" busy={busy}>
           <span className="inline-flex items-center gap-1.5">
             <IcoCheck className="w-4 h-4" />
             {cfg.save}
+          </span>
+        </FnKey>
+        <FnKey onClick={() => void save(true)} k="F10" tone="savePrint" busy={busy}>
+          <span className="inline-flex items-center gap-1.5">
+            <IcoPrint className="w-4 h-4" />
+            حفظ وطباعة
           </span>
         </FnKey>
       </div>
@@ -759,7 +822,11 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
 
 function Field({ label, children, icon, grow }: { label: string; children: React.ReactNode; icon?: React.ReactNode; grow?: boolean }) {
   return (
-    <label className={`flex items-center gap-1.5 h-9 rounded-xl bg-paper-2 border border-line px-2.5 focus-within:border-amber-brand focus-within:bg-white transition-colors ${grow ? "flex-1 min-w-[150px]" : ""}`}>
+    <label
+      className={`flex items-center gap-1.5 h-9 rounded-xl bg-paper-2 border border-line px-2.5 focus-within:border-amber-brand focus-within:bg-white transition-colors ${
+        grow ? "flex-1 min-w-[150px]" : ""
+      }`}
+    >
       <span className="text-[11px] font-black text-slate-500 whitespace-nowrap">{label}</span>
       {icon}
       {children}
@@ -769,22 +836,14 @@ function Field({ label, children, icon, grow }: { label: string; children: React
 
 function MiniAdd({ onClick, title }: { onClick: () => void; title: string }) {
   return (
-    <button type="button" onClick={onClick} title={title} aria-label={title} className="w-6 h-6 shrink-0 grid place-items-center rounded-lg bg-cash-green text-white cy-press hover:bg-cash-green-deep">
-      <IcoPlus className="w-3.5 h-3.5" />
-    </button>
-  );
-}
-
-function CatChip({ children, active, onClick, className, dot }: { children: React.ReactNode; active: boolean; onClick: () => void; className: string; dot: string }) {
-  return (
     <button
+      type="button"
       onClick={onClick}
-      className={`shrink-0 h-8 px-3.5 rounded-full text-[12px] font-black border cy-press cy-focus flex items-center gap-1.5 whitespace-nowrap transition-all ${
-        active ? `${className} shadow-[0_6px_16px_-8px_rgba(15,23,42,0.9)] scale-[1.03]` : "bg-white text-ink-700 border-line hover:border-ink-500"
-      }`}
+      title={title}
+      aria-label={title}
+      className="w-6 h-6 shrink-0 grid place-items-center rounded-lg bg-cash-green text-white cy-press hover:bg-cash-green-deep"
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-white/80" : dot}`} />
-      {children}
+      <IcoPlus className="w-3.5 h-3.5" />
     </button>
   );
 }
@@ -803,7 +862,11 @@ function PagerBtn({ children, onClick, disabled }: { children: React.ReactNode; 
 
 function Pill({ children, tone }: { children: React.ReactNode; tone: "slate" | "amber" }) {
   return (
-    <span className={`h-7 px-3 rounded-full flex items-center gap-1.5 text-[11.5px] font-bold border ${tone === "slate" ? "bg-ink-800 text-slate-200 border-black/40" : "bg-amber-soft text-amber-900 border-amber-brand/70"}`}>
+    <span
+      className={`h-7 px-3 rounded-full flex items-center gap-1.5 text-[11.5px] font-bold border ${
+        tone === "slate" ? "bg-ink-800 text-slate-200 border-black/40" : "bg-amber-soft text-amber-900 border-amber-brand/70"
+      }`}
+    >
       {children}
     </span>
   );
@@ -813,16 +876,36 @@ const FN_TONES: Record<string, string> = {
   light: "bg-slate-200 text-ink-800 border-slate-300 hover:bg-slate-300",
   red: "bg-cash-red text-white border-red-700 hover:brightness-110",
   orange: "bg-cash-orange text-white border-orange-700 hover:brightness-110",
-  ink: "bg-ink-800 text-white border-black/50 hover:bg-ink-900",
-  slate: "bg-ink-700 text-white border-ink-900 hover:bg-ink-600",
 };
 
-function FnKey({ children, k, onClick, tone, busy }: { children: React.ReactNode; k: string; onClick: () => void; tone: string; busy?: boolean }) {
+function FnKey({
+  children,
+  k,
+  onClick,
+  tone,
+  busy,
+}: {
+  children: React.ReactNode;
+  k: string;
+  onClick: () => void;
+  tone: "light" | "red" | "orange" | "save" | "savePrint";
+  busy?: boolean;
+}) {
+  // زرا الحفظ يستخدمان لونين أخضرين من الإعدادات (نفس أزرار شاشة البيع)
+  const custom =
+    tone === "save"
+      ? { background: "var(--cy-save)", borderColor: "var(--cy-save)" }
+      : tone === "savePrint"
+        ? { background: "var(--cy-save-print)", borderColor: "var(--cy-save-print)" }
+        : undefined;
   return (
     <button
       onClick={onClick}
       disabled={busy}
-      className={`relative h-[52px] rounded-xl border cy-press cy-focus flex flex-col items-center justify-center gap-0.5 font-black text-[12.5px] px-1 text-center shadow-[0_6px_16px_-10px_rgba(15,23,42,0.9)] disabled:opacity-60 ${FN_TONES[tone] ?? FN_TONES.light}`}
+      style={custom}
+      className={`cy-fn ${custom ? "" : "cy-btn"} relative border cy-press cy-focus flex flex-col items-center justify-center gap-0.5 font-black text-[13.5px] shadow-[0_6px_16px_-10px_rgba(15,23,42,0.9)] disabled:opacity-60 hover:brightness-110 ${
+        custom ? "text-white" : (FN_TONES[tone] ?? "")
+      }`}
     >
       <span className="absolute top-1 right-2 text-[9.5px] font-mono opacity-70">{k}</span>
       {children}

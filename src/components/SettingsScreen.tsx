@@ -3,8 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { Bootstrap, SessionUser } from "@/lib/types";
 import {
+  AMOUNT_TILES,
   BUTTON_MOTIONS,
+  DEFAULT_AMOUNTS,
   DEFAULT_PREFS,
+  amountPreviewStyle,
+  type AmountKey,
+  type AmountStyle,
+  type TextAlign,
   ENTER_MOTIONS,
   HIDE_ITEMS,
   THEMES,
@@ -26,6 +32,7 @@ const TABS = [
   { id: "shop", label: "بيانات المحل" },
   { id: "theme", label: "الثيمات والألوان" },
   { id: "templates", label: "القوالب والحركات" },
+  { id: "amounts", label: "خانات المبالغ" },
   { id: "menu", label: "القائمة" },
   { id: "login", label: "شاشة الدخول" },
   { id: "visibility", label: "الإظهار والإخفاء" },
@@ -94,6 +101,7 @@ export function SettingsScreen({
               <AnimationSection prefs={prefs} onChange={onChange} />
             </>
           )}
+          {tab === "amounts" && <AmountsSection prefs={prefs} onChange={onChange} />}
           {tab === "menu" && <MenuSection prefs={prefs} onChange={onChange} />}
           {tab === "login" && <LoginSection prefs={prefs} onChange={onChange} />}
           {tab === "visibility" && <VisibilitySection prefs={prefs} onChange={onChange} />}
@@ -548,6 +556,97 @@ function Slider({
         className="w-full accent-amber-500"
       />
     </label>
+  );
+}
+
+/* ---------------- خانات المبالغ الكبيرة ---------------- */
+
+const TEXT_ALIGNS: { value: TextAlign; label: string }[] = [
+  { value: "right", label: "يمين" },
+  { value: "center", label: "وسط" },
+  { value: "left", label: "شمال" },
+];
+
+function AmountsSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
+  const [key, setKey] = useState<AmountKey>("net");
+  const cur = prefs.amounts[key];
+  const setCur = (patch: Partial<AmountStyle>) =>
+    onChange({ ...prefs, amounts: { ...prefs.amounts, [key]: { ...cur, ...patch } } });
+  const curLabel = AMOUNT_TILES.find((t) => t.key === key)?.label ?? "";
+  return (
+    <Card title="خانات المبالغ الكبيرة" subtitle="اضغط على الخانة لتعديلها — الألوان والمقاس والمحاذاة وحجم الخط">
+      <div className="flex flex-wrap items-stretch justify-center gap-2 rounded-xl bg-paper p-3">
+        {AMOUNT_TILES.map((t) => {
+          const a = prefs.amounts[t.key];
+          const selected = t.key === key;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setKey(t.key)}
+              aria-pressed={selected}
+              className={`relative rounded-xl border-2 px-2 py-1.5 flex flex-col justify-center shadow-sm cy-press overflow-hidden ${
+                selected ? "ring-2 ring-amber-brand ring-offset-2 ring-offset-paper" : ""
+              }`}
+              style={{ ...amountPreviewStyle(a), maxWidth: "100%" }}
+            >
+              <span
+                className="block w-full leading-none font-black truncate"
+                style={{ fontSize: a.labelSize, color: a.label, textAlign: a.labelAlign }}
+              >
+                {t.label}
+              </span>
+              <span
+                className="block w-full mt-1 leading-none font-black cy-num"
+                style={{ fontSize: a.numSize, textAlign: a.numAlign }}
+              >
+                1,250.00
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="mt-3 text-[12px] font-black text-ink-900">تعديل: {curLabel}</p>
+      <div className="mt-2 grid gap-2">
+        <ColorField label="لون الخانة" value={cur.bg} onChange={(v) => setCur({ bg: v })} />
+        <ColorField label="لون الأرقام" value={cur.text} onChange={(v) => setCur({ text: v })} />
+        <ColorField label="لون الاسم" value={cur.label} onChange={(v) => setCur({ label: v })} />
+        <ColorField label="لون الإطار" value={cur.border} onChange={(v) => setCur({ border: v })} />
+      </div>
+      <Slider label="عرض الخانة" value={cur.width} min={120} max={300} unit="px" onChange={(v) => setCur({ width: v })} />
+      <Slider label="ارتفاع الخانة" value={cur.height} min={40} max={100} unit="px" onChange={(v) => setCur({ height: v })} />
+      <Slider label="حجم خط الرقم" value={cur.numSize} min={12} max={40} unit="px" onChange={(v) => setCur({ numSize: v })} />
+      <Slider label="حجم خط الاسم" value={cur.labelSize} min={8} max={18} unit="px" onChange={(v) => setCur({ labelSize: v })} />
+      <div className="mt-2 grid gap-1">
+        <Segmented<TextAlign>
+          label="محاذاة الرقم"
+          value={cur.numAlign}
+          onChange={(v) => setCur({ numAlign: v })}
+          options={TEXT_ALIGNS}
+        />
+        <Segmented<TextAlign>
+          label="محاذاة الاسم"
+          value={cur.labelAlign}
+          onChange={(v) => setCur({ labelAlign: v })}
+          options={TEXT_ALIGNS}
+        />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          onClick={() => setCur({ ...DEFAULT_AMOUNTS[key] })}
+          className="h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
+        >
+          استعادة هذه الخانة
+        </button>
+        <button
+          onClick={() => onChange({ ...prefs, amounts: DEFAULT_AMOUNTS })}
+          className="h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
+        >
+          استعادة كل الخانات
+        </button>
+      </div>
+    </Card>
   );
 }
 

@@ -475,7 +475,8 @@ export function TabStrip({
   menuOpen: boolean;
 }) {
   return (
-    <div className="shrink-0 flex items-stretch bg-paper border-b border-line" dir="rtl">
+    <div className="shrink-0 flex flex-col bg-paper border-b border-line" dir="rtl">
+      <div className="flex items-stretch min-w-0">
       <nav className="flex items-end gap-1 px-2 pt-1.5 overflow-x-auto cy-scroll flex-1 min-w-0">
         <button
           onClick={onToggleMenu}
@@ -537,9 +538,11 @@ export function TabStrip({
           +
         </button>
       </nav>
+      </div>
 
-      <div className="hidden sm:flex items-center gap-2 px-3 border-r border-line bg-white/60 text-[11px] font-bold text-slate-500">
-        <span className="w-1.5 h-1.5 rounded-full bg-cash-green" />
+      {/* وحدة نقاط البيع: تحت التبويبات على الشمال، بمقاس صغير */}
+      <div className="hidden sm:flex mr-auto items-center gap-1 h-[18px] px-2 mb-0.5 rounded-md bg-white/60 border border-line text-[10px] font-bold leading-none text-slate-500 whitespace-nowrap">
+        <span className="w-1 h-1 rounded-full bg-cash-green" />
         وحدة نقاط البيع 01
       </div>
     </div>

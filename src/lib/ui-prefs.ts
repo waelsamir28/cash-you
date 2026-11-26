@@ -4,6 +4,8 @@
  * تُحفظ على هذا الجهاز فقط في localStorage، وتُطبَّق كمتغيرات CSS وسمات على الصفحة.
  */
 
+import type { CSSProperties } from "react";
+
 export type ThemeId = "dark" | "light-blue" | "light-green" | "light-gold" | "light-gray";
 export type ButtonRadius = "sharp" | "rounded" | "pill";
 export type ButtonSize = "compact" | "normal" | "large";
@@ -32,6 +34,46 @@ export const BUTTON_MOTIONS = [
 ] as const;
 export type ButtonMotion = (typeof BUTTON_MOTIONS)[number]["id"];
 export type MenuItemHeight = "compact" | "normal" | "large";
+
+/** خانات المبالغ الكبيرة في شاشة البيع والمستندات */
+export const AMOUNT_TILES = [
+  { key: "net", label: "المبلغ الصافي" },
+  { key: "paid", label: "المدفوع" },
+  { key: "rem", label: "المتبقي / الباقي للزبون" },
+  { key: "prev", label: "الرصيد السابق" },
+  { key: "after", label: "الرصيد بعد الفاتورة" },
+] as const;
+export type AmountKey = (typeof AMOUNT_TILES)[number]["key"];
+export type TextAlign = "right" | "center" | "left";
+export type AmountStyle = {
+  bg: string; // لون الخانة
+  text: string; // لون الأرقام
+  label: string; // لون الاسم
+  border: string; // لون الإطار
+  width: number; // العرض بالبكسل
+  height: number; // الارتفاع بالبكسل
+  numSize: number; // حجم خط الرقم
+  labelSize: number; // حجم خط الاسم
+  numAlign: TextAlign; // محاذاة الرقم
+  labelAlign: TextAlign; // محاذاة الاسم
+};
+
+const AMOUNT_BASE: Omit<AmountStyle, "bg" | "text" | "label" | "border"> = {
+  width: 156,
+  height: 56,
+  numSize: 20,
+  labelSize: 11,
+  numAlign: "center",
+  labelAlign: "center",
+};
+
+export const DEFAULT_AMOUNTS: Record<AmountKey, AmountStyle> = {
+  net: { ...AMOUNT_BASE, bg: "#1e293b", text: "#ffffff", label: "#cbd5e1", border: "#020617" },
+  paid: { ...AMOUNT_BASE, bg: "#fef08a", text: "#047857", label: "#334155", border: "#f59e0b" },
+  rem: { ...AMOUNT_BASE, bg: "#fef9c3", text: "#ef4444", label: "#b91c1c", border: "#ef4444" },
+  prev: { ...AMOUNT_BASE, bg: "#ffffff", text: "#1e293b", label: "#334155", border: "#cbd5e1" },
+  after: { ...AMOUNT_BASE, bg: "#fef08a", text: "#0f172a", label: "#334155", border: "#f59e0b" },
+};
 
 export type ReceiptPrefs = {
   paperWidth: 58 | 80;
@@ -115,6 +157,7 @@ export type UiPrefs = {
   centerText: boolean;
   receipt: ReceiptPrefs;
   showWelcome: boolean;
+  amounts: Record<AmountKey, AmountStyle>;
 };
 
 type ThemePreset = { id: ThemeId; label: string; mode: "dark" | "light"; chrome: string; paper: string; accent: string };
@@ -162,6 +205,7 @@ export const DEFAULT_PREFS: UiPrefs = {
     footerText: "شكراً لزيارتكم — البضاعة المباعة ترد خلال 14 يوم",
   },
   showWelcome: true,
+  amounts: DEFAULT_AMOUNTS,
 };
 
 const STORAGE_KEY = "cash-you.ui-prefs.v1";
@@ -197,6 +241,24 @@ export function mergePrefs(p: Partial<UiPrefs>): UiPrefs {
     login: { ...DEFAULT_PREFS.login, ...(p.login ?? {}) },
     hidden: { ...(p.hidden ?? {}) },
     receipt: { ...DEFAULT_PREFS.receipt, ...(p.receipt ?? {}) },
+    amounts: mergeAmounts(p.amounts),
+  };
+}
+
+function mergeAmounts(src: Partial<Record<AmountKey, Partial<AmountStyle>>> | undefined): Record<AmountKey, AmountStyle> {
+  const out = { ...DEFAULT_AMOUNTS };
+  for (const t of AMOUNT_TILES) out[t.key] = { ...DEFAULT_AMOUNTS[t.key], ...(src?.[t.key] ?? {}) };
+  return out;
+}
+
+/** نمط الخانة كـ CSS مباشر (يُستخدم في المعاينة داخل الإعدادات) */
+export function amountPreviewStyle(s: AmountStyle): CSSProperties {
+  return {
+    width: s.width,
+    height: s.height,
+    background: s.bg,
+    color: s.text,
+    borderColor: s.border,
   };
 }
 
@@ -259,5 +321,19 @@ export function applyPrefs(prefs: UiPrefs): void {
   root.style.setProperty("--cy-anim-dur", ANIM_MS[prefs.anim.speed]);
   root.style.setProperty("--cy-btn-accent", accent);
   root.style.setProperty("--cy-login-bg", prefs.login.bg);
+  for (const t of AMOUNT_TILES) {
+    const a = prefs.amounts[t.key];
+    const k = `--cy-amt-${t.key}`;
+    root.style.setProperty(`${k}-bg`, a.bg);
+    root.style.setProperty(`${k}-text`, a.text);
+    root.style.setProperty(`${k}-label`, a.label);
+    root.style.setProperty(`${k}-border`, a.border);
+    root.style.setProperty(`${k}-w`, `${a.width}px`);
+    root.style.setProperty(`${k}-h`, `${a.height}px`);
+    root.style.setProperty(`${k}-num`, `${a.numSize}px`);
+    root.style.setProperty(`${k}-lbl`, `${a.labelSize}px`);
+    root.style.setProperty(`${k}-na`, a.numAlign);
+    root.style.setProperty(`${k}-la`, a.labelAlign);
+  }
   root.style.setProperty("--cy-login-accent", prefs.login.accent);
 }

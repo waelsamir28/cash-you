@@ -295,9 +295,38 @@
   animation: cy-toast-bar-shrink 3s linear forwards;
 }
 
+/* الشعار يطفو لأعلى ولأسفل في نفس المساحة بحركة انسيابية */
+@keyframes cy-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+.cy-float {
+  animation: cy-float 3.2s ease-in-out infinite;
+}
+
+/* لمعة تتحرك داخل شريط التقدم */
+@keyframes cy-bar-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
+  }
+}
+.cy-bar-sweep {
+  animation: cy-bar-sweep 1.1s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cy-toast-pop,
-  .cy-toast-bar {
+  .cy-toast-bar,
+  .cy-float,
+  .cy-bar-sweep {
     animation: none;
   }
 }

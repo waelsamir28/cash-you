@@ -74,7 +74,8 @@ export default function CashYouApp({
     { id: "home", kind: "home", title: "الرئيسية" },
     { id: "inv-1", kind: "invoice", title: "فاتورة مبيعات" },
   ]);
-  const [activeId, setActiveId] = useState("inv-1");
+  /* يفتح البرنامج على الشاشة الرئيسية، وتبقى فاتورة المبيعات تبويباً جاهزاً */
+  const [activeId, setActiveId] = useState("home");
   const [drafts, setDrafts] = useState<Record<string, Draft>>({
     "inv-1": emptyDraft(initial.nextInvoiceNumber),
   });

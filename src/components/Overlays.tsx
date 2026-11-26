@@ -126,7 +126,7 @@ export function WelcomeToast({
         <span className="pointer-events-none absolute -top-16 -right-10 h-44 w-44 rounded-full bg-cash-cyan/20 blur-3xl" />
         <span className="pointer-events-none absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-amber-brand/20 blur-3xl" />
 
-        <span className="relative mx-auto grid h-28 w-28 place-items-center rounded-3xl bg-white p-2 shadow-[0_18px_40px_-12px_rgba(245,158,11,.7)]">
+        <span className="cy-float relative mx-auto grid h-28 w-28 place-items-center rounded-3xl bg-white p-2 shadow-[0_18px_40px_-12px_rgba(245,158,11,.7)]">
           {logo ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logo} alt={shopName} className="max-h-full max-w-full object-contain" />
@@ -141,10 +141,19 @@ export function WelcomeToast({
           {detail ?? "تم تسجيل الدخول بنجاح — نتمنى لك يوماً موفقاً"}
         </p>
 
-        <span className="relative mt-6 block h-1 w-full overflow-hidden rounded-full bg-white/10">
-          <span className="cy-toast-bar block h-full rounded-full bg-gradient-to-l from-amber-brand to-cash-cyan" />
+        <span className="relative mt-6 block h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+          <span className="cy-toast-bar relative block h-full overflow-hidden rounded-full bg-gradient-to-l from-amber-brand to-cash-cyan">
+            <span className="cy-bar-sweep pointer-events-none absolute inset-y-0 left-0 w-1/4 rounded-full bg-white/60 blur-[2px]" />
+          </span>
         </span>
         <p className="relative mt-2 text-[10px] font-bold text-slate-500">تختفي تلقائياً بعد 3 ثوانٍ · اضغط للمتابعة</p>
+
+        <footer className="relative mt-5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-white/10 pt-3.5 text-[11.5px] font-bold text-slate-400">
+          <span>تصميم وتنفيذ</span>
+          <span className="font-black text-white">م/وائل الجمال</span>
+          <span className="h-3 w-px bg-amber-brand/70" aria-hidden />
+          <span dir="ltr" className="cy-num font-black tracking-[0.08em] text-cash-cyan">01222355769</span>
+        </footer>
       </button>
     </div>
   );
