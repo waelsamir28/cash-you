@@ -262,6 +262,46 @@
     0 0 0 4px #f59e0b;
 }
 
+/* ---------- رسالة الترحيب العائمة ---------- */
+
+@keyframes cy-toast-pop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.94);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.015);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.cy-toast-pop {
+  animation: cy-toast-pop-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cy-toast-bar-shrink {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+.cy-toast-bar {
+  transform-origin: right center;
+  animation: cy-toast-bar-shrink 3s linear forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cy-toast-pop,
+  .cy-toast-bar {
+    animation: none;
+  }
+}
+
 /* ---------- الطباعة ---------- */
 @media print {
   body * {
