@@ -1,5 +1,27 @@
 # CASH YOU على Windows والعمل دون اتصال
 
+## مظهر مثبت Windows 11 الداكن
+
+- يستخدم المثبت ثيم **Windows 11 Dark** (`#0B1220`) عبر `electron/installer.nsh`:
+  خلفية داكنة ونص فاتح، شريط تقدم ناعم، إظهار تفاصيل النسخ، صفحة ترحيب وصفحة نهاية مخصّصتان،
+  وتشغيل التطبيق مباشرة بعد التثبيت.
+- الصور تُولَّد آلياً بأسلوب Mica (هالات متدرجة + الشعار الرسمي) عبر `tools/make-installer-art.cjs`:
+  - `installer-header.bmp` (150×57) لشريط رأس الصفحات الداخلية.
+  - `installer-sidebar.bmp` و`uninstaller-sidebar.bmp` (164×314) للوحة الجانبية.
+- **ملاحظة مهمة:** معالج NSIS لا يدعم تشكيل النصوص العربية داخل صفحاته، لذا نصوص المعالج
+  إنجليزية قصيرة، بينما واجهة التطبيق نفسه عربية RTL بالكامل.
+- يمكن دمج أي فرع ثيم آخر، ثم إعادة بناء المثبت؛ إعدادات الثيم كلها في `package.json` (قسم `nsis`)
+  و`electron/installer.nsh`.
+
+## أيقونة البرنامج وملف التثبيت
+
+- الشعار الرسمي في `assets/branding/icon.png` (خلفية شفافة، 256×256).
+- سكربت `tools/make-icon.cjs` يولّد `assets/branding/icon.ico` بكل الأحجام القياسية (16–256) المستخدمة كأيقونة للتطبيق والمثبت.
+- صفحة GitHub Actions باسم **Build Windows EXE** تبني المثبت آلياً على Windows وترفعه:
+  - كملف قابل للتنزيل من صفحة **Releases** باسم `CASH-YOU-Setup-<version>.exe`.
+  - وكرافدة (artifact) باسم `CASH-YOU-Windows-Setup` على صفحة تشغيل الـ Workflow.
+- البناء يعمل تلقائياً عند أي تغيير في `electron/` أو `assets/branding/` أو `package.json` على فرع `main`، ويمكن تشغيله يدوياً من تبويب Actions ← Run workflow.
+
 ## إعداد الترخيص
 
 1. افتح `tools/license-generator.html` في Edge أو Chrome. يمكن فتحه مباشرة من الملف دون إنترنت.
@@ -13,12 +35,14 @@
 1. أنشئ قاعدة Neon واضبط `DATABASE_URL` على خادم Next.js كما في `NEON_SETUP.md`، ثم شغّل `npm run db:push`.
 2. انشر موقع Next.js عبر HTTPS واضبط المفتاح العام في بيئة البناء.
 3. ضع عنوان الموقع المنشور في `electron/app-config.json` بدل القيمة الفارغة.
-4. على Windows، ثبّت الاعتمادات ثم أنشئ المثبت:
+4. لإنشاء المثبت بدون GitHub: على Windows ثبّت الاعتمادات ثم أنشئ المثبت:
 
    ```bash
    npm install
    npm run desktop:dist
    ```
+
+   الناتج في مجلد `release/CASH-YOU-Setup-1.0.0.exe` مع أيقونة التطبيق والمثبت من الشعار الرسمي.
 
    للتطوير المحلي: شغّل `npm run dev` ثم `npm run desktop` بعد وضع `http://localhost:3000` في ملف إعداد Electron.
 

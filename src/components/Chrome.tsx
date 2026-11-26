@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Bootstrap, InvoiceRow, ModuleKind, Product } from "@/lib/types";
+import type { Bootstrap, InvoiceRow, ModuleKind, Product, SessionUser, TrialStatus } from "@/lib/types";
 import { money } from "@/lib/format";
 import {
   IcoBox,
   IcoChart,
+  IcoCheck,
   IcoCode,
   IcoCart,
   IcoGear,
@@ -31,8 +32,10 @@ export function TitleBar({
   onPickInvoice,
   onWindowAction,
   minimized,
-  licenseActive,
-  onOpenLicense,
+  user,
+  trial,
+  onLogout,
+  onOpenActivation,
 }: {
   data: Bootstrap;
   muted: boolean;
@@ -41,8 +44,10 @@ export function TitleBar({
   onPickInvoice: (i: InvoiceRow) => void;
   onWindowAction: (a: "min" | "max" | "close") => void;
   minimized: boolean;
-  licenseActive: boolean;
-  onOpenLicense: () => void;
+  user: SessionUser | null;
+  trial: TrialStatus | null;
+  onLogout: () => void;
+  onOpenActivation: () => void;
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -231,14 +236,41 @@ export function TitleBar({
 
           <div className="hidden md:flex items-center gap-2 h-9 rounded-xl bg-ink-700/70 border border-white/10 px-2.5">
             <span className="w-6 h-6 rounded-full bg-gradient-to-br from-cash-cyan to-cash-violet grid place-items-center text-[11px] font-black text-ink-900">
-              و
+              {(user?.fullName?.trim()?.[0] ?? "؟").toUpperCase()}
             </span>
-            <span className="text-[12px] font-bold text-slate-200">م. وائل الجمال</span>
+            <span className="max-w-[150px] truncate text-[12px] font-bold text-slate-200">{user?.fullName ?? "غير مسجل"}</span>
+            {user?.role === "owner" && <span className="rounded bg-amber-brand/20 px-1.5 py-0.5 text-[9.5px] font-black text-amber-brand">مالك</span>}
           </div>
 
-          <button onClick={onOpenLicense} className={`hidden sm:flex items-center gap-1.5 h-9 rounded-xl border px-2.5 ${licenseActive ? "bg-cash-green/15 border-cash-green/45 text-cash-green" : "bg-amber-brand/15 border-amber-brand/45 text-amber-brand"}`} title="عرض كود الجهاز وحالة التفعيل">
-            <span className={`w-2 h-2 rounded-full ${licenseActive ? "bg-cash-green cy-ring" : "bg-amber-brand animate-pulse"}`} />
-            <span className="text-[12px] font-bold">{licenseActive ? "النسخة مفعّلة" : "تفعيل النسخة"}</span>
+          {trial && (
+            <button
+              onClick={onOpenActivation}
+              className={`hidden sm:flex items-center gap-1.5 h-9 rounded-xl border px-2.5 transition hover:brightness-125 ${trial.licensed ? "bg-cash-green/15 border-cash-green/45 text-cash-green" : trial.expired ? "bg-cash-red/15 border-cash-red/45 text-cash-red" : trial.daysLeft <= 3 ? "bg-amber-brand/15 border-amber-brand/45 text-amber-brand" : "bg-cash-green/15 border-cash-green/45 text-cash-green"}`}
+              title={
+                trial.licensed
+                  ? `نسخة مفعّلة حتى ${trial.license?.validUntil ? new Date(trial.license.validUntil).toLocaleDateString("ar-EG") : ""} — اضغط للتفاصيل`
+                  : `الفترة التجريبية: ${trial.daysLeft} يوم متبقٍ · اضغط للتفعيل · حدود: ${trial.limits.products} صنف / ${trial.limits.invoices} فاتورة / ${trial.limits.customers} عميل / ${trial.limits.suppliers} مورد`
+              }
+            >
+              <span className={`w-2 h-2 rounded-full ${trial.licensed ? "bg-cash-green cy-ring" : trial.expired ? "bg-cash-red" : trial.daysLeft <= 3 ? "bg-amber-brand animate-pulse" : "bg-cash-green cy-ring"}`} />
+              <span className="text-[12px] font-bold">
+                {trial.licensed
+                  ? `مفعّلة · ${trial.license?.daysLeft ?? 0} يوم`
+                  : trial.expired
+                    ? "انتهت التجربة · فعّل"
+                    : `تجريبي · ${trial.daysLeft} يوم`}
+              </span>
+            </button>
+          )}
+
+          <button
+            onClick={onLogout}
+            title="تسجيل الخروج"
+            aria-label="تسجيل الخروج"
+            className="hidden sm:flex items-center gap-1.5 h-9 rounded-xl border border-white/10 bg-ink-700/70 px-2.5 text-[12px] font-bold text-slate-300 transition hover:border-cash-red/50 hover:text-cash-red"
+          >
+            <IcoX className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">خروج</span>
           </button>
 
           <div className="flex items-center gap-1 mr-1">
@@ -416,6 +448,8 @@ export function IconRail({
     { icon: <IcoGear />, label: "المصروفات", kind: "expenses", hover: "hover:text-cash-red" },
     { icon: <IcoWallet />, label: "الخزينة", kind: "treasury", hover: "hover:text-emerald-300" },
     { icon: <IcoChart />, label: "التقارير والأرباح", kind: "reports", hover: "hover:text-cash-cyan" },
+    { icon: <IcoUsers />, label: "المستخدمون", kind: "users", hover: "hover:text-amber-brand" },
+    { icon: <IcoCheck />, label: "تفعيل النسخة", kind: "activation", hover: "hover:text-cash-green" },
   ];
   return (
     <nav
@@ -489,12 +523,14 @@ export function StatusBar({
   timeText,
   invoiceNumber,
   itemsCount,
+  user,
 }: {
   clock: Date;
   dateText: string;
   timeText: string;
   invoiceNumber: number;
   itemsCount: number;
+  user?: SessionUser | null;
 }) {
   void clock;
   return (
@@ -504,9 +540,9 @@ export function StatusBar({
     >
       <div className="flex items-center gap-2 shrink-0">
         <span className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-brand to-cash-orange grid place-items-center text-[10px] font-black text-ink-900">
-          و
+          {(user?.fullName?.trim()?.[0] ?? "؟").toUpperCase()}
         </span>
-        <span className="font-bold text-slate-200">المستخدم: م. وائل الجمال</span>
+        <span className="font-bold text-slate-200">المستخدم: {user?.fullName ?? "غير مسجل"}</span>
         <span className="hidden xl:inline text-slate-500">|</span>
         <span className="hidden xl:inline text-slate-400 cy-num">
           فاتورة رقم {invoiceNumber} · {itemsCount} صنف

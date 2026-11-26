@@ -1,5 +1,6 @@
 import { getBootstrap, markInvoicePrinted, saveInvoice, type SavePayload } from "@/lib/data";
 import { withOfflineIdempotency } from "@/lib/offline-idempotency";
+import { assertTrialAllows, bumpUsageCounter, getTrialStatus } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,10 @@ export async function POST(req: Request) {
     try {
       const body = (await req.json()) as SavePayload;
       if (!body || !Array.isArray(body.items) || body.items.length === 0) return Response.json({ error: "لا توجد أصناف في الفاتورة" }, { status: 400 });
-      return Response.json(await saveInvoice(body));
+      await assertTrialAllows("invoices");
+      const saved = await saveInvoice(body);
+      await bumpUsageCounter("invoices");
+      return Response.json(saved);
     } catch (err) {
       return Response.json({ error: err instanceof Error ? err.message : "تعذر حفظ الفاتورة" }, { status: 500 });
     }

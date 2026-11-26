@@ -1,19 +1,47 @@
-name: Package CASH YOU for Windows
+name: Build Windows EXE
 
+# يبني ملف التثبيت CASH-YOU-Setup-x.y.z.exe على GitHub Actions
+# ويُرفقه بـ Release حتى يمكن تنزيله مباشرة من صفحة الإصدارات.
 on:
-  workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - "electron/**"
+      - "assets/branding/**"
+      - "electron/installer.nsh"
+      - "tools/make-installer-art.cjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/build-windows-exe.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "electron/**"
+      - "assets/branding/**"
+      - "electron/installer.nsh"
+      - "tools/make-installer-art.cjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/build-windows-exe.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-windows:
+  windows-installer:
+    name: Package CASH YOU for Windows
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
@@ -21,40 +49,63 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Next.js standalone
+      - name: Prepare the app icon (ICO)
+        run: node tools/make-icon.cjs
+
+      - name: Generate the Windows 11 dark installer artwork
+        run: node tools/make-installer-art.cjs
+
+      - name: Package the NSIS installer
+        run: npm run desktop:dist
         env:
-          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
-        run: npm run build
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-      - name: Package NSIS installer
+      - name: Verify outputs
+        shell: bash
         run: |
-          node -e "const p=JSON.parse(require('fs').readFileSync('package.json','utf8')); p.version='1.4.2'; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2)+'\n');"
-          npx electron-builder --win nsis --x64 --publish never
+          set -euo pipefail
+          test -f assets/branding/icon.ico
+          test -f assets/branding/installer-header.bmp
+          test -f assets/branding/installer-sidebar.bmp
+          test -f assets/branding/uninstaller-sidebar.bmp
+          compgen -G "release/*.exe" > /dev/null
+          ls -lh assets/branding release
 
-      - name: Upload installer artifact
+      - name: Upload the installer as a workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: CASH-YOU-Windows-Setup
           path: |
-            dist/*.exe
-            dist/*.blockmap
             release/*.exe
             release/*.blockmap
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish GitHub Release
+      - name: Publish or update the GitHub Release
+        if: github.event_name != 'pull_request'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          APP_VERSION=$(node -p "require('./package.json').version || '1.4.2'")
+          APP_VERSION=$(node -p "require('./package.json').version")
           TAG="desktop-v${APP_VERSION}"
+
+          # اجمع ملفات الإصدار التي وُلدت فعلاً: المثبت وملف blockmap إن وُجد
           FILES=()
-          while IFS= read -r -d '' f; do FILES+=("$f"); done < <(find dist release -maxdepth 2 -type f \( -name '*.exe' -o -name '*.blockmap' \) -print0 2>/dev/null)
+          while IFS= read -r -d '' f; do FILES+=("$f"); done < <(find release -maxdepth 1 -type f \( -name '*.exe' -o -name '*.blockmap' \) -print0)
+
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No release files found" >&2
+            exit 1
+          fi
+
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "${FILES[@]}" --clobber
           else
-            gh release create "$TAG" --target "$GITHUB_SHA" --title "CASH YOU Desktop v${APP_VERSION}" --notes "CASH-YOU-Setup-${APP_VERSION}.exe" "${FILES[@]}"
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "CASH YOU Desktop v${APP_VERSION}" \
+              --notes "ملف تثبيت ويندوز: CASH-YOU-Setup-${APP_VERSION}.exe — بناء آلي رقم ${{ github.run_number }} من GitHub Actions، والأيقونة واللوجو من شعار CASH YOU الرسمي." \
+              "${FILES[@]}"
           fi

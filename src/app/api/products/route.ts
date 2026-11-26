@@ -1,5 +1,6 @@
 import { deleteProduct, upsertProduct, type ProductInput } from "@/lib/operations";
 import { withOfflineIdempotency } from "@/lib/offline-idempotency";
+import { assertTrialAllows, bumpUsageCounter } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,11 @@ async function handle(req: Request) {
         await deleteProduct(Number(body.id));
         return Response.json({ ok: true });
       }
-      return Response.json(await upsertProduct(body as ProductInput));
+      const input = body as ProductInput;
+      if (!input.id) await assertTrialAllows("products");
+      const saved = await upsertProduct(input);
+      if (!input.id) await bumpUsageCounter("products");
+      return Response.json(saved);
     } catch (e) {
       const raw = e instanceof Error ? e.message : "";
       const message = raw.toLowerCase().includes("duplicate") ? "هذا الباركود مستخدم لصنف آخر" : raw || "تعذر تنفيذ العملية";
