@@ -1,0 +1,57 @@
+name: Package CASH YOU for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js standalone
+        run: npm run build
+
+      - name: Test local PGlite database
+        run: node tools/test-embedded-postgres.cjs
+
+      - name: Package NSIS installer
+        run: npx electron-builder --win nsis --x64
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CASH-YOU-Windows-Setup
+          path: |
+            release/*.exe
+            release/*.blockmap
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          APP_VERSION=$(node -p "require('./package.json').version")
+          TAG="desktop-v${APP_VERSION}"
+          FILES=()
+          while IFS= read -r -d '' f; do FILES+=("$f"); done < <(find release -maxdepth 1 -type f \( -name '*.exe' -o -name '*.blockmap' \) -print0)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "CASH YOU Desktop v${APP_VERSION}" --notes "CASH-YOU-Setup-${APP_VERSION}.exe" "${FILES[@]}"
+          fi
