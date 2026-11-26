@@ -114,17 +114,17 @@ function applyOffline(data: Bootstrap, url: string, method: string, body: any): 
 
   if (path === "/api/invoices") {
     const items = Array.isArray(body.items) ? body.items : [];
-    const subtotal = r2(items.reduce((sum: number, item: any) => sum + Math.max(0, Number(item.price) * Number(item.qty) - Number(item.discount ?? 0)), 0));
-    const discountPercent = Math.max(0, Math.min(100, Number(body.discountPercent ?? 0)));
-    const total = r2(subtotal - subtotal * discountPercent / 100);
-    const paid = r2(Math.max(0, Number(body.installment?.downPayment ?? body.paid ?? 0)));
+    const subtotal = r2(items.reduce((sum: number, item: any) => sum + Math.max(0, Number(item.price) * Number(item.qty)), 0));
+    const total = subtotal;
+    const paid = r2(Math.max(0, Math.min(total, Number(body.installment?.downPayment ?? body.paid ?? 0))));
+    const credit = body.installment ? 0 : r2(Math.max(0, Number(body.credit ?? 0)));
     const remaining = r2(total - paid);
     const number = data.nextInvoiceNumber;
     const id = temp();
     const customerName = String(body.customerName || "عميل نقدي");
     const createdAt = now;
     const customer = data.customers.find((row) => row.id === body.customerId);
-    if (customer && remaining > 0) customer.balance = r2(customer.balance + remaining);
+    if (customer && remaining - credit !== 0) customer.balance = r2(customer.balance + remaining - credit);
     for (const item of items) {
       const product = data.products.find((row) => row.id === item.productId);
       if (product) product.stock = r2(product.stock - Number(item.qty));

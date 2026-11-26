@@ -119,11 +119,12 @@ export type SavePayload = {
   customerName: string;
   paymentMethod: string;
   saleType: string;
-  discountPercent: number;
   paid: number;
+  /** المبلغ الزائد الذي يُنزَّل في رصيد العميل (دائن) — لا يدخل الخزينة */
+  credit?: number;
   printed: boolean;
   installment?: InstallmentInput;
-  items: { productId: number | null; code: string; name: string; unit: string; qty: number; price: number; discount: number }[];
+  items: { productId: number | null; code: string; name: string; unit: string; qty: number; price: number }[];
 };
 
 const addMonths = (dateText: string, n: number) => {
@@ -136,17 +137,19 @@ export async function saveInvoice(p: SavePayload): Promise<SavedInvoice> {
   await ensureSeed();
   await ensureExtendedSeed();
   if (p.saleType === "تقسيط" && (!p.customerId || !p.installment)) throw new Error("بيانات التقسيط والعميل مطلوبة");
-  let subtotal = 0;
+  // لا يوجد خصم على الفاتورة: الإجمالي = مجموع الأسطر
   const rows = p.items.map((it) => {
-    const lineTotal = r2(Math.max(0, it.price * it.qty - it.discount));
-    subtotal += lineTotal;
-    return { productId: it.productId, code: it.code, name: it.name, unit: it.unit, qty: it.qty, price: it.price, discount: it.discount, total: lineTotal };
+    const lineTotal = r2(Math.max(0, it.price * it.qty));
+    return { productId: it.productId, code: it.code, name: it.name, unit: it.unit, qty: it.qty, price: it.price, discount: 0, total: lineTotal };
   });
-  subtotal = r2(subtotal);
-  const discountPercent = Math.min(100, Math.max(0, p.discountPercent || 0));
-  const discountValue = r2(subtotal * discountPercent / 100);
-  const total = r2(subtotal - discountValue);
-  const paid = r2(Math.max(0, p.installment ? p.installment.downPayment : p.paid || 0));
+  const subtotal = r2(rows.reduce((s, r) => s + r.total, 0));
+  const discountPercent = 0;
+  const discountValue = 0;
+  const total = subtotal;
+  // المدفوع لا يتجاوز إجمالي الفاتورة؛ الزيادة تُعالج بالرصيد الدائن أو تُسلَّم للعميل
+  const paid = r2(Math.max(0, Math.min(total, p.installment ? p.installment.downPayment : p.paid || 0)));
+  const credit = p.installment ? 0 : r2(Math.max(0, p.credit || 0));
+  if (credit > 0 && !p.customerId) throw new Error("اختر عميلاً لتنزيل الزيادة على حسابه");
   const remaining = r2(total - paid);
   const number = Number.parseInt(await getSetting("next_invoice", "1"), 10);
   const inserted = await db.insert(invoices).values({
@@ -188,7 +191,7 @@ export async function saveInvoice(p: SavePayload): Promise<SavedInvoice> {
   let newCustomerBalance = 0;
   if (p.customerId) {
     const current = await db.select().from(customers).where(eq(customers.id, p.customerId)).limit(1);
-    newCustomerBalance = r2((current[0]?.balance ?? 0) + remaining + interestValue);
+    newCustomerBalance = r2((current[0]?.balance ?? 0) + remaining + interestValue - credit);
     await db.update(customers).set({ balance: newCustomerBalance }).where(eq(customers.id, p.customerId));
   }
   if (paid > 0) await db.insert(treasuryMovements).values({ direction: "وارد", source: "مبيعات", reference: `بيع-${number}`, partyName: p.customerName || "عميل نقدي", amount: paid, notes: p.saleType === "تقسيط" ? "مقدم تعاقد تقسيط" : "مدفوع فاتورة مبيعات" });

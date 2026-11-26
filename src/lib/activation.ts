@@ -14,7 +14,8 @@ import { getSetting, setSetting } from "@/lib/data";
 export const ACTIVATION_SECRET = process.env.CASH_YOU_ACTIVATION_SECRET?.trim() || "CASH_YOU_SECRET_KEY_2026_PRO";
 
 /** المدد المتاحة بالأيام */
-export const ACTIVATION_PLANS = [30, 90, 180, 365] as const;
+/** 365 = سنة، 730 = سنتين، 36500 = مدى الحياة (100 سنة) */
+export const ACTIVATION_PLANS = [30, 90, 180, 365, 730, 36500] as const;
 export type ActivationPlan = (typeof ACTIVATION_PLANS)[number];
 
 export const DEFAULT_ACTIVATION_PLAN: ActivationPlan = 365;
@@ -24,6 +25,8 @@ export const PLAN_LABEL: Record<ActivationPlan, string> = {
   90: "3 شهور",
   180: "6 شهور",
   365: "سنة",
+  730: "سنتين",
+  36500: "مدى الحياة",
 };
 
 export function isActivationPlan(value: unknown): value is ActivationPlan {

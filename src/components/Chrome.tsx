@@ -15,6 +15,7 @@ import {
   IcoGear,
   IcoHome,
   IcoLogo,
+  IcoMenu,
   IcoMinus,
   IcoMute,
   IcoPlus,
@@ -86,7 +87,7 @@ export function TitleBar({
           onClick={onOpenSearch}
           title="بحث عام (Ctrl + K)"
           aria-label="بحث عام"
-          className="w-9 h-9 grid place-items-center rounded-xl bg-ink-900/80 border border-white/10 text-slate-300 cy-press cy-focus hover:border-amber-brand/70 hover:text-amber-brand"
+          className="cy-h-search w-9 h-9 grid place-items-center rounded-xl bg-ink-900/80 border border-white/10 text-slate-300 cy-press cy-focus hover:border-amber-brand/70 hover:text-amber-brand"
         >
           <IcoSearch className="w-4 h-4" />
         </button>
@@ -97,7 +98,7 @@ export function TitleBar({
             onClick={onToggleMute}
             title={muted ? "تشغيل أصوات النظام" : "كتم كل الأصوات"}
             aria-label={muted ? "تشغيل الصوت" : "كتم الصوت"}
-            className={`w-9 h-9 rounded-xl border cy-press cy-focus grid place-items-center ${
+            className={`cy-h-sound w-9 h-9 rounded-xl border cy-press cy-focus grid place-items-center ${
               muted
                 ? "bg-cash-red/15 border-cash-red/50 text-cash-red"
                 : "bg-cash-green/15 border-cash-green/45 text-cash-green"
@@ -110,43 +111,11 @@ export function TitleBar({
             onClick={onToggleFullscreen}
             title={fullscreen ? "الخروج من ملء الشاشة" : "تكبير الشاشة (ملء الشاشة)"}
             aria-label={fullscreen ? "الخروج من ملء الشاشة" : "تكبير الشاشة"}
-            className="w-9 h-9 rounded-xl border border-white/10 bg-ink-700/70 text-slate-200 cy-press cy-focus grid place-items-center hover:border-amber-brand/60 hover:text-amber-brand"
+            className="cy-h-fullscreen w-9 h-9 rounded-xl border border-white/10 bg-ink-700/70 text-slate-200 cy-press cy-focus grid place-items-center hover:border-amber-brand/60 hover:text-amber-brand"
           >
             {fullscreen ? <IcoCollapse className="w-4 h-4" /> : <IcoExpand className="w-4 h-4" />}
           </button>
 
-          {trial && (
-            <button
-              onClick={onOpenActivation}
-              className={`hidden sm:flex items-center gap-1.5 h-9 rounded-xl border px-2.5 transition hover:brightness-125 ${
-                trial.licensed
-                  ? "bg-cash-green/15 border-cash-green/45 text-cash-green"
-                  : trial.expired
-                    ? "bg-cash-red/15 border-cash-red/45 text-cash-red"
-                    : trial.daysLeft <= 3
-                      ? "bg-amber-brand/15 border-amber-brand/45 text-amber-brand"
-                      : "bg-cash-green/15 border-cash-green/45 text-cash-green"
-              }`}
-              title={
-                trial.licensed
-                  ? `نسخة مفعّلة حتى ${trial.license?.validUntil ? new Date(trial.license.validUntil).toLocaleDateString("ar-EG") : ""} — اضغط للتفاصيل`
-                  : `الفترة التجريبية: ${trial.daysLeft} يوم متبقٍ · اضغط للتفعيل · حدود: ${trial.limits.products} صنف / ${trial.limits.invoices} فاتورة / ${trial.limits.customers} عميل / ${trial.limits.suppliers} مورد`
-              }
-            >
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  trial.licensed
-                    ? "bg-cash-green cy-ring"
-                    : trial.expired
-                      ? "bg-cash-red"
-                      : trial.daysLeft <= 3
-                        ? "bg-amber-brand animate-pulse"
-                        : "bg-cash-green cy-ring"
-                }`}
-              />
-              <span className="text-[12px] font-bold">{trialLabel(trial)}</span>
-            </button>
-          )}
 
           <button
             onClick={onLogout}
@@ -239,15 +208,15 @@ export function GlobalSearch({
     if (!term) return [];
     const prods = data.products
       .filter((p) => p.name.toLowerCase().includes(term) || p.code.includes(term))
-      .slice(0, 8)
+      .slice(0, 4)
       .map((p) => ({ kind: "p" as const, p }));
     const custs = data.customers
       .filter((c) => c.name.toLowerCase().includes(term) || c.phone.includes(term))
-      .slice(0, 5)
+      .slice(0, 2)
       .map((c) => ({ kind: "c" as const, c }));
     const invs = data.invoices
       .filter((i) => String(i.number).includes(term) || i.customerName.toLowerCase().includes(term))
-      .slice(0, 5)
+      .slice(0, 2)
       .map((i) => ({ kind: "i" as const, i }));
     return [...prods, ...custs, ...invs];
   }, [q, data]);
@@ -263,13 +232,13 @@ export function GlobalSearch({
 
   return (
     <div
-      className="fixed inset-0 z-[85] bg-ink-950/60 backdrop-blur-[2px] cy-no-print"
+      className="fixed inset-0 z-[85] grid place-items-center p-3 bg-ink-950/60 backdrop-blur-[2px] cy-no-print"
       dir="rtl"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="cy-pop mx-auto mt-[12vh] w-[min(94vw,680px)] rounded-2xl bg-white border border-line shadow-[0_40px_90px_-30px_rgba(2,6,23,0.9)] overflow-hidden">
+      <div className="cy-pop cy-fluent-panel w-[min(94vw,640px)] rounded-2xl bg-white overflow-hidden">
         <div className="flex items-center gap-2 px-3 h-14 border-b border-line bg-paper">
           <IcoSearch className="w-5 h-5 text-slate-500" />
           <input
@@ -306,7 +275,7 @@ export function GlobalSearch({
           <kbd className="text-[10px] font-mono text-slate-500 border border-line rounded px-1.5 py-0.5">Esc</kbd>
         </div>
 
-        <div className="max-h-[60vh] overflow-y-auto cy-scroll py-1">
+        <div className="h-[370px] overflow-hidden py-1">
           {q.trim() === "" ? (
             <div className="px-4 py-10 text-center text-[13px] font-bold text-slate-500">
               اكتب للبحث في الأصناف والعملاء والفواتير، ثم اضغط «عرض» بجوار النتيجة
@@ -405,11 +374,83 @@ export function GlobalSearch({
 
 export type Tab = { id: string; kind: ModuleKind; title: string; badge?: string };
 
-const RAIL: { kind: Tab["kind"]; icon: React.ReactNode; label: string }[] = [
-  { kind: "home", icon: <IcoHome />, label: "الرئيسية" },
-  { kind: "invoice", icon: <IcoCart />, label: "فاتورة مبيعات" },
-  { kind: "source", icon: <IcoCode />, label: "كود المصدر VB.NET" },
+/** كل وحدات البرنامج كما تظهر في القائمة العائمة */
+export const MENU_ITEMS: { kind: ModuleKind; label: string; icon: React.ReactNode }[] = [
+  { kind: "home", label: "الرئيسية", icon: <IcoHome className="w-4 h-4" /> },
+  { kind: "invoice", label: "فاتورة مبيعات", icon: <IcoCart className="w-4 h-4" /> },
+  { kind: "products", label: "الأصناف والمخازن", icon: <IcoBox className="w-4 h-4" /> },
+  { kind: "purchase", label: "فاتورة مشتريات", icon: <IcoCart className="w-4 h-4" /> },
+  { kind: "parties", label: "العملاء والموردون", icon: <IcoUsers className="w-4 h-4" /> },
+  { kind: "installments", label: "نظام التقسيط", icon: <IcoWallet className="w-4 h-4" /> },
+  { kind: "expenses", label: "المصروفات", icon: <IcoGear className="w-4 h-4" /> },
+  { kind: "treasury", label: "الخزينة", icon: <IcoWallet className="w-4 h-4" /> },
+  { kind: "reports", label: "التقارير والأرباح", icon: <IcoChart className="w-4 h-4" /> },
+  { kind: "users", label: "المستخدمون", icon: <IcoUsers className="w-4 h-4" /> },
+  { kind: "activation", label: "تفعيل النسخة", icon: <IcoCheck className="w-4 h-4" /> },
+  { kind: "settings", label: "الإعدادات", icon: <IcoSliders className="w-4 h-4" /> },
 ];
+
+/** القائمة العائمة أعلى الصفحة: أزرار بأسمائها، تُغلق تلقائياً عند الاختيار أو الضغط خارجها */
+export function FloatingMenu({
+  open,
+  onClose,
+  onPick,
+  onCustomize,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onPick: (kind: ModuleKind, label: string) => void;
+  onCustomize: () => void;
+}) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[90]" onMouseDown={onClose} dir="rtl">
+      <div
+        onMouseDown={(e) => e.stopPropagation()}
+        className="cy-menu-drop cy-menu-panel cy-fluent-panel absolute top-[104px] right-2 w-[260px] p-2"
+      >
+        <div className="flex items-center justify-between px-1.5 pb-2 mb-1 border-b border-white/15">
+          <span className="text-[12px] font-black tracking-wide">القائمة</span>
+          <button
+            onClick={() => {
+              onClose();
+              onCustomize();
+            }}
+            title="تخصيص القائمة (ألوان وأزرار)"
+            aria-label="تخصيص القائمة"
+            className="w-7 h-7 grid place-items-center rounded-md opacity-80 hover:opacity-100 hover:bg-white/15 cy-press"
+          >
+            <IcoSliders className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <div className="grid gap-1 max-h-[calc(100vh-150px)] overflow-y-auto cy-scroll">
+          {MENU_ITEMS.map((it) => (
+            <button
+              key={it.kind + it.label}
+              onClick={() => {
+                onClose();
+                onPick(it.kind, it.label);
+              }}
+              className="cy-menu-item cy-btn flex items-center gap-2.5 h-10 px-3 text-[13px] font-bold text-right"
+            >
+              <span className="opacity-90">{it.icon}</span>
+              <span className="flex-1">{it.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function TabStrip({
   tabs,
@@ -417,16 +458,34 @@ export function TabStrip({
   onSelect,
   onClose,
   onNew,
+  onToggleMenu,
+  menuOpen,
 }: {
   tabs: Tab[];
   activeId: string;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
   onNew: () => void;
+  onToggleMenu: () => void;
+  menuOpen: boolean;
 }) {
   return (
     <div className="shrink-0 flex items-stretch bg-paper border-b border-line" dir="rtl">
       <nav className="flex items-end gap-1 px-2 pt-1.5 overflow-x-auto cy-scroll flex-1 min-w-0">
+        <button
+          onClick={onToggleMenu}
+          aria-expanded={menuOpen}
+          aria-label="القائمة"
+          title="القائمة"
+          className={`cy-h-menu cy-press cy-focus mb-0.5 h-8 px-2.5 rounded-lg border flex items-center gap-1.5 text-[12px] font-black whitespace-nowrap transition-colors ${
+            menuOpen
+              ? "bg-ink-800 border-ink-800 text-white"
+              : "bg-white/70 border-line text-ink-800 hover:bg-white"
+          }`}
+        >
+          <IcoMenu className="w-4 h-4" />
+          القائمة
+        </button>
         {tabs.map((t) => {
           const active = t.id === activeId;
           return (
@@ -482,89 +541,6 @@ export function TabStrip({
   );
 }
 
-export function IconRail({
-  activeKind,
-  onRail,
-}: {
-  activeKind: Tab["kind"];
-  onRail: (kind: Tab["kind"], label: string) => void;
-}) {
-  const extra: { icon: React.ReactNode; label: string; kind: ModuleKind; hover: string }[] = [
-    { icon: <IcoBox />, label: "الأصناف والمخازن", kind: "products", hover: "hover:text-cash-green" },
-    { icon: <IcoCart />, label: "فاتورة مشتريات", kind: "purchase", hover: "hover:text-cash-cyan" },
-    { icon: <IcoUsers />, label: "العملاء والموردون", kind: "parties", hover: "hover:text-cash-violet" },
-    { icon: <IcoWallet />, label: "نظام التقسيط", kind: "installments", hover: "hover:text-fuchsia-400" },
-    { icon: <IcoGear />, label: "المصروفات", kind: "expenses", hover: "hover:text-cash-red" },
-    { icon: <IcoWallet />, label: "الخزينة", kind: "treasury", hover: "hover:text-emerald-300" },
-    { icon: <IcoChart />, label: "التقارير والأرباح", kind: "reports", hover: "hover:text-cash-cyan" },
-    { icon: <IcoUsers />, label: "المستخدمون", kind: "users", hover: "hover:text-amber-brand" },
-    { icon: <IcoCheck />, label: "تفعيل النسخة", kind: "activation", hover: "hover:text-cash-green" },
-    { icon: <IcoSliders />, label: "الإعدادات", kind: "settings", hover: "hover:text-amber-brand" },
-  ];
-  return (
-    <nav
-      aria-label="شريط التنقل السريع"
-      className="shrink-0 w-[52px] bg-ink-800 border-l border-black/40 flex flex-col items-center gap-1 py-2 overflow-y-auto cy-scroll-dark"
-    >
-      {RAIL.map((r) => (
-        <RailBtn
-          key={r.kind}
-          label={r.label}
-          active={activeKind === r.kind}
-          onClick={() => onRail(r.kind, r.label)}
-          hover="hover:text-amber-brand"
-        >
-          {r.icon}
-        </RailBtn>
-      ))}
-      <span className="w-6 h-px bg-white/15 my-1" />
-      {extra.map((r) => (
-        <RailBtn
-          key={r.label}
-          label={r.label}
-          active={activeKind === r.kind}
-          onClick={() => onRail(r.kind, r.label)}
-          hover={r.hover}
-        >
-          {r.icon}
-        </RailBtn>
-      ))}
-      <span className="mt-auto text-[9px] font-black text-slate-600 tracking-widest [writing-mode:vertical-rl] rotate-180">
-        CASH YOU
-      </span>
-    </nav>
-  );
-}
-
-function RailBtn({
-  children,
-  label,
-  active,
-  onClick,
-  hover,
-}: {
-  children: React.ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  hover: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      className={`w-10 h-10 grid place-items-center rounded-xl cy-press cy-focus transition-colors ${
-        active
-          ? "bg-amber-brand text-ink-900 shadow-[0_0_18px_-6px_rgba(245,158,11,0.9)]"
-          : `text-slate-400 bg-white/5 ${hover} hover:bg-white/12`
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
 /* ============================ شريط الحالة السفلي ============================ */
 
 export function StatusBar({
@@ -586,7 +562,7 @@ export function StatusBar({
       dir="rtl"
     >
       {/* يمين: المستخدم */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="cy-h-user flex items-center gap-2 shrink-0">
         <span className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-brand to-cash-orange grid place-items-center text-[10px] font-black text-ink-900">
           {(user?.fullName?.trim()?.[0] ?? "؟").toUpperCase()}
         </span>
@@ -600,20 +576,21 @@ export function StatusBar({
 
       {/* الوسط: التاريخ والوقت + الدعم */}
       <div className="flex-1 flex items-center justify-center gap-3 min-w-0">
-        <span className="hidden md:inline text-slate-300 cy-num shrink-0">
-          {dateText} — {timeText}
-        </span>
-        <span className="hidden lg:inline font-bold text-white truncate">
+        <span className="cy-h-date hidden md:inline text-slate-300 cy-num shrink-0">{dateText}</span>
+        <span className="cy-h-time hidden md:inline text-slate-300 cy-num shrink-0">{timeText}</span>
+        <span className="cy-h-support hidden lg:inline font-bold text-white truncate">
           الدعم الفني : م / وائل الجمال&nbsp;&nbsp;&nbsp;تليفون : 01222355769
         </span>
       </div>
 
       {/* يسار: حالة النظام وحالة التفعيل */}
       <div className="flex items-center gap-2 shrink-0">
+        <span className="cy-h-status flex items-center gap-2">
         <span className="w-2 h-2 rounded-full bg-cash-green cy-ring" />
         <span className="font-bold text-cash-green">النظام متصل</span>
+        </span>
         {trial && (
-          <>
+          <span className="cy-h-trial flex items-center gap-2">
             <span className="text-slate-500">·</span>
             <button
               onClick={onOpenActivation}
@@ -630,7 +607,7 @@ export function StatusBar({
             >
               {trialLabel(trial)}
             </button>
-          </>
+          </span>
         )}
       </div>
     </footer>

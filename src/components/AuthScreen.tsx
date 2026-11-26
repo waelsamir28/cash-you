@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { DEFAULT_PREFS, loadPrefs } from "@/lib/ui-prefs";
 import { IcoLogo } from "@/components/icons";
 import { TRIAL_DAYS, TRIAL_LIMITS } from "@/lib/trial";
 
@@ -17,6 +18,12 @@ type Tab = "login" | "register";
 export function AuthScreen({ needSetup, onAuthenticated }: Props) {
   /* الحالة الافتراضية تُحسب مرة واحدة عند التحميل (لا حاجة لمزامنة في useEffect) */
   const [tab, setTab] = useState<Tab>(needSetup ? "register" : "login");
+  /* إعدادات شاشة الدخول (من الإعدادات > شاشة الدخول) تُقرأ بعد التحميل لتفادي اختلاف الخادم والمتصفح */
+  const [login, setLogin] = useState(DEFAULT_PREFS.login);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- قراءة التفضيلات من localStorage بعد التحميل فقط
+    setLogin(loadPrefs().login);
+  }, []);
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -66,7 +73,7 @@ export function AuthScreen({ needSetup, onAuthenticated }: Props) {
     "h-11 w-full rounded-xl border border-white/10 bg-ink-950/70 px-3 text-[13px] font-semibold text-white outline-none transition placeholder:text-slate-500 focus:border-amber-brand focus:ring-2 focus:ring-amber-brand/25";
 
   return (
-    <main className="relative min-h-[100dvh] w-full overflow-hidden cy-mesh cy-grain grid place-items-center p-4" dir="rtl">
+    <main className="relative min-h-[100dvh] w-full overflow-hidden cy-mesh cy-grain grid place-items-center p-4" dir="rtl" style={{ background: login.bg }}>
       <div className="pointer-events-none absolute inset-x-0 top-0 h-1 cy-aurora" />
 
       <section className="relative grid w-full max-w-4xl overflow-hidden rounded-[26px] border border-white/15 bg-white/[0.06] shadow-[0_40px_120px_-40px_rgba(0,0,0,.85)] backdrop-blur-xl lg:grid-cols-[1.05fr_1fr]">
@@ -75,11 +82,12 @@ export function AuthScreen({ needSetup, onAuthenticated }: Props) {
           <div className="pointer-events-none absolute -top-20 -right-16 h-56 w-56 rounded-full bg-cash-cyan/15 blur-3xl" />
           <div className="pointer-events-none absolute bottom-0 -left-16 h-56 w-56 rounded-full bg-cash-violet/15 blur-3xl" />
           <div className="relative">
-            <IcoLogo className="h-16 w-16 rounded-2xl" />
-            <p className="mt-5 text-[11px] font-black tracking-[0.3em] text-cash-cyan">CASH YOU · POS</p>
+            {login.showLogo && <IcoLogo className="h-16 w-16 rounded-2xl" />}
+            <p className="mt-5 text-[11px] font-black tracking-[0.3em]" style={{ color: login.accent }}>CASH YOU · POS</p>
             <h1 className="mt-2 text-[28px] font-black leading-snug text-white">
-              نظام المبيعات <br /> ونقاط البيع
+              {login.title}
             </h1>
+            <p className="mt-2 text-[13px] font-bold text-slate-300">{login.subtitle}</p>
             <p className="mt-3 max-w-sm text-[13px] font-semibold leading-7 text-slate-300">
               سجّل حسابك لتشغيل النسخة التجريبية، أو ادخل بحسابك الحالي. كل بياناتك محفوظة آمنة في قاعدة البيانات.
             </p>
@@ -107,10 +115,10 @@ export function AuthScreen({ needSetup, onAuthenticated }: Props) {
         {/* ---------- جانب النموذج ---------- */}
         <div className="relative border-white/10 bg-ink-900/70 p-6 sm:p-8 lg:border-r">
           <div className="flex items-center gap-3 lg:hidden">
-            <IcoLogo className="h-11 w-11 rounded-xl" />
+            {login.showLogo && <IcoLogo className="h-11 w-11 rounded-xl" />}
             <div>
-              <p className="text-[10px] font-black tracking-[0.25em] text-cash-cyan">CASH YOU</p>
-              <p className="text-[15px] font-black text-white">كاش يو — نقاط البيع</p>
+              <p className="text-[10px] font-black tracking-[0.25em]" style={{ color: login.accent }}>CASH YOU</p>
+              <p className="text-[15px] font-black text-white">{login.title}</p>
             </div>
           </div>
 

@@ -30,11 +30,11 @@ const HUE: Record<string, { chip: string; dot: string }> = {
 };
 
 /* ---------- مقاسات ثابتة لجدول الأصناف: 12 صنفاً ظاهرة بالكامل ---------- */
-const ROW_H = 34; // ارتفاع السطر بالبكسل
+const ROW_H = 25; // ارتفاع السطر بالبكسل (يكفي 12 صنفاً في الشاشات 768 بكسل)
 const VISIBLE_ROWS = 12;
 const HEAD_H = 32;
 const FOOT_H = 32;
-const TABLE_H = HEAD_H + ROW_H * VISIBLE_ROWS + FOOT_H; // 472px = 12 صنفاً ظاهرة
+
 
 /* ترتيب الأعمدة (يُستخدم في الرأس والسطر بنفس القيم) */
 const COLS = "38px 100px 96px 118px 72px 1fr 100px";
@@ -110,7 +110,7 @@ export function PosScreen({
 
   return (
     <section
-      className="flex-1 min-h-0 flex flex-col gap-1.5 p-1.5 bg-paper overflow-y-auto cy-scroll"
+      className="flex-1 min-h-0 flex flex-col gap-1.5 p-1.5 bg-paper overflow-hidden"
       dir="rtl"
     >
       {/* ============ لافتة العنوان ============ */}
@@ -139,7 +139,7 @@ export function PosScreen({
             </button>
             <button
               onClick={actions.openCustomerScreen}
-              className="h-8 px-2.5 rounded-lg bg-ink-800 border border-white/15 text-slate-100 text-[12px] font-bold cy-press cy-focus flex items-center gap-1.5 hover:border-cash-cyan/70 hover:text-cash-cyan"
+              className="cy-h-customerScreen h-8 px-2.5 rounded-lg bg-ink-800 border border-white/15 text-slate-100 text-[12px] font-bold cy-press cy-focus flex items-center gap-1.5 hover:border-cash-cyan/70 hover:text-cash-cyan"
             >
               <IcoMonitor className="w-4 h-4" />
               <span className="hidden md:inline">شاشة الزبون</span>
@@ -238,11 +238,10 @@ export function PosScreen({
       </div>
 
       {/* ============ مساحة العمل: الفاتورة + قائمة الأصناف ============ */}
-      <div className="shrink-0 flex flex-col lg:flex-row gap-1.5">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-1.5">
         {/* جدول أصناف الفاتورة — يتسع لـ 12 صنفاً */}
         <div
-          className="flex-[3] flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm"
-          style={{ height: TABLE_H }}
+          className="flex-[3] min-h-0 flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm"
         >
           <div
             className="shrink-0 grid bg-ink-800 text-white text-[12px] font-black"
@@ -251,9 +250,7 @@ export function PosScreen({
             {["×", "الإجمالي", "السعر", "الكمية", "الوحدة", "اسم الصنف", "الكود"].map((h, i) => (
               <div
                 key={h}
-                className={`flex items-center px-1.5 border-l border-white/10 last:border-l-0 ${
-                  i === 5 ? "justify-start" : "justify-center"
-                }`}
+                className="flex items-center justify-center px-1.5 border-l border-white/10 last:border-l-0"
               >
                 {h}
               </div>
@@ -282,7 +279,7 @@ export function PosScreen({
                   <div
                     key={li.uid}
                     data-last={isLast ? "1" : "0"}
-                    className={`grid items-stretch text-[12.5px] border-b border-slate-200 transition-colors hover:bg-amber-50/70 ${
+                    className={`cy-row grid items-stretch text-[12.5px] border-b border-slate-200 transition-colors hover:bg-amber-50/70 ${
                       isLast ? "cy-flash" : idx % 2 === 0 ? "bg-white" : "bg-paper-2"
                     }`}
                     style={{ gridTemplateColumns: COLS, height: ROW_H }}
@@ -330,7 +327,7 @@ export function PosScreen({
                     <div className="grid place-items-center text-[11.5px] text-slate-600 border-l border-slate-200">
                       {li.unit}
                     </div>
-                    <div className="px-2 font-bold text-ink-800 truncate border-l border-slate-200 flex items-center gap-1.5">
+                    <div className="cy-box px-2 font-bold text-ink-800 truncate border-l border-slate-200 flex items-center justify-center gap-1.5">
                       <span className={`w-1.5 h-4 rounded-full shrink-0 ${h.dot}`} />
                       <span className="truncate">{li.name}</span>
                     </div>
@@ -344,7 +341,7 @@ export function PosScreen({
           </div>
 
           <div
-            className="shrink-0 bg-paper border-t border-line flex items-center justify-between px-3 text-[11.5px] font-bold text-ink-700"
+            className="cy-h-tableTotals shrink-0 bg-paper border-t border-line flex items-center justify-between px-3 text-[11.5px] font-bold text-ink-700"
             style={{ height: FOOT_H }}
           >
             <span>
@@ -361,8 +358,7 @@ export function PosScreen({
 
         {/* قائمة الأصناف (اللمس) */}
         <div
-          className="flex-[2] flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm"
-          style={{ height: TABLE_H }}
+          className="flex-[2] min-h-0 flex flex-col rounded-xl bg-white border border-line overflow-hidden shadow-sm"
         >
           <div
             className="shrink-0 px-2 flex items-center justify-between gap-2 bg-paper border-b border-line"
@@ -378,7 +374,7 @@ export function PosScreen({
                 })
               }
               aria-label="التصنيف"
-              className="flex-1 min-w-0 max-w-[220px] h-7 rounded-lg border border-line bg-white px-2 text-[12px] font-bold text-ink-800 outline-none focus:border-amber-brand"
+              className="cy-h-categories flex-1 min-w-0 max-w-[220px] h-7 rounded-lg border border-line bg-white px-2 text-[12px] font-bold text-ink-800 outline-none focus:border-amber-brand"
             >
               <option value="all">كل التصنيفات</option>
               {data.categories.map((c) => (
@@ -417,7 +413,7 @@ export function PosScreen({
                       </span>
                       <span className="flex items-center justify-between gap-1 pr-1">
                         <span className="text-[11.5px] font-black text-cash-green-deep cy-num">{money(p.price)}</span>
-                        <span className={`text-[9.5px] font-bold cy-num ${out ? "text-cash-red" : "text-slate-400"}`}>
+                        <span className={`cy-h-stock text-[9.5px] font-bold cy-num ${out ? "text-cash-red" : "text-slate-400"}`}>
                           {out ? "نفد" : qtyText(p.stock)}
                         </span>
                       </span>
@@ -445,7 +441,7 @@ export function PosScreen({
       </div>
 
       {/* ============ خانات المبالغ: مقاس موحد، والأرقام في المنتصف ============ */}
-      <div className="shrink-0 flex flex-wrap justify-center gap-1.5">
+      <div className="shrink-0 flex flex-wrap items-stretch justify-center gap-1.5">
         <AmountTile label="المبلغ الصافي" tone="dark">
           {money(totals.total)}
         </AmountTile>
@@ -465,13 +461,15 @@ export function PosScreen({
           {money(Math.abs(totals.remaining))}
         </AmountTile>
 
-        <AmountTile label="الرصيد السابق" tone="slate">
-          {money(prevBalance)}
-        </AmountTile>
+        <div className="cy-h-balances flex flex-wrap gap-1.5">
+          <AmountTile label="الرصيد السابق" tone="slate">
+            {money(prevBalance)}
+          </AmountTile>
 
-        <AmountTile label="الرصيد بعد الفاتورة" tone="amber">
-          {money(afterBalance)}
-        </AmountTile>
+          <AmountTile label="الرصيد بعد الفاتورة" tone="amber">
+            {money(afterBalance)}
+          </AmountTile>
+        </div>
       </div>
 
       <div className="shrink-0 text-center text-[11px] font-bold text-slate-500">
@@ -481,7 +479,7 @@ export function PosScreen({
       </div>
 
       {/* ============ مفاتيح الوظائف ============ */}
-      <div className="shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+      <div className="cy-h-fnKeys shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
         <FnKey onClick={actions.newInvoice} k="F4" tone="light">
           فاتورة جديدة
         </FnKey>
@@ -523,7 +521,7 @@ function AmountTile({
 }) {
   return (
     <div
-      className={`relative w-[156px] h-[64px] rounded-xl border-2 px-2 py-1.5 flex flex-col items-center justify-center text-center shadow-sm ${TILE_TONES[tone]}`}
+      className={`relative w-[156px] h-[56px] rounded-xl border-2 px-2 py-1.5 flex flex-col items-center justify-center text-center shadow-sm ${TILE_TONES[tone]}`}
     >
       <span className={`text-[11px] font-black leading-none ${tone === "dark" ? "text-slate-300" : "opacity-80"}`}>
         {label}
@@ -658,7 +656,7 @@ function FnKey({
       onClick={onClick}
       disabled={busy}
       style={custom}
-      className={`cy-fn relative border cy-press cy-focus flex flex-col items-center justify-center gap-0.5 font-black text-[13.5px] shadow-[0_6px_16px_-10px_rgba(15,23,42,0.9)] disabled:opacity-60 hover:brightness-110 ${
+      className={`cy-fn cy-btn relative border cy-press cy-focus flex flex-col items-center justify-center gap-0.5 font-black text-[13.5px] shadow-[0_6px_16px_-10px_rgba(15,23,42,0.9)] disabled:opacity-60 hover:brightness-110 ${
         custom ? "text-white" : (FN_TONES[tone] ?? "")
       }`}
     >
