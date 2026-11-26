@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Bootstrap, Customer, Product, ShopInfo, InvoiceRow } from "@/lib/types";
 import type { ReceiptPrefs } from "@/lib/ui-prefs";
 import type { Draft, Totals } from "@/lib/draft";
@@ -353,116 +353,132 @@ export type ReceiptData = {
   items: { name: string; code: string; qty: number; price: number; total: number; unit: string }[];
 };
 
+/** ورقة الإيصال نفسها (تُستخدم في المعاينة قبل الحفظ وبعده) */
+export function ReceiptPaper({ receipt, shop, prefs }: { receipt: ReceiptData; shop: ShopInfo; prefs: ReceiptPrefs }) {
+  const width = prefs.paperWidth === 58 ? 232 : 300;
+  return (
+    <div
+      id="cy-print-area"
+      style={{ width }}
+      className="cy-rcpt mx-auto bg-white text-black border border-dashed border-slate-400 rounded-lg p-3 text-[11.5px]"
+    >
+      <div className="cy-rcpt-head text-center">
+        {prefs.showLogo && shop.logo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={shop.logo} alt={shop.name} className="mx-auto mb-1 h-14 object-contain" />
+        ) : (
+          <div className="font-black text-[16px] tracking-widest">CASH YOU</div>
+        )}
+        <div className="font-bold text-[12px]">{shop.name}</div>
+        {prefs.showAddress && shop.address && <div className="text-[10.5px]">{shop.address}</div>}
+        {prefs.showPhone && shop.phone && <div className="cy-num">تليفون: {shop.phone}</div>}
+      </div>
+      <div className="border-b border-dashed border-slate-400 my-2" />
+      <div className="grid grid-cols-2 gap-y-0.5 cy-num text-center">
+        <span className="font-bold text-right">رقم الفاتورة</span>
+        <span className="text-left">{receipt.number}</span>
+        {prefs.showDateTime && (
+          <>
+            <span className="font-bold text-right">التاريخ</span>
+            <span className="text-left">{shortStamp(receipt.createdAt)}</span>
+          </>
+        )}
+        <span className="font-bold text-right">العميل</span>
+        <span className="text-left truncate">{receipt.customerName}</span>
+        <span className="font-bold text-right">النوع / الدفع</span>
+        <span className="text-left">
+          {receipt.saleType} / {receipt.paymentMethod}
+        </span>
+      </div>
+      <div className="border-b border-dashed border-slate-400 my-2" />
+      <table className="w-full">
+        <thead>
+          <tr className="font-black border-b border-slate-300">
+            <th className="text-center py-0.5">الصنف</th>
+            <th className="text-center w-9">كمية</th>
+            <th className="text-center w-12">سعر</th>
+            <th className="text-center w-14">إجمالي</th>
+          </tr>
+        </thead>
+        <tbody className="cy-num">
+          {receipt.items.map((it, i) => (
+            <tr key={i} className="align-top">
+              <td className="text-right py-0.5 leading-tight">{it.name}</td>
+              <td className="text-center">{qtyText(it.qty)}</td>
+              <td className="text-center">{money(it.price)}</td>
+              <td className="text-center font-bold">{money(it.total)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="border-b border-dashed border-slate-400 my-2" />
+      <div className="space-y-0.5 cy-num">
+        <Row2 k="الإجمالي" v={money(receipt.total)} big />
+        <Row2 k="المدفوع" v={money(receipt.paid)} />
+        <Row2 k={receipt.remaining < 0 ? "الباقي للزبون" : "المتبقي"} v={money(Math.abs(receipt.remaining))} />
+      </div>
+      <div className="border-b border-dashed border-slate-400 my-2" />
+      <div className="text-center font-bold leading-relaxed">
+        {prefs.footerText && <div className="mt-1">{prefs.footerText}</div>}
+      </div>
+    </div>
+  );
+}
+
 export function ReceiptModal({
   receipt,
   shop,
   prefs,
+  autoPrint = false,
   onClose,
 }: {
   receipt: ReceiptData;
   shop: ShopInfo;
   prefs: ReceiptPrefs;
+  autoPrint?: boolean;
   onClose: () => void;
 }) {
   const [printed, setPrinted] = useState(false);
-  const width = prefs.paperWidth === 58 ? 232 : 300;
+
+  const doPrint = useCallback(() => {
+    setPrinted(true);
+    void apiFetch("/api/invoices", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ number: receipt.number }),
+    }).catch(() => undefined);
+    window.print();
+  }, [receipt.number]);
+
+  useEffect(() => {
+    if (!autoPrint) return;
+    const t = window.setTimeout(doPrint, 300);
+    return () => window.clearTimeout(t);
+  }, [autoPrint, doPrint]);
+
   return (
     <Modal
       title={`تم حفظ الفاتورة رقم ${receipt.number}`}
-      subtitle={`معاينة الإيصال قبل الطباعة — ${prefs.paperWidth} مم`}
+      subtitle={`معاينة الإيصال — ${prefs.paperWidth} مم`}
       onClose={onClose}
       width="max-w-md"
     >
-      <div
-        id="cy-print-area"
-        style={{ width }}
-        className="mx-auto bg-white text-black border border-dashed border-slate-400 rounded-lg p-3 text-[11.5px] cy-scroll max-h-[52vh] overflow-y-auto"
-      >
-        <div className="text-center">
-          {prefs.showLogo && shop.logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={shop.logo} alt={shop.name} className="mx-auto mb-1 h-14 object-contain" />
-          ) : (
-            <div className="font-black text-[16px] tracking-widest">CASH YOU</div>
-          )}
-          <div className="font-bold text-[12px]">{shop.name}</div>
-          {prefs.showAddress && shop.address && <div className="text-[10.5px]">{shop.address}</div>}
-          {prefs.showPhone && shop.phone && <div className="cy-num">تليفون: {shop.phone}</div>}
-          <div className="border-b border-dashed border-slate-400 my-2" />
-        </div>
-        <div className="grid grid-cols-2 gap-y-0.5 cy-num">
-          <span className="font-bold">رقم الفاتورة</span>
-          <span className="text-left">{receipt.number}</span>
-          {prefs.showDateTime && (
-            <>
-              <span className="font-bold">التاريخ</span>
-              <span className="text-left">{shortStamp(receipt.createdAt)}</span>
-            </>
-          )}
-          <span className="font-bold">العميل</span>
-          <span className="text-left truncate">{receipt.customerName}</span>
-          <span className="font-bold">النوع / الدفع</span>
-          <span className="text-left">
-            {receipt.saleType} / {receipt.paymentMethod}
-          </span>
-        </div>
-        <div className="border-b border-dashed border-slate-400 my-2" />
-        <table className="w-full">
-          <thead>
-            <tr className="font-black border-b border-slate-300">
-              <th className="text-right py-0.5">الصنف</th>
-              <th className="text-center w-9">كمية</th>
-              <th className="text-center w-12">سعر</th>
-              <th className="text-left w-14">إجمالي</th>
-            </tr>
-          </thead>
-          <tbody className="cy-num">
-            {receipt.items.map((it, i) => (
-              <tr key={i} className="align-top">
-                <td className="text-right py-0.5 leading-tight">{it.name}</td>
-                <td className="text-center">{qtyText(it.qty)}</td>
-                <td className="text-center">{money(it.price)}</td>
-                <td className="text-left font-bold">{money(it.total)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="border-b border-dashed border-slate-400 my-2" />
-        <div className="space-y-0.5 cy-num">
-          <Row2 k="الإجمالي" v={money(receipt.total)} big />
-          <Row2 k="المدفوع" v={money(receipt.paid)} />
-          <Row2
-            k={receipt.remaining < 0 ? "الباقي للزبون" : "المتبقي"}
-            v={money(Math.abs(receipt.remaining))}
-          />
-        </div>
-        <div className="border-b border-dashed border-slate-400 my-2" />
-        <div className="text-center font-bold leading-relaxed">
-          {prefs.footerText && <div className="mt-1">{prefs.footerText}</div>}
-        </div>
+      <div className="cy-scroll max-h-[52vh] overflow-y-auto">
+        <ReceiptPaper receipt={receipt} shop={shop} prefs={prefs} />
       </div>
-
       <div className="flex gap-2 mt-4 cy-no-print">
         <button
-          onClick={() => {
-            setPrinted(true);
-            void apiFetch("/api/invoices", {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ number: receipt.number }),
-            }).catch(() => undefined);
-            window.print();
-          }}
-          className="flex-1 h-11 rounded-xl bg-ink-800 text-white font-black cy-press flex items-center justify-center gap-2 hover:bg-ink-900"
+          onClick={doPrint}
+          className="cy-btn flex-1 h-11 rounded-xl bg-ink-800 text-white font-black cy-press flex items-center justify-center gap-2 hover:bg-ink-900"
         >
           <IcoPrint className="w-4 h-4" />
           {printed ? "إعادة الطباعة" : "طباعة الإيصال"}
         </button>
         <button
           onClick={onClose}
-          className="h-11 px-5 rounded-xl bg-slate-200 text-ink-800 font-black cy-press hover:bg-slate-300"
+          className="cy-btn h-11 px-5 rounded-xl bg-slate-200 text-ink-800 font-black cy-press hover:bg-slate-300"
         >
-          إلغاء
+          إغلاق
         </button>
       </div>
     </Modal>
@@ -642,6 +658,8 @@ export function PromptDialog({
     </Modal>
   );
 }
+
+/* ============================ خصم (للمشتريات والمرتجعات فقط) ============================ */
 
 export function DiscountDialog({
   current,
@@ -859,125 +877,6 @@ export function CloseConfirm({
         </button>
       </div>
     </Modal>
-  );
-}
-
-/* ============================ عارض كود المصدر ============================ */
-
-const FILES = [
-  { path: "/desktop/CashYou.vbproj", name: "CashYou.vbproj", desc: "ملف المشروع .NET 8" },
-  { path: "/desktop/App.xaml", name: "App.xaml", desc: "تعريف التطبيق والموارد" },
-  { path: "/desktop/Models.vb", name: "Models.vb", desc: "كيانات البيانات العربية" },
-  { path: "/desktop/Database.vb", name: "Database.vb", desc: "طبقة SQLite" },
-  { path: "/desktop/MainWindow.xaml", name: "MainWindow.xaml", desc: "واجهة WPF كاملة RTL" },
-  { path: "/desktop/MainWindow.xaml.vb", name: "MainWindow.xaml.vb", desc: "منطق شاشة البيع والتقسيط" },
-  { path: "/desktop/DatabaseExtended.vb", name: "DatabaseExtended.vb", desc: "المشتريات والمرتجعات والخزينة SQLite" },
-  { path: "/desktop/ModulesWindow.xaml", name: "ModulesWindow.xaml", desc: "كل وحدات الإدارة RTL" },
-  { path: "/desktop/ModulesWindow.xaml.vb", name: "ModulesWindow.xaml.vb", desc: "المخازن والحسابات والأقساط" },
-];
-
-export function SourceScreen() {
-  const [active, setActive] = useState(FILES[4]);
-  const [code, setCode] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    fetch(active.path)
-      .then((r) => (r.ok ? r.text() : Promise.reject(new Error("404"))))
-      .then((t) => alive && setCode(t))
-      .catch(() => alive && setCode("' تعذر تحميل الملف"))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
-  }, [active]);
-
-  const download = () => {
-    const blob = new Blob([code], { type: "text/plain;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = active.name;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-
-  return (
-    <section className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 p-2 bg-paper" dir="rtl">
-      <aside className="lg:w-[260px] shrink-0 rounded-xl bg-ink-800 border border-black/40 overflow-hidden flex flex-col">
-        <div className="px-3 py-2.5 border-b border-white/10">
-          <h2 className="text-white font-black text-[14px]">كود المصدر — VB.NET / WPF</h2>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            نفس التطبيق كبرنامج سطح مكتب .NET 8 + SQLite
-          </p>
-        </div>
-        <div className="flex-1 overflow-y-auto cy-scroll-dark p-1.5 space-y-1">
-          {FILES.map((f) => (
-            <button
-              key={f.path}
-              onClick={() => setActive(f)}
-              className={`w-full text-right rounded-lg px-2.5 py-2 cy-press transition-colors ${
-                active.path === f.path
-                  ? "bg-amber-brand text-ink-900"
-                  : "bg-white/5 text-slate-200 hover:bg-white/12"
-              }`}
-            >
-              <div className="text-[12.5px] font-black font-mono" dir="ltr">
-                {f.name}
-              </div>
-              <div
-                className={`text-[11px] mt-0.5 ${active.path === f.path ? "text-ink-800/80" : "text-slate-400"}`}
-              >
-                {f.desc}
-              </div>
-            </button>
-          ))}
-        </div>
-        <div className="p-2 border-t border-white/10 flex gap-1.5">
-          <button
-            onClick={() => {
-              void navigator.clipboard?.writeText(code);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1600);
-            }}
-            className="flex-1 h-9 rounded-lg bg-white/10 text-white text-[12px] font-black cy-press hover:bg-white/20 flex items-center justify-center gap-1.5"
-          >
-            {copied ? <IcoCheck className="w-3.5 h-3.5" /> : <IcoCopy className="w-3.5 h-3.5" />}
-            {copied ? "تم النسخ" : "نسخ"}
-          </button>
-          <button
-            onClick={download}
-            className="flex-1 h-9 rounded-lg bg-cash-green text-white text-[12px] font-black cy-press hover:bg-cash-green-deep flex items-center justify-center gap-1.5"
-          >
-            <IcoDownload className="w-3.5 h-3.5" />
-            تنزيل
-          </button>
-        </div>
-      </aside>
-
-      <div className="flex-1 min-h-0 rounded-xl bg-ink-950 border border-black/50 overflow-hidden flex flex-col">
-        <div className="h-9 px-3 flex items-center gap-2 bg-ink-900 border-b border-white/10">
-          <span className="flex gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-cash-red" />
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-brand" />
-            <span className="w-2.5 h-2.5 rounded-full bg-cash-green" />
-          </span>
-          <span className="text-[12px] font-mono text-slate-400" dir="ltr">
-            CASH YOU / {active.name}
-          </span>
-          <span className="mr-auto text-[11px] font-bold text-slate-500 cy-num">
-            {code.split("\n").length} سطر
-          </span>
-        </div>
-        <pre
-          dir="ltr"
-          className="flex-1 min-h-0 overflow-auto cy-scroll-dark p-3 text-[12px] leading-[1.6] font-mono text-slate-200 whitespace-pre"
-        >
-          {loading ? "جارٍ التحميل..." : code}
-        </pre>
-      </div>
-    </section>
   );
 }
 

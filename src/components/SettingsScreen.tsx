@@ -1,11 +1,35 @@
 "use client";
 
-import { useRef, useState } from "react";
-import type { Bootstrap } from "@/lib/types";
-import { THEMES, DEFAULT_PREFS, type ButtonRadius, type ButtonSize, type UiPrefs, type ThemeId } from "@/lib/ui-prefs";
+import { useEffect, useRef, useState } from "react";
+import type { Bootstrap, SessionUser } from "@/lib/types";
+import {
+  DEFAULT_PREFS,
+  HIDE_ITEMS,
+  THEMES,
+  type AnimSpeed,
+  type ButtonRadius,
+  type ButtonSize,
+  type ButtonTemplate,
+  type InvoiceTemplate,
+  type LineTemplate,
+  type ThemeId,
+  type UiPrefs,
+} from "@/lib/ui-prefs";
 import { IcoCheck, IcoLogo, IcoTrash } from "@/components/icons";
 
 type Notify = (kind: "ok" | "warn" | "err" | "info", text: string) => void;
+type Change = (next: UiPrefs) => void;
+
+const TABS = [
+  { id: "shop", label: "بيانات المحل" },
+  { id: "theme", label: "الثيمات والألوان" },
+  { id: "templates", label: "القوالب والحركات" },
+  { id: "menu", label: "القائمة" },
+  { id: "login", label: "شاشة الدخول" },
+  { id: "visibility", label: "الإظهار والإخفاء" },
+  { id: "database", label: "قاعدة البيانات" },
+] as const;
+type TabId = (typeof TABS)[number]["id"];
 
 export function SettingsScreen({
   data,
@@ -13,30 +37,65 @@ export function SettingsScreen({
   onChange,
   refresh,
   notify,
+  focus,
+  user,
 }: {
   data: Bootstrap;
   prefs: UiPrefs;
-  onChange: (next: UiPrefs) => void;
+  onChange: Change;
   refresh: () => Promise<void>;
   notify: Notify;
+  focus: { tab: string; nonce: number } | null;
+  user: SessionUser | null;
 }) {
-  return (
-    <section className="flex-1 min-h-0 overflow-y-auto cy-scroll bg-paper p-3 sm:p-4" dir="rtl">
-      <div className="mx-auto max-w-5xl">
-        <header className="mb-3">
-          <h1 className="text-[18px] font-black text-ink-900">الإعدادات</h1>
-          <p className="text-[12px] font-bold text-slate-500">
-            بيانات المحل تُحفظ في قاعدة البيانات، أما الثيم والألوان وشكل الفاتورة فتُحفظ على هذا الجهاز.
-          </p>
-        </header>
+  const [tab, setTab] = useState<TabId>(() => {
+    const requested = TABS.find((t) => t.id === focus?.tab);
+    return requested ? requested.id : "shop";
+  });
 
-        <div className="grid gap-3 lg:grid-cols-2">
-          <ShopSection data={data} refresh={refresh} notify={notify} />
-          <ThemeSection prefs={prefs} onChange={onChange} />
-          <ColorSection prefs={prefs} onChange={onChange} />
-          <ButtonSection prefs={prefs} onChange={onChange} />
-          <ReceiptSection prefs={prefs} onChange={onChange} />
-          <GeneralSection prefs={prefs} onChange={onChange} />
+  return (
+    <section className="flex-1 min-h-0 flex flex-col bg-paper" dir="rtl">
+      <header className="shrink-0 px-4 pt-3 pb-2 border-b border-line bg-white/70">
+        <h1 className="text-[18px] font-black text-ink-900">الإعدادات</h1>
+        <p className="text-[12px] font-bold text-slate-500">بيانات المحل والقاعدة تُحفظ في الخادم، والباقي يُحفظ على هذا الجهاز.</p>
+        <nav className="mt-2 flex flex-wrap gap-1.5" role="tablist">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+              className={`cy-press cy-focus h-9 px-3.5 rounded-lg text-[12.5px] font-black transition-colors ${
+                tab === t.id ? "bg-ink-800 text-white shadow-sm" : "bg-slate-200/70 text-ink-700 hover:bg-slate-300/70"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      <div key={tab} className="cy-page-in flex-1 min-h-0 overflow-y-auto cy-scroll p-4">
+        <div className="mx-auto max-w-5xl grid gap-3 lg:grid-cols-2">
+          {tab === "shop" && <ShopSection data={data} refresh={refresh} notify={notify} />}
+          {tab === "theme" && (
+            <>
+              <ThemeSection prefs={prefs} onChange={onChange} />
+              <ColorSection prefs={prefs} onChange={onChange} />
+            </>
+          )}
+          {tab === "templates" && (
+            <>
+              <InvoiceTemplateSection prefs={prefs} onChange={onChange} />
+              <LineTemplateSection prefs={prefs} onChange={onChange} />
+              <ButtonTemplateSection prefs={prefs} onChange={onChange} />
+              <AnimationSection prefs={prefs} onChange={onChange} />
+            </>
+          )}
+          {tab === "menu" && <MenuSection prefs={prefs} onChange={onChange} />}
+          {tab === "login" && <LoginSection prefs={prefs} onChange={onChange} />}
+          {tab === "visibility" && <VisibilitySection prefs={prefs} onChange={onChange} />}
+          {tab === "database" && <DatabaseSection isOwner={user?.role === "owner"} notify={notify} />}
         </div>
       </div>
     </section>
@@ -176,36 +235,38 @@ function resizeToDataUrl(file: File, maxSide: number): Promise<string> {
   });
 }
 
-/* ---------------- الثيم ---------------- */
 
-function ThemeSection({ prefs, onChange }: { prefs: UiPrefs; onChange: (p: UiPrefs) => void }) {
+/* ---------------- الثيم والألوان ---------------- */
+
+function ThemeSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
   const pick = (id: ThemeId) => {
-    const t = THEMES.find((x) => x.id === id) ?? THEMES[0];
+    const t = THEMES.find((x) => x.id === id);
+    if (!t) return;
     onChange({ ...prefs, theme: id, colors: { chrome: t.chrome, paper: t.paper, accent: t.accent } });
   };
   return (
-    <Card title="الثيم" subtitle="اختر قالباً جاهزاً — داكن أو فاتح — ثم عدّل الألوان من القسم التالي">
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+    <Card title="الثيم" subtitle="الداكن هو الافتراضي، والفاتح متاح بعدة ألوان">
+      <div className="grid grid-cols-2 gap-2">
         {THEMES.map((t) => {
           const active = prefs.theme === t.id;
           return (
             <button
               key={t.id}
               onClick={() => pick(t.id)}
-              className={`text-right rounded-xl border-2 p-2 cy-press transition ${
-                active ? "border-amber-brand shadow-[0_8px_18px_-10px_rgba(245,158,11,.9)]" : "border-line hover:border-ink-500"
+              className={`cy-press cy-focus text-right rounded-xl border-2 p-2 bg-white transition ${
+                active ? "border-amber-brand" : "border-line hover:border-slate-400"
               }`}
             >
               <div className="h-14 rounded-lg overflow-hidden border border-black/10 flex" style={{ background: t.paper }}>
-                <span className="w-1/3 h-full" style={{ background: t.chrome }} />
-                <span className="flex-1 flex flex-col justify-center gap-1 px-1.5">
-                  <span className="h-1.5 w-3/4 rounded-full bg-white" />
-                  <span className="h-1.5 w-1/2 rounded-full" style={{ background: t.accent }} />
-                </span>
+                <div className="w-1/3 h-full" style={{ background: t.chrome }} />
+                <div className="flex-1 p-1.5 flex flex-col justify-center gap-1">
+                  <span className="h-1.5 w-2/3 rounded bg-white/90" />
+                  <span className="h-1.5 w-1/2 rounded" style={{ background: t.accent }} />
+                </div>
               </div>
-              <div className="mt-1.5 flex items-center justify-between gap-1">
-                <span className="text-[12px] font-black text-ink-800 truncate">{t.label}</span>
-                {active && <IcoCheck className="w-4 h-4 text-amber-600" />}
+              <div className="mt-1.5 flex items-center justify-between">
+                <span className="text-[12px] font-black text-ink-800">{t.label}</span>
+                {active && <IcoCheck className="w-4 h-4 text-amber-brand" />}
               </div>
             </button>
           );
@@ -215,118 +276,444 @@ function ThemeSection({ prefs, onChange }: { prefs: UiPrefs; onChange: (p: UiPre
   );
 }
 
-/* ---------------- الألوان ---------------- */
-
-function ColorSection({ prefs, onChange }: { prefs: UiPrefs; onChange: (p: UiPrefs) => void }) {
+function ColorSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
   const setColor = (key: keyof UiPrefs["colors"], value: string) =>
     onChange({ ...prefs, colors: { ...prefs.colors, [key]: value } });
   return (
-    <Card title="الألوان" subtitle="تغيير الألوان يتم فوراً على الشاشة">
-      <div className="grid sm:grid-cols-3 gap-2">
-        <ColorField label="لون الشريط" value={prefs.colors.chrome} onChange={(v) => setColor("chrome", v)} />
-        <ColorField label="لون الخلفية" value={prefs.colors.paper} onChange={(v) => setColor("paper", v)} />
+    <Card title="الألوان" subtitle="تغيير الألوان يدوياً يتجاوز ألوان الثيم">
+      <div className="grid gap-2">
+        <ColorField label="لون الشريط العلوي والسفلي" value={prefs.colors.chrome} onChange={(v) => setColor("chrome", v)} />
+        <ColorField label="لون خلفية الشاشة" value={prefs.colors.paper} onChange={(v) => setColor("paper", v)} />
         <ColorField label="اللون المميز" value={prefs.colors.accent} onChange={(v) => setColor("accent", v)} />
       </div>
-      <div className="flex justify-end mt-3">
-        <button
-          onClick={() => onChange({ ...prefs, colors: { ...DEFAULT_PREFS.colors } })}
-          className="h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
-        >
-          استعادة ألوان الثيم الداكن
-        </button>
+      <button
+        onClick={() => onChange({ ...prefs, colors: { ...DEFAULT_PREFS.colors }, theme: "dark" })}
+        className="cy-btn mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
+      >
+        استعادة ألوان الثيم الداكن
+      </button>
+    </Card>
+  );
+}
+
+/* ---------------- القوالب والحركات ---------------- */
+
+const INVOICE_TPLS: { value: InvoiceTemplate; label: string }[] = [
+  { value: "classic", label: "كلاسيكي" },
+  { value: "modern", label: "حديث" },
+  { value: "compact", label: "مضغوط" },
+];
+
+function InvoiceTemplateSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
+  const setTpl = (invoice: InvoiceTemplate) => onChange({ ...prefs, templates: { ...prefs.templates, invoice } });
+  const setReceipt = (patch: Partial<UiPrefs["receipt"]>) => onChange({ ...prefs, receipt: { ...prefs.receipt, ...patch } });
+  return (
+    <Card title="قالب الفاتورة" subtitle="شكل الإيصال المطبوع والمعاينة قبل الحفظ">
+      <div className="grid grid-cols-3 gap-2">
+        {INVOICE_TPLS.map((t) => (
+          <button
+            key={t.value}
+            onClick={() => setTpl(t.value)}
+            className={`cy-press rounded-xl border-2 p-2 bg-white text-center ${
+              prefs.templates.invoice === t.value ? "border-amber-brand" : "border-line hover:border-slate-400"
+            }`}
+          >
+            <div className={`mx-auto w-16 h-20 rounded bg-white border border-slate-300 p-1 flex flex-col gap-0.5 ${t.value === "compact" ? "text-[5px]" : ""}`}>
+              {t.value === "modern" ? (
+                <span className="h-3 rounded-sm bg-ink-800" />
+              ) : (
+                <span className={`h-1.5 w-2/3 mx-auto rounded ${t.value === "classic" ? "bg-slate-400" : "bg-slate-300"}`} />
+              )}
+              {[0, 1, 2, 3, 4].map((i) => (
+                <span key={i} className="h-1 rounded bg-slate-200" />
+              ))}
+            </div>
+            <span className="mt-1.5 block text-[12px] font-black text-ink-800">{t.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Segmented<"58" | "80">
+          label="عرض الورق"
+          value={String(prefs.receipt.paperWidth) as "58" | "80"}
+          onChange={(v) => setReceipt({ paperWidth: v === "58" ? 58 : 80 })}
+          options={[
+            { value: "58", label: "58 مم" },
+            { value: "80", label: "80 مم" },
+          ]}
+        />
+        <Toggle label="إظهار الشعار" checked={prefs.receipt.showLogo} onChange={(v) => setReceipt({ showLogo: v })} />
+        <Toggle label="إظهار التليفون" checked={prefs.receipt.showPhone} onChange={(v) => setReceipt({ showPhone: v })} />
+        <Toggle label="إظهار العنوان" checked={prefs.receipt.showAddress} onChange={(v) => setReceipt({ showAddress: v })} />
+        <Toggle label="إظهار التاريخ والوقت" checked={prefs.receipt.showDateTime} onChange={(v) => setReceipt({ showDateTime: v })} />
+      </div>
+      <label className="mt-3 flex flex-col gap-1">
+        <span className="text-[11px] font-black text-slate-500">نص أسفل الفاتورة</span>
+        <input
+          value={prefs.receipt.footerText}
+          onChange={(e) => setReceipt({ footerText: e.target.value })}
+          className="h-9 rounded-lg border border-line bg-paper-2 px-2.5 text-[13px] font-bold text-ink-900 outline-none focus:border-amber-brand focus:bg-white"
+        />
+      </label>
+    </Card>
+  );
+}
+
+const LINE_TPLS: { value: LineTemplate; label: string }[] = [
+  { value: "striped", label: "مخطط بالتبادل" },
+  { value: "bordered", label: "بإطارات" },
+  { value: "minimal", label: "بسيط" },
+];
+
+function LineTemplateSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
+  const setTpl = (lines: LineTemplate) => onChange({ ...prefs, templates: { ...prefs.templates, lines } });
+  return (
+    <Card title="قالب الخطوط" subtitle="شكل صفوف جدول الأصناف في شاشة البيع">
+      <div className="grid grid-cols-3 gap-2">
+        {LINE_TPLS.map((t) => (
+          <button
+            key={t.value}
+            onClick={() => setTpl(t.value)}
+            className={`cy-press rounded-xl border-2 p-2 bg-white ${
+              prefs.templates.lines === t.value ? "border-amber-brand" : "border-line hover:border-slate-400"
+            }`}
+          >
+            <div className="rounded border border-slate-200 overflow-hidden">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className={`h-3 ${
+                    t.value === "striped" && i % 2 === 1 ? "bg-slate-100" : "bg-white"
+                  } ${t.value === "bordered" ? "border-b border-slate-400" : "border-b border-dashed border-slate-200"}`}
+                />
+              ))}
+            </div>
+            <span className="mt-1.5 block text-[12px] font-black text-ink-800">{t.label}</span>
+          </button>
+        ))}
       </div>
     </Card>
   );
 }
 
-/* ---------------- الأزرار ---------------- */
+const BUTTON_TPLS: { value: ButtonTemplate; label: string }[] = [
+  { value: "filled", label: "ممتلئ" },
+  { value: "outline", label: "بإطار" },
+  { value: "soft", label: "ناعم" },
+];
 
-function ButtonSection({ prefs, onChange }: { prefs: UiPrefs; onChange: (p: UiPrefs) => void }) {
+function ButtonTemplateSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
   const setBtn = (patch: Partial<UiPrefs["buttons"]>) => onChange({ ...prefs, buttons: { ...prefs.buttons, ...patch } });
   return (
-    <Card title="الأزرار" subtitle="شكل وحجم أزرار الحفظ والدفع في شاشة البيع">
-      <Segmented<ButtonRadius>
-        label="شكل الزر"
-        value={prefs.buttons.radius}
-        onChange={(v) => setBtn({ radius: v })}
-        options={[
-          { value: "sharp", label: "حاد" },
-          { value: "rounded", label: "منحني" },
-          { value: "pill", label: "دائري" },
-        ]}
-      />
-      <Segmented<ButtonSize>
-        label="حجم الزر"
-        value={prefs.buttons.size}
-        onChange={(v) => setBtn({ size: v })}
-        options={[
-          { value: "compact", label: "صغير" },
-          { value: "normal", label: "متوسط" },
-          { value: "large", label: "كبير" },
-        ]}
-      />
-      <div className="grid sm:grid-cols-2 gap-2 mt-2">
+    <Card title="قالب الأزرار" subtitle="شكل أزرار الوظائف وأزرار الحفظ والإجراءات">
+      <div className="grid grid-cols-3 gap-2">
+        {BUTTON_TPLS.map((t) => (
+          <button
+            key={t.value}
+            onClick={() => setBtn({ template: t.value })}
+            className={`cy-press rounded-xl border-2 p-2 bg-white flex flex-col items-center gap-1.5 ${
+              prefs.buttons.template === t.value ? "border-amber-brand" : "border-line hover:border-slate-400"
+            }`}
+          >
+            <span
+              className={`cy-btn h-8 w-full rounded-lg text-[11px] font-black grid place-items-center ${
+                t.value === "filled" ? "bg-ink-800 text-white" : t.value === "outline" ? "bg-white border-2 border-ink-800 text-ink-800" : "bg-slate-200 text-ink-800"
+              }`}
+            >
+              نموذج
+            </span>
+            <span className="text-[12px] font-black text-ink-800">{t.label}</span>
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 grid gap-2">
+        <Segmented<ButtonRadius>
+          label="شكل الزر"
+          value={prefs.buttons.radius}
+          onChange={(v) => setBtn({ radius: v })}
+          options={[
+            { value: "sharp", label: "حاد" },
+            { value: "rounded", label: "منحني" },
+            { value: "pill", label: "دائري" },
+          ]}
+        />
+        <Segmented<ButtonSize>
+          label="حجم الزر"
+          value={prefs.buttons.size}
+          onChange={(v) => setBtn({ size: v })}
+          options={[
+            { value: "compact", label: "صغير" },
+            { value: "normal", label: "متوسط" },
+            { value: "large", label: "كبير" },
+          ]}
+        />
         <ColorField label="لون زر حفظ" value={prefs.buttons.save} onChange={(v) => setBtn({ save: v })} />
         <ColorField label="لون زر حفظ وطباعة" value={prefs.buttons.savePrint} onChange={(v) => setBtn({ savePrint: v })} />
       </div>
-      <div className="flex justify-end mt-3">
+    </Card>
+  );
+}
+
+const SPEEDS: { value: AnimSpeed; label: string }[] = [
+  { value: "fast", label: "سريعة" },
+  { value: "normal", label: "عادية" },
+  { value: "slow", label: "بطيئة" },
+];
+
+function AnimationSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
+  const setAnim = (patch: Partial<UiPrefs["anim"]>) => onChange({ ...prefs, anim: { ...prefs.anim, ...patch } });
+  return (
+    <Card title="الحركات" subtitle="انتقال الصفحات، والقائمة، والنوافذ، والأزرار">
+      <Toggle label="تفعيل الحركات" checked={prefs.anim.enabled} onChange={(v) => setAnim({ enabled: v })} />
+      <div className="mt-2">
+        <Segmented<AnimSpeed>
+          label="السرعة"
+          value={prefs.anim.speed}
+          onChange={(v) => setAnim({ speed: v })}
+          options={SPEEDS}
+        />
+      </div>
+    </Card>
+  );
+}
+
+/* ---------------- القائمة ---------------- */
+
+function MenuSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
+  const setMenu = (patch: Partial<UiPrefs["menu"]>) => onChange({ ...prefs, menu: { ...prefs.menu, ...patch } });
+  return (
+    <Card title="ألوان القائمة" subtitle="القائمة العائمة من زر «القائمة» بجانب تبويب الرئيسية">
+      <div
+        className="rounded-xl p-3 border border-black/10 cy-fluent-panel"
+        style={{ background: prefs.menu.bg, color: prefs.menu.text }}
+      >
+        <p className="text-[11px] font-black opacity-80 mb-2">معاينة</p>
+        {["الرئيسية", "فاتورة مبيعات", "الإعدادات"].map((label) => (
+          <div
+            key={label}
+            className="h-9 mb-1.5 px-3 rounded-lg flex items-center text-[12.5px] font-bold"
+            style={{ background: prefs.menu.button, color: prefs.menu.text, borderRadius: "var(--cy-btn-radius)" }}
+          >
+            {label}
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 grid gap-2">
+        <ColorField label="لون خلفية القائمة" value={prefs.menu.bg} onChange={(v) => setMenu({ bg: v })} />
+        <ColorField label="لون الكلام" value={prefs.menu.text} onChange={(v) => setMenu({ text: v })} />
+        <ColorField label="لون الأزرار" value={prefs.menu.button} onChange={(v) => setMenu({ button: v })} />
+      </div>
+      <button
+        onClick={() => setMenu({ ...DEFAULT_PREFS.menu })}
+        className="cy-btn mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
+      >
+        استعادة ألوان القائمة الافتراضية
+      </button>
+    </Card>
+  );
+}
+
+/* ---------------- شاشة الدخول ---------------- */
+
+function LoginSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
+  const setLogin = (patch: Partial<UiPrefs["login"]>) => onChange({ ...prefs, login: { ...prefs.login, ...patch } });
+  return (
+    <Card title="شاشة الدخول" subtitle="تظهر قبل تسجيل الدخول على هذا الجهاز">
+      <div className="rounded-xl p-4 text-center" style={{ background: prefs.login.bg }}>
+        {prefs.login.showLogo && <IcoLogo className="mx-auto h-12 w-12 rounded-xl" />}
+        <p className="mt-2 text-[15px] font-black text-white">{prefs.login.title || "—"}</p>
+        <p className="text-[11.5px] font-bold" style={{ color: prefs.login.accent }}>
+          {prefs.login.subtitle}
+        </p>
+      </div>
+      <div className="mt-3 grid gap-2">
+        <TextField label="عنوان شاشة الدخول" value={prefs.login.title} onChange={(v) => setLogin({ title: v })} />
+        <TextField label="الوصف تحت العنوان" value={prefs.login.subtitle} onChange={(v) => setLogin({ subtitle: v })} />
+        <ColorField label="لون الخلفية" value={prefs.login.bg} onChange={(v) => setLogin({ bg: v })} />
+        <ColorField label="لون التمييز" value={prefs.login.accent} onChange={(v) => setLogin({ accent: v })} />
+        <Toggle label="إظهار الشعار" checked={prefs.login.showLogo} onChange={(v) => setLogin({ showLogo: v })} />
+      </div>
+    </Card>
+  );
+}
+
+/* ---------------- الإظهار والإخفاء ---------------- */
+
+function VisibilitySection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
+  const setHidden = (key: (typeof HIDE_ITEMS)[number]["key"], hide: boolean) =>
+    onChange({ ...prefs, hidden: { ...prefs.hidden, [key]: hide } });
+  const groups = Array.from(new Set(HIDE_ITEMS.map((h) => h.group)));
+  return (
+    <Card title="إظهار وإخفاء العناصر" subtitle="اختر ما تريد إخفاءه من أنحاء البرنامج">
+      <div className="grid gap-3">
+        <Toggle label="توسيط النصوص في البرنامج كله" checked={prefs.centerText} onChange={(v) => onChange({ ...prefs, centerText: v })} />
+        {groups.map((g) => (
+          <div key={g}>
+            <p className="text-[11px] font-black text-slate-500 mb-1">{g}</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {HIDE_ITEMS.filter((h) => h.group === g).map((h) => (
+                <Toggle
+                  key={h.key}
+                  label={h.label}
+                  checked={!prefs.hidden[h.key]}
+                  onChange={(show) => setHidden(h.key, !show)}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={() => onChange({ ...prefs, hidden: {} })}
+        className="cy-btn mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
+      >
+        إظهار كل العناصر
+      </button>
+    </Card>
+  );
+}
+
+/* ---------------- قاعدة البيانات ---------------- */
+
+type DbState = { saved: { mode: "cloud" | "local"; maskedUrl: string } | null; active: { maskedUrl: string; source: string } | null };
+
+function DatabaseSection({ isOwner, notify }: { isOwner: boolean; notify: Notify }) {
+  const [mode, setMode] = useState<"cloud" | "local">("cloud");
+  const [url, setUrl] = useState("");
+  const [state, setState] = useState<DbState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [testMsg, setTestMsg] = useState("");
+
+  useEffect(() => {
+    if (!isOwner) return;
+    void fetch("/api/db-config", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((json: DbState) => {
+        setState(json);
+        if (json.saved) setMode(json.saved.mode);
+      })
+      .catch(() => undefined);
+  }, [isOwner]);
+
+  if (!isOwner) {
+    return (
+      <Card title="قاعدة البيانات" subtitle="للمالك فقط">
+        <p className="text-[12px] font-bold text-amber-800 bg-amber-50 rounded-lg px-3 py-2">إعدادات قاعدة البيانات متاحة لحساب المالك فقط.</p>
+      </Card>
+    );
+  }
+
+  const test = async () => {
+    setBusy(true);
+    setTestMsg("");
+    try {
+      const res = await fetch("/api/db-config/test", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string; version?: string };
+      if (json.ok) {
+        setTestMsg(`تم الاتصال بنجاح — ${json.version ?? ""}`);
+        notify("ok", "الاتصال بقاعدة البيانات ناجح");
+      } else {
+        setTestMsg(json.error ?? "تعذر الاتصال");
+        notify("err", json.error ?? "تعذر الاتصال");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/db-config", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode, url }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "تعذر حفظ الرابط");
+      setUrl("");
+      notify("ok", "تم حفظ الرابط — أعد تشغيل البرنامج ليتم تطبيقه");
+      setState((prev) => ({ active: prev?.active ?? null, saved: { mode, maskedUrl: "تم الحفظ — يُطبَّق بعد إعادة التشغيل" } }));
+    } catch (err) {
+      notify("err", err instanceof Error ? err.message : "تعذر حفظ الرابط");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card title="ربط قاعدة البيانات" subtitle="اختر نوع الربط ثم الصق الرابط (postgres://...)">
+      <div className="grid grid-cols-2 gap-2">
+        {(
+          [
+            { value: "cloud", label: "قاعدة سحابية", desc: "رابط خادم على الإنترنت" },
+            { value: "local", label: "قاعدة محلية", desc: "على نفس الجهاز (localhost)" },
+          ] as const
+        ).map((o) => (
+          <button
+            key={o.value}
+            onClick={() => setMode(o.value)}
+            className={`cy-press text-right rounded-xl border-2 p-3 bg-white ${
+              mode === o.value ? "border-amber-brand" : "border-line hover:border-slate-400"
+            }`}
+          >
+            <span className="block text-[13px] font-black text-ink-900">{o.label}</span>
+            <span className="block text-[11px] font-bold text-slate-500 mt-0.5">{o.desc}</span>
+          </button>
+        ))}
+      </div>
+
+      <label className="mt-3 flex flex-col gap-1">
+        <span className="text-[11px] font-black text-slate-500">رابط الاتصال</span>
+        <input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          dir="ltr"
+          placeholder={mode === "cloud" ? "postgres://user:password@host:5432/dbname" : "postgres://user:password@127.0.0.1:5432/cashyou"}
+          className="h-10 rounded-lg border border-line bg-paper-2 px-2.5 font-mono text-[12.5px] text-ink-900 outline-none focus:border-amber-brand focus:bg-white"
+        />
+      </label>
+      {testMsg && <p className="mt-2 text-[12px] font-bold text-ink-700">{testMsg}</p>}
+
+      <div className="mt-3 flex gap-2">
         <button
-          onClick={() => onChange({ ...prefs, buttons: { ...DEFAULT_PREFS.buttons } })}
-          className="h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
+          onClick={() => void test()}
+          disabled={busy || !url.trim()}
+          className="cy-btn h-10 px-4 rounded-lg bg-slate-200 text-ink-800 text-[12.5px] font-black cy-press hover:bg-slate-300 disabled:opacity-50"
         >
-          استعادة الأزرار الافتراضية
+          اختبار الاتصال
+        </button>
+        <button
+          onClick={() => void save()}
+          disabled={busy || !url.trim()}
+          className="cy-btn h-10 px-4 rounded-lg bg-ink-800 text-white text-[12.5px] font-black cy-press hover:bg-ink-900 disabled:opacity-50"
+        >
+          حفظ الرابط
         </button>
       </div>
-    </Card>
-  );
-}
 
-/* ---------------- شكل الفاتورة ---------------- */
-
-function ReceiptSection({ prefs, onChange }: { prefs: UiPrefs; onChange: (p: UiPrefs) => void }) {
-  const set = (patch: Partial<UiPrefs["receipt"]>) => onChange({ ...prefs, receipt: { ...prefs.receipt, ...patch } });
-  return (
-    <Card title="شكل الفاتورة المطبوعة" subtitle="يظهر في معاينة الإيصال قبل الطباعة">
-      <Segmented<"58" | "80">
-        label="عرض الورق"
-        value={String(prefs.receipt.paperWidth) as "58" | "80"}
-        onChange={(v) => set({ paperWidth: v === "58" ? 58 : 80 })}
-        options={[
-          { value: "58", label: "58 مم" },
-          { value: "80", label: "80 مم" },
-        ]}
-      />
-      <div className="grid sm:grid-cols-2 gap-1.5 mt-2">
-        <Toggle label="إظهار الشعار" checked={prefs.receipt.showLogo} onChange={(v) => set({ showLogo: v })} />
-        <Toggle label="إظهار التليفون" checked={prefs.receipt.showPhone} onChange={(v) => set({ showPhone: v })} />
-        <Toggle label="إظهار العنوان" checked={prefs.receipt.showAddress} onChange={(v) => set({ showAddress: v })} />
-        <Toggle label="إظهار التاريخ والوقت" checked={prefs.receipt.showDateTime} onChange={(v) => set({ showDateTime: v })} />
+      <div className="mt-4 rounded-lg bg-paper-2 border border-line p-3 text-[11.5px] font-bold text-ink-700 space-y-1">
+        <p>
+          الرابط الحالي: <span dir="ltr" className="font-mono text-ink-900">{state?.active?.maskedUrl ?? "—"}</span>
+          {state?.active && <span className="text-slate-500"> ({state.active.source === "file" ? "من الإعدادات" : "من متغير البيئة"})</span>}
+        </p>
+        {state?.saved && (
+          <p className="text-amber-800">
+            محفوظ للتشغيل القادم: <span dir="ltr" className="font-mono">{state.saved.maskedUrl}</span>
+          </p>
+        )}
+        <p className="text-slate-500">الربط الجديد يُطبَّق بعد إعادة تشغيل البرنامج.</p>
       </div>
-      <TextField
-        label="نص أسفل الفاتورة"
-        value={prefs.receipt.footerText}
-        onChange={(v) => set({ footerText: v })}
-        className="mt-2"
-      />
     </Card>
   );
 }
 
-/* ---------------- عام ---------------- */
-
-function GeneralSection({ prefs, onChange }: { prefs: UiPrefs; onChange: (p: UiPrefs) => void }) {
-  return (
-    <Card title="عام" subtitle="سلوك الواجهة على هذا الجهاز">
-      <Toggle
-        label="إظهار شاشة الترحيب بعد تسجيل الدخول (بشعار المحل)"
-        checked={prefs.showWelcome}
-        onChange={(v) => onChange({ ...prefs, showWelcome: v })}
-      />
-    </Card>
-  );
-}
-
-/* ---------------- عناصر مساعدة ---------------- */
+/* ---------------- الاستخدام المشترك ---------------- */
 
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (

@@ -1,7 +1,8 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { resolveDatabaseUrl } from "@/lib/db-config";
 
-const databaseUrl = process.env.DATABASE_URL;
+const { url: databaseUrl } = resolveDatabaseUrl();
 
 if (!databaseUrl) {
   throw new Error("DATABASE_URL is required");

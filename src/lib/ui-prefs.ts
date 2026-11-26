@@ -1,11 +1,16 @@
 /**
- * تفضيلات الواجهة (الثيم، الألوان، شكل الأزرار، شكل الفاتورة المطبوعة).
- * تُحفظ على هذا الجهاز فقط في localStorage، وتُطبَّق كمتغيرات CSS على الصفحة.
+ * تفضيلات الواجهة: الثيم والألوان، القوالب (الفاتورة/الخطوط/الأزرار)، الحركات،
+ * القائمة الجانبية، شاشة الدخول، العناصر المخفية، وتوسيط النصوص.
+ * تُحفظ على هذا الجهاز فقط في localStorage، وتُطبَّق كمتغيرات CSS وسمات على الصفحة.
  */
 
 export type ThemeId = "dark" | "light-blue" | "light-green" | "light-gold" | "light-gray";
 export type ButtonRadius = "sharp" | "rounded" | "pill";
 export type ButtonSize = "compact" | "normal" | "large";
+export type InvoiceTemplate = "classic" | "modern" | "compact";
+export type LineTemplate = "striped" | "bordered" | "minimal";
+export type ButtonTemplate = "filled" | "outline" | "soft";
+export type AnimSpeed = "fast" | "normal" | "slow";
 
 export type ReceiptPrefs = {
   paperWidth: 58 | 80;
@@ -16,20 +21,65 @@ export type ReceiptPrefs = {
   footerText: string;
 };
 
+/** العناصر التي يمكن إخفاؤها من أنحاء البرنامج */
+export const HIDE_ITEMS = [
+  { key: "search", label: "أيقونة البحث العام", group: "الشريط العلوي" },
+  { key: "sound", label: "زر الصوت", group: "الشريط العلوي" },
+  { key: "fullscreen", label: "زر ملء الشاشة", group: "الشريط العلوي" },
+  { key: "menu", label: "زر القائمة", group: "الشريط العلوي" },
+  { key: "date", label: "التاريخ", group: "الفوتر" },
+  { key: "time", label: "الوقت", group: "الفوتر" },
+  { key: "user", label: "اسم المستخدم", group: "الفوتر" },
+  { key: "support", label: "رقم الدعم الفني", group: "الفوتر" },
+  { key: "status", label: "حالة الاتصال", group: "الفوتر" },
+  { key: "trial", label: "حالة التفعيل", group: "الفوتر" },
+  { key: "welcome", label: "شاشة الترحيب", group: "عام" },
+  { key: "customerScreen", label: "زر شاشة الزبون", group: "شاشة البيع" },
+  { key: "categories", label: "قائمة التصنيفات", group: "شاشة البيع" },
+  { key: "balances", label: "خانات الرصيد السابق والبعد", group: "شاشة البيع" },
+  { key: "fnKeys", label: "أزرار الوظائف السفلية", group: "شاشة البيع" },
+  { key: "stock", label: "رصيد الصنف على البطاقة", group: "شاشة البيع" },
+  { key: "tableTotals", label: "إجماليات جدول الأصناف", group: "شاشة البيع" },
+] as const;
+export type HideKey = (typeof HIDE_ITEMS)[number]["key"];
+
 export type UiPrefs = {
   theme: ThemeId;
   /** ألوان مخصّصة تتجاوز ألوان الثيم المختار */
   colors: {
-    chrome: string; // الشريط الجانبي والعلوي والسفلي
+    chrome: string; // الشريط العلوي والسفلي
     paper: string; // خلفية الشاشة
-    accent: string; // اللون المميز (التبويب النشط والتنبيهات)
+    accent: string; // اللون المميز
   };
   buttons: {
     radius: ButtonRadius;
     size: ButtonSize;
     save: string; // زر حفظ
     savePrint: string; // زر حفظ وطباعة
+    template: ButtonTemplate;
   };
+  templates: {
+    invoice: InvoiceTemplate;
+    lines: LineTemplate;
+  };
+  anim: {
+    enabled: boolean;
+    speed: AnimSpeed;
+  };
+  menu: {
+    bg: string; // لون القائمة العائمة
+    text: string; // لون الكلام فيها
+    button: string; // لون الأزرار فيها
+  };
+  login: {
+    title: string;
+    subtitle: string;
+    bg: string;
+    accent: string;
+    showLogo: boolean;
+  };
+  hidden: Partial<Record<HideKey, boolean>>;
+  centerText: boolean;
   receipt: ReceiptPrefs;
   showWelcome: boolean;
 };
@@ -47,7 +97,19 @@ export const THEMES: ThemePreset[] = [
 export const DEFAULT_PREFS: UiPrefs = {
   theme: "dark",
   colors: { chrome: "#1e293b", paper: "#f1f5f9", accent: "#f59e0b" },
-  buttons: { radius: "rounded", size: "normal", save: "#10b981", savePrint: "#047857" },
+  buttons: { radius: "rounded", size: "normal", save: "#10b981", savePrint: "#047857", template: "filled" },
+  templates: { invoice: "classic", lines: "striped" },
+  anim: { enabled: true, speed: "normal" },
+  menu: { bg: "#1e293b", text: "#f8fafc", button: "#334155" },
+  login: {
+    title: "كاش يو — نقاط البيع",
+    subtitle: "نظام كاشير سريع للمحلات والتوريدات",
+    bg: "#0f172a",
+    accent: "#22d3ee",
+    showLogo: true,
+  },
+  hidden: {},
+  centerText: true,
   receipt: {
     paperWidth: 80,
     showLogo: true,
@@ -66,8 +128,7 @@ export function loadPrefs(): UiPrefs {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_PREFS;
-    const parsed = JSON.parse(raw) as Partial<UiPrefs>;
-    return mergePrefs(parsed);
+    return mergePrefs(JSON.parse(raw) as Partial<UiPrefs>);
   } catch {
     return DEFAULT_PREFS;
   }
@@ -81,12 +142,17 @@ export function savePrefs(prefs: UiPrefs): void {
   }
 }
 
-function mergePrefs(p: Partial<UiPrefs>): UiPrefs {
+export function mergePrefs(p: Partial<UiPrefs>): UiPrefs {
   return {
     ...DEFAULT_PREFS,
     ...p,
     colors: { ...DEFAULT_PREFS.colors, ...(p.colors ?? {}) },
     buttons: { ...DEFAULT_PREFS.buttons, ...(p.buttons ?? {}) },
+    templates: { ...DEFAULT_PREFS.templates, ...(p.templates ?? {}) },
+    anim: { ...DEFAULT_PREFS.anim, ...(p.anim ?? {}) },
+    menu: { ...DEFAULT_PREFS.menu, ...(p.menu ?? {}) },
+    login: { ...DEFAULT_PREFS.login, ...(p.login ?? {}) },
+    hidden: { ...(p.hidden ?? {}) },
     receipt: { ...DEFAULT_PREFS.receipt, ...(p.receipt ?? {}) },
   };
 }
@@ -102,10 +168,11 @@ export function isLightColor(hex: string): boolean {
   return 0.299 * r + 0.587 * g + 0.114 * b > 150;
 }
 
-const RADIUS: Record<ButtonRadius, string> = { sharp: "4px", rounded: "12px", pill: "999px" };
-const FN_HEIGHT: Record<ButtonSize, string> = { compact: "44px", normal: "52px", large: "62px" };
+const RADIUS: Record<ButtonRadius, string> = { sharp: "4px", rounded: "8px", pill: "999px" };
+const FN_HEIGHT: Record<ButtonSize, string> = { compact: "40px", normal: "46px", large: "56px" };
+const ANIM_MS: Record<AnimSpeed, string> = { fast: "140ms", normal: "240ms", slow: "420ms" };
 
-/** يطبّق التفضيلات على الصفحة عبر متغيرات CSS */
+/** يطبّق التفضيلات على الصفحة عبر متغيرات CSS وسمات على عنصر <html> */
 export function applyPrefs(prefs: UiPrefs): void {
   const root = document.documentElement;
   const theme = THEMES.find((t) => t.id === prefs.theme) ?? THEMES[0];
@@ -115,6 +182,13 @@ export function applyPrefs(prefs: UiPrefs): void {
   const mode = isLightColor(chrome) ? "light" : "dark";
 
   root.dataset.mode = mode;
+  root.dataset.tplInvoice = prefs.templates.invoice;
+  root.dataset.tplLines = prefs.templates.lines;
+  root.dataset.tplButtons = prefs.buttons.template;
+  root.dataset.anim = prefs.anim.enabled ? "on" : "off";
+  root.dataset.center = prefs.centerText ? "1" : "0";
+  root.dataset.hide = HIDE_ITEMS.filter((h) => prefs.hidden[h.key]).map((h) => h.key).join(" ");
+
   root.style.setProperty("--color-paper", paper);
   root.style.setProperty("--color-amber-brand", accent);
   root.style.setProperty("--cy-chrome", chrome);
@@ -124,4 +198,11 @@ export function applyPrefs(prefs: UiPrefs): void {
   root.style.setProperty("--cy-fn-h", FN_HEIGHT[prefs.buttons.size]);
   root.style.setProperty("--cy-save", prefs.buttons.save);
   root.style.setProperty("--cy-save-print", prefs.buttons.savePrint);
+  root.style.setProperty("--cy-menu-bg", prefs.menu.bg);
+  root.style.setProperty("--cy-menu-text", prefs.menu.text);
+  root.style.setProperty("--cy-menu-btn", prefs.menu.button);
+  root.style.setProperty("--cy-anim-dur", ANIM_MS[prefs.anim.speed]);
+  root.style.setProperty("--cy-btn-accent", accent);
+  root.style.setProperty("--cy-login-bg", prefs.login.bg);
+  root.style.setProperty("--cy-login-accent", prefs.login.accent);
 }

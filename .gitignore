@@ -12,3 +12,6 @@ next-env.d.ts
 
 # electron-builder output
 release/
+
+# local runtime config (DB link)
+.cash-you/

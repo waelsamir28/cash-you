@@ -18,7 +18,8 @@ import {
   sfxScan,
   sfxToggle,
 } from "@/lib/sound";
-import { GlobalSearch, IconRail, StatusBar, TabStrip, TitleBar, type Tab } from "@/components/Chrome";
+import { FloatingMenu, GlobalSearch, StatusBar, TabStrip, TitleBar, type Tab } from "@/components/Chrome";
+import { OverpayDialog, SalePreviewDialog } from "@/components/SaleDialogs";
 import { SettingsScreen } from "@/components/SettingsScreen";
 import { PosScreen, type PosActions } from "@/components/PosScreen";
 import { HomeScreen } from "@/components/HomeScreen";
@@ -39,7 +40,6 @@ import {
   PromptDialog,
   ReceiptModal,
   ShutdownScreen,
-  SourceScreen,
   Toasts,
   WelcomeToast,
   type ReceiptData,
@@ -54,7 +54,9 @@ type Overlay =
   | { kind: "productView"; product: Product }
   | { kind: "customerView"; customer: Customer }
   | { kind: "close" }
-  | { kind: "receipt"; receipt: ReceiptData }
+  | { kind: "receipt"; receipt: ReceiptData; autoPrint: boolean }
+  | { kind: "preview" }
+  | { kind: "overpay"; print: boolean }
   | { kind: "invoice"; invoice: InvoiceRow }
   | { kind: "installment"; print: boolean };
 
@@ -91,6 +93,8 @@ export default function CashYouApp({
   const [prefs, setPrefs] = useState<UiPrefs>(() => loadPrefs());
   const [searchOpen, setSearchOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [settingsFocus, setSettingsFocus] = useState<{ tab: string; nonce: number } | null>(null);
 
   /* ---------------- تفضيلات الواجهة (الثيم والألوان والأزرار) ---------------- */
   useEffect(() => {
@@ -186,25 +190,23 @@ export default function CashYouApp({
     return id;
   }, [data.nextInvoiceNumber, tabs]);
 
-  const openSourceTab = useCallback(() => {
-    setTabs((prev) =>
-      prev.some((t) => t.id === "source")
-        ? prev
-        : [...prev, { id: "source", kind: "source", title: "كود المصدر VB.NET" }],
-    );
-    setActiveId("source");
-    sfxKey();
-  }, []);
-
   const openModule = useCallback((kind: ModuleKind, title: string) => {
     if (kind === "invoice") { openInvoiceTab(); return; }
     if (kind === "home") { setActiveId("home"); sfxKey(); return; }
-    if (kind === "source") { openSourceTab(); return; }
     const id = `module-${kind}-${title}`;
     setTabs((prev) => prev.some((t) => t.id === id) ? prev : [...prev, { id, kind, title }]);
     setActiveId(id);
     sfxKey();
-  }, [openInvoiceTab, openSourceTab]);
+  }, [openInvoiceTab]);
+
+  /** فتح الإعدادات على قسم بعينه (مثلاً تخصيص القائمة) */
+  const openSettings = useCallback(
+    (tab: string) => {
+      setSettingsFocus({ tab, nonce: Date.now() });
+      openModule("settings", "الإعدادات");
+    },
+    [openModule],
+  );
 
   const refreshData = useCallback(async () => {
     try {
@@ -390,7 +392,7 @@ export default function CashYouApp({
 
   /* ---------------- الحفظ ---------------- */
   const save = useCallback(
-    async (print: boolean, installment?: InstallmentInput) => {
+    async (print: boolean, installment?: InstallmentInput, opts?: { skipPreview?: boolean; overMode?: "change" | "credit" }) => {
       if (saving) return;
       if (activeTab?.kind !== "invoice") {
         toast("warn", "افتح تبويب فاتورة مبيعات أولاً");
@@ -410,9 +412,21 @@ export default function CashYouApp({
         setOverlay({ kind: "installment", print });
         return;
       }
-      setSaving(true);
+      // «حفظ وطباعة»: تظهر المعاينة أولاً، ولا يُحفظ شيء قبل ضغط «طباعة»
+      if (print && !installment && !opts?.skipPreview) {
+        setOverlay({ kind: "preview" });
+        return;
+      }
       const snapshot = draft;
       const t = computeTotals(snapshot);
+      // المدفوع أكبر من الفاتورة: يختار المستخدم تسليم الباقي أو تنزيله على الحساب
+      const extra = Math.round((t.paid - t.total) * 100) / 100;
+      if (!installment && snapshot.saleType !== "تقسيط" && extra > 0 && !opts?.overMode) {
+        setOverlay({ kind: "overpay", print });
+        return;
+      }
+      const credit = !installment && extra > 0 && opts?.overMode === "credit" ? extra : 0;
+      setSaving(true);
       try {
         const res = await apiFetch("/api/invoices", {
           method: "POST",
@@ -422,8 +436,8 @@ export default function CashYouApp({
             customerName: snapshot.customerName,
             paymentMethod: snapshot.paymentMethod,
             saleType: snapshot.saleType,
-            discountPercent: 0,
-            paid: t.paid,
+            paid: Math.min(t.total, t.paid),
+            credit,
             printed: false,
             installment,
             items: snapshot.items.map((li) => ({
@@ -433,7 +447,6 @@ export default function CashYouApp({
               unit: li.unit,
               qty: li.qty,
               price: li.price,
-              discount: li.discount,
             })),
           }),
         });
@@ -507,7 +520,7 @@ export default function CashYouApp({
         await refreshData();
         sfxSave();
         // Both save actions show the saved receipt so the user can print or cancel.
-        setOverlay({ kind: "receipt", receipt });
+        setOverlay({ kind: "receipt", receipt, autoPrint: print });
         window.setTimeout(() => barcodeRef.current?.focus(), 80);
       } catch (err) {
         sfxError();
@@ -692,15 +705,23 @@ export default function CashYouApp({
         }}
         onClose={closeTab}
         onNew={openInvoiceTab}
+        menuOpen={menuOpen}
+        onToggleMenu={() => {
+          sfxKey();
+          setMenuOpen((v) => !v);
+        }}
+      />
+
+      <FloatingMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onPick={(kind, label) => openModule(kind, label)}
+        onCustomize={() => openSettings("menu")}
       />
 
       <div className="flex-1 min-h-0 flex">
-        <IconRail
-          activeKind={activeTab?.kind ?? "home"}
-          onRail={(kind, label) => openModule(kind, label)}
-        />
-
         <main className="flex-1 min-w-0 flex flex-col">
+        <div key={activeTab?.id ?? "none"} className="cy-page-in flex-1 min-h-0 flex flex-col">
           {activeTab?.kind === "home" && (
             <HomeScreen
               data={data}
@@ -710,14 +731,16 @@ export default function CashYouApp({
             />
           )}
 
-          {activeTab?.kind === "source" && <SourceScreen />}
           {activeTab?.kind === "settings" && (
             <SettingsScreen
+              key={settingsFocus?.nonce ?? 0}
               data={data}
               prefs={prefs}
               onChange={updatePrefs}
               refresh={refreshData}
               notify={toast}
+              focus={settingsFocus}
+              user={user}
             />
           )}
           {activeTab?.kind === "products" && <ProductsScreen data={data} refresh={refreshData} notify={toast} />}
@@ -753,6 +776,7 @@ export default function CashYouApp({
               saving={saving}
             />
           )}
+        </div>
         </main>
       </div>
 
@@ -870,7 +894,56 @@ export default function CashYouApp({
           receipt={overlay.receipt}
           shop={data.shop}
           prefs={prefs.receipt}
+          autoPrint={overlay.autoPrint}
           onClose={() => setOverlay({ kind: "none" })}
+        />
+      )}
+
+      {overlay.kind === "preview" && (
+        <SalePreviewDialog
+          receipt={{
+            number: draft.number,
+            createdAt: new Date().toISOString(),
+            customerName: draft.customerName,
+            paymentMethod: draft.paymentMethod,
+            saleType: draft.saleType,
+            subtotal: totals.subtotal,
+            total: totals.total,
+            paid: totals.paid,
+            remaining: totals.remaining,
+            items: draft.items.map((li) => ({
+              name: li.name,
+              code: li.code,
+              qty: li.qty,
+              price: li.price,
+              total: lineTotal(li),
+              unit: li.unit,
+            })),
+          }}
+          shop={data.shop}
+          prefs={prefs.receipt}
+          busy={saving}
+          onClose={() => setOverlay({ kind: "none" })}
+          onConfirm={() => {
+            setOverlay({ kind: "none" });
+            void save(true, undefined, { skipPreview: true });
+          }}
+        />
+      )}
+
+      {overlay.kind === "overpay" && (
+        <OverpayDialog
+          previousBalance={data.customers.find((c) => c.id === draft.customerId)?.balance ?? 0}
+          total={totals.total}
+          paid={totals.paid}
+          hasCustomer={draft.customerId !== null}
+          customerName={draft.customerName}
+          onClose={() => setOverlay({ kind: "none" })}
+          onPick={(mode) => {
+            const print = overlay.print;
+            setOverlay({ kind: "none" });
+            void save(print, undefined, { skipPreview: true, overMode: mode });
+          }}
         />
       )}
 
@@ -893,7 +966,7 @@ export default function CashYouApp({
 
       <Toasts toasts={toasts} onDismiss={dismiss} />
 
-      {welcome && prefs.showWelcome && (
+      {welcome && prefs.showWelcome && !prefs.hidden.welcome && (
         <WelcomeToast
           shopName={data.shop.name}
           logo={data.shop.logo}
