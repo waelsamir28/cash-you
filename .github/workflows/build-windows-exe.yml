@@ -1,0 +1,192 @@
+name: Build Windows EXE
+
+# يبني ملف التثبيت CASH-YOU-Setup-x.y.z.exe على GitHub Actions
+# ويُرفقه بـ Release حتى يمكن تنزيله مباشرة من صفحة الإصدارات.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "electron/**"
+      - "assets/branding/**"
+      - "electron/installer.nsh"
+      - "tools/make-installer-art.cjs"
+      - "tools/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/build-windows-exe.yml"
+      - ".github/release-notes/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "electron/**"
+      - "assets/branding/**"
+      - "electron/installer.nsh"
+      - "tools/make-installer-art.cjs"
+      - "tools/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/build-windows-exe.yml"
+      - ".github/release-notes/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-installer:
+    name: Package CASH YOU for Windows
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify the bundled PostgreSQL (local database without installation)
+        run: |
+          if (!(Test-Path "node_modules/@embedded-postgres/windows-x64/native/bin/postgres.exe")) { throw "postgres.exe is missing from the embedded PostgreSQL package" }
+          if (!(Test-Path "node_modules/embedded-postgres/dist/index.js")) { throw "embedded-postgres is missing" }
+          Write-Host "embedded PostgreSQL is present"
+
+      - name: Smoke test the bundled PostgreSQL (runs for real on Windows)
+        run: node tools/test-embedded-postgres.cjs
+
+      # خطأ الإصدار 1.3.0: بعد التغليف صار initdb داخل app.asar وغير موجود،
+      # ففشل التشغيل عند العميل بالخطأ ENOENT رغم نجاح الفحص السابق.
+      # هذا الفحص يشغّل الكود من داخل بنية app.asar الفعلية.
+      - name: Verify PostgreSQL starts from inside app.asar
+        run: node tools/test-asar-paths.cjs
+
+      - name: Prepare the app icon (ICO)
+        run: node tools/make-icon.cjs
+
+      - name: Generate the Windows 11 dark installer artwork
+        run: node tools/make-installer-art.cjs
+
+      - name: Build the Next.js app (standalone) and desktop assets
+        run: node tools/build-desktop-assets.cjs
+        env:
+          # The build does not connect to a database — a syntactically valid URL is enough.
+          DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?sslmode=disable
+
+      - name: Verify the bundled local server
+        run: |
+          test -f .next/standalone/server.js
+          test -d .next/standalone/.next/static
+          test -f .next/standalone/node_modules/pg/package.json
+          test -f .next/standalone/node_modules/next/dist/server/next.js
+
+      - name: Verify the desktop bundle patterns
+        run: node tools/check-desktop-bundle.cjs
+
+      - name: Verify the standalone bundle survives the copy
+        run: node tools/test-bundle-copy.cjs
+
+      - name: Package the NSIS installer
+        run: npm run desktop:dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Verify outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f assets/branding/icon.ico
+          test -f assets/branding/installer-header.bmp
+          test -f assets/branding/installer-sidebar.bmp
+          test -f assets/branding/uninstaller-sidebar.bmp
+          compgen -G "release/*.exe" > /dev/null
+          ls -lh assets/branding release
+
+      # الفحص الحاسم: نشغّل PostgreSQL المدمج **من الحزمة النهائية نفسها**
+      # (بعد electron-builder) عبر Electron المرفق بـ ELECTRON_RUN_AS_NODE،
+      # فيُهيّئ عنقوداً حقيقياً ويتحقق من UTF8 وقراءة العربية.
+      - name: Verify the packaged app can start its embedded PostgreSQL
+        run: node tools/test-packaged-postgres.cjs
+
+      - name: Verify the packaged app contains the local server
+        shell: bash
+        run: |
+          set -euo pipefail
+          # حزمة standalone يجب أن تكون داخل resources خارج app.asar
+          # مجلد الإخراج محدد في package.json → build.directories.output = "release"
+          APP_DIR="release/win-unpacked"
+          echo "== resources =="
+          ls -la "$APP_DIR/resources"
+          echo "== standalone =="
+          ls -la "$APP_DIR/resources/standalone"
+          test -d "$APP_DIR/resources/standalone"
+          test -f "$APP_DIR/resources/standalone/server.js"
+          test -f "$APP_DIR/resources/standalone/node_modules/pg/package.json"
+          test -f "$APP_DIR/resources/standalone/node_modules/next/dist/server/next.js"
+          # حجم الحزمة يجب أن يعكس وجود standalone كامل (لا يقل عن 30 ميجابايت)
+          STANDALONE_KB=$(du -sk "$APP_DIR/resources/standalone" | cut -f1)
+          echo "standalone size: ${STANDALONE_KB} KB"
+          if [ "$STANDALONE_KB" -lt 30000 ]; then
+            echo "::error::حزمة standalone ناقصة في الحزمة (${STANDALONE_KB} KB فقط)"
+            exit 1
+          fi
+
+      - name: Build Custom Electron GUI Installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_VERSION=$(node -p "require('./package.json').version")
+          mkdir -p installer/bin
+          cp node_modules/7zip-bin/win/x64/7za.exe installer/bin/7za.exe
+          rm -f installer/payload.7z
+          7z a -t7z -mx=5 installer/payload.7z ./release/win-unpacked/*
+          node -e "const p=JSON.parse(require('fs').readFileSync('installer/package.json','utf8')); p.version='${APP_VERSION}'; require('fs').writeFileSync('installer/package.json', JSON.stringify(p, null, 2)+'\n');"
+          npx electron-builder --projectDir installer --win portable
+          rm -f release/*.exe release/*.blockmap
+          cp release-installer/CASH-YOU-Setup-${APP_VERSION}.exe release/CASH-YOU-Setup-${APP_VERSION}.exe
+
+      - name: Upload the installer as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CASH-YOU-Windows-Setup
+          path: |
+            release/*.exe
+            release/*.blockmap
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish or update the GitHub Release
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          APP_VERSION=$(node -p "require('./package.json').version")
+          TAG="desktop-v${APP_VERSION}"
+
+          # اجمع ملفات الإصدار التي وُلدت فعلاً: المثبت وملف blockmap إن وُجد
+          FILES=()
+          while IFS= read -r -d '' f; do FILES+=("$f"); done < <(find release -maxdepth 1 -type f \( -name '*.exe' -o -name '*.blockmap' \) -print0)
+
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No release files found" >&2
+            exit 1
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+          else
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "CASH YOU Desktop v${APP_VERSION}" \
+              --notes "$(cat ".github/release-notes/desktop-v${APP_VERSION}.md" 2>/dev/null || echo "ملف تثبيت ويندوز: CASH-YOU-Setup-${APP_VERSION}.exe — بناء آلي رقم ${{ github.run_number }} من GitHub Actions.")" \
+              "${FILES[@]}"
+          fi
