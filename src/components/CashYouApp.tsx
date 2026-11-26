@@ -717,6 +717,7 @@ export default function CashYouApp({
         onClose={() => setMenuOpen(false)}
         onPick={(kind, label) => openModule(kind, label)}
         onCustomize={() => openSettings("menu")}
+        showIcons={prefs.menu.icons}
       />
 
       <div className="flex-1 min-h-0 flex">

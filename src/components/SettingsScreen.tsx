@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { Bootstrap, SessionUser } from "@/lib/types";
 import {
+  BUTTON_MOTIONS,
   DEFAULT_PREFS,
+  ENTER_MOTIONS,
   HIDE_ITEMS,
   THEMES,
   type AnimSpeed,
@@ -288,7 +290,7 @@ function ColorSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change })
       </div>
       <button
         onClick={() => onChange({ ...prefs, colors: { ...DEFAULT_PREFS.colors }, theme: "dark" })}
-        className="cy-btn mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
+        className="mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
       >
         استعادة ألوان الثيم الداكن
       </button>
@@ -448,6 +450,10 @@ function ButtonTemplateSection({ prefs, onChange }: { prefs: UiPrefs; onChange: 
             { value: "large", label: "كبير" },
           ]}
         />
+        <ColorField label="اللون الأساسي للزر" value={prefs.buttons.base} onChange={(v) => setBtn({ base: v })} />
+        <ColorField label="لون المرور (Hover)" value={prefs.buttons.hover} onChange={(v) => setBtn({ hover: v })} />
+        <ColorField label="لون الضغط (Press)" value={prefs.buttons.press} onChange={(v) => setBtn({ press: v })} />
+        <ColorField label="لون الكلام على الزر" value={prefs.buttons.text} onChange={(v) => setBtn({ text: v })} />
         <ColorField label="لون زر حفظ" value={prefs.buttons.save} onChange={(v) => setBtn({ save: v })} />
         <ColorField label="لون زر حفظ وطباعة" value={prefs.buttons.savePrint} onChange={(v) => setBtn({ savePrint: v })} />
       </div>
@@ -461,56 +467,148 @@ const SPEEDS: { value: AnimSpeed; label: string }[] = [
   { value: "slow", label: "بطيئة" },
 ];
 
+function MotionPicker<T extends string>({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: T;
+  onChange: (v: T) => void;
+  options: readonly { id: T; label: string }[];
+}) {
+  return (
+    <div className="mt-2">
+      <p className="text-[12px] font-black text-ink-700 mb-1">{label}</p>
+      <div className="grid grid-cols-3 gap-1.5">
+        {options.map((o) => (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            className={`cy-press h-9 rounded-lg text-[12px] font-black border-2 ${
+              value === o.id ? "border-amber-brand bg-amber-soft text-ink-900" : "border-line bg-white text-ink-700 hover:border-slate-400"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function AnimationSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
   const setAnim = (patch: Partial<UiPrefs["anim"]>) => onChange({ ...prefs, anim: { ...prefs.anim, ...patch } });
   return (
-    <Card title="الحركات" subtitle="انتقال الصفحات، والقائمة، والنوافذ، والأزرار">
+    <Card title="الحركات" subtitle="انتقال الصفحات وحركة الأزرار (القائمة لها تحكم منفصل)">
       <Toggle label="تفعيل الحركات" checked={prefs.anim.enabled} onChange={(v) => setAnim({ enabled: v })} />
       <div className="mt-2">
-        <Segmented<AnimSpeed>
-          label="السرعة"
-          value={prefs.anim.speed}
-          onChange={(v) => setAnim({ speed: v })}
-          options={SPEEDS}
-        />
+        <Segmented<AnimSpeed> label="السرعة" value={prefs.anim.speed} onChange={(v) => setAnim({ speed: v })} options={SPEEDS} />
       </div>
+      <MotionPicker label="حركة انتقال الصفحات" value={prefs.anim.page} options={ENTER_MOTIONS} onChange={(v) => setAnim({ page: v })} />
+      <MotionPicker label="حركة الأزرار" value={prefs.anim.button} options={BUTTON_MOTIONS} onChange={(v) => setAnim({ button: v })} />
     </Card>
+  );
+}
+
+function Slider({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  unit = "",
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1 mt-2">
+      <span className="flex items-center justify-between text-[12px] font-black text-ink-700">
+        <span>{label}</span>
+        <span className="cy-num text-ink-900">
+          {value}
+          {unit}
+        </span>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-amber-500"
+      />
+    </label>
   );
 }
 
 /* ---------------- القائمة ---------------- */
 
+const ITEM_HEIGHTS: { value: "compact" | "normal" | "large"; label: string }[] = [
+  { value: "compact", label: "صغيرة" },
+  { value: "normal", label: "متوسطة" },
+  { value: "large", label: "كبيرة" },
+];
+
 function MenuSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
   const setMenu = (patch: Partial<UiPrefs["menu"]>) => onChange({ ...prefs, menu: { ...prefs.menu, ...patch } });
+  const setAnim = (patch: Partial<UiPrefs["anim"]>) => onChange({ ...prefs, anim: { ...prefs.anim, ...patch } });
+  const m = prefs.menu;
   return (
-    <Card title="ألوان القائمة" subtitle="القائمة العائمة من زر «القائمة» بجانب تبويب الرئيسية">
-      <div
-        className="rounded-xl p-3 border border-black/10 cy-fluent-panel"
-        style={{ background: prefs.menu.bg, color: prefs.menu.text }}
-      >
-        <p className="text-[11px] font-black opacity-80 mb-2">معاينة</p>
-        {["الرئيسية", "فاتورة مبيعات", "الإعدادات"].map((label) => (
-          <div
-            key={label}
-            className="h-9 mb-1.5 px-3 rounded-lg flex items-center text-[12.5px] font-bold"
-            style={{ background: prefs.menu.button, color: prefs.menu.text, borderRadius: "var(--cy-btn-radius)" }}
-          >
-            {label}
-          </div>
-        ))}
-      </div>
-      <div className="mt-3 grid gap-2">
-        <ColorField label="لون خلفية القائمة" value={prefs.menu.bg} onChange={(v) => setMenu({ bg: v })} />
-        <ColorField label="لون الكلام" value={prefs.menu.text} onChange={(v) => setMenu({ text: v })} />
-        <ColorField label="لون الأزرار" value={prefs.menu.button} onChange={(v) => setMenu({ button: v })} />
-      </div>
-      <button
-        onClick={() => setMenu({ ...DEFAULT_PREFS.menu })}
-        className="cy-btn mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
-      >
-        استعادة ألوان القائمة الافتراضية
-      </button>
-    </Card>
+    <>
+      <Card title="القائمة الرئيسية" subtitle="زر «القائمة» بجانب تبويب الرئيسية، والضغط بره القائمة يقفلها">
+        <div
+          className="rounded-xl p-3 border border-black/10"
+          style={{ background: `color-mix(in srgb, ${m.bg} ${m.opacity}%, transparent)`, color: m.text, width: m.width, maxWidth: "100%" }}
+        >
+          <p className="text-[11px] font-black opacity-80 mb-2">معاينة</p>
+          {["الرئيسية", "فاتورة مبيعات", "الإعدادات"].map((label) => (
+            <div
+              key={label}
+              className="px-2 mb-1.5 flex items-center text-[12.5px] font-bold"
+              style={{ background: m.button, color: m.text, borderRadius: m.radius, minHeight: m.itemHeight === "compact" ? 34 : m.itemHeight === "large" ? 48 : 40 }}
+            >
+              <span className="w-6" />
+              <span className="flex-1 text-center">{label}</span>
+              {m.icons && <span className="w-6 text-center opacity-90">●</span>}
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 grid gap-2">
+          <ColorField label="لون خلفية القائمة" value={m.bg} onChange={(v) => setMenu({ bg: v })} />
+          <ColorField label="لون الكلام" value={m.text} onChange={(v) => setMenu({ text: v })} />
+          <ColorField label="لون الأزرار" value={m.button} onChange={(v) => setMenu({ button: v })} />
+          <Toggle label="إظهار الأيقونات (على الشمال)" checked={m.icons} onChange={(v) => setMenu({ icons: v })} />
+        </div>
+        <Slider label="شفافية القائمة" value={m.opacity} min={40} max={100} unit="%" onChange={(v) => setMenu({ opacity: v })} />
+        <Slider label="عرض القائمة" value={m.width} min={200} max={360} unit="px" onChange={(v) => setMenu({ width: v })} />
+        <Slider label="انحناء الأزرار" value={m.radius} min={0} max={20} unit="px" onChange={(v) => setMenu({ radius: v })} />
+        <div className="mt-2">
+          <Segmented<"compact" | "normal" | "large">
+            label="ارتفاع الزر"
+            value={m.itemHeight}
+            onChange={(v) => setMenu({ itemHeight: v })}
+            options={ITEM_HEIGHTS}
+          />
+        </div>
+        <MotionPicker label="حركة فتح القائمة" value={prefs.anim.menu} options={ENTER_MOTIONS} onChange={(v) => setAnim({ menu: v })} />
+        <button
+          onClick={() => setMenu({ ...DEFAULT_PREFS.menu })}
+          className="mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
+        >
+          استعادة إعدادات القائمة الافتراضية
+        </button>
+      </Card>
+    </>
   );
 }
 
@@ -566,7 +664,7 @@ function VisibilitySection({ prefs, onChange }: { prefs: UiPrefs; onChange: Chan
       </div>
       <button
         onClick={() => onChange({ ...prefs, hidden: {} })}
-        className="cy-btn mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
+        className="mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
       >
         إظهار كل العناصر
       </button>
@@ -684,7 +782,7 @@ function DatabaseSection({ isOwner, notify }: { isOwner: boolean; notify: Notify
         <button
           onClick={() => void test()}
           disabled={busy || !url.trim()}
-          className="cy-btn h-10 px-4 rounded-lg bg-slate-200 text-ink-800 text-[12.5px] font-black cy-press hover:bg-slate-300 disabled:opacity-50"
+          className="h-10 px-4 rounded-lg bg-slate-200 text-ink-800 text-[12.5px] font-black cy-press hover:bg-slate-300 disabled:opacity-50"
         >
           اختبار الاتصال
         </button>

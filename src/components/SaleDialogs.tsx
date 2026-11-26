@@ -32,7 +32,7 @@ export function SalePreviewDialog({
           onClick={onConfirm}
           disabled={busy}
           style={{ background: "var(--cy-save-print)" }}
-          className="cy-btn flex-1 h-11 rounded-xl text-white font-black cy-press flex items-center justify-center gap-2 disabled:opacity-50"
+          className="flex-1 h-11 rounded-xl text-white font-black cy-press flex items-center justify-center gap-2 disabled:opacity-50"
         >
           <IcoPrint className="w-4 h-4" />
           {busy ? "جاري الحفظ..." : "طباعة"}
@@ -40,7 +40,7 @@ export function SalePreviewDialog({
         <button
           onClick={onClose}
           disabled={busy}
-          className="cy-btn h-11 px-6 rounded-xl bg-slate-200 text-ink-800 font-black cy-press hover:bg-slate-300 disabled:opacity-50"
+          className="h-11 px-6 rounded-xl bg-slate-200 text-ink-800 font-black cy-press hover:bg-slate-300 disabled:opacity-50"
         >
           إلغاء
         </button>
@@ -88,7 +88,7 @@ export function OverpayDialog({
       <div className="grid grid-cols-2 gap-2 mt-2">
         <button
           onClick={() => onPick("change")}
-          className="cy-btn h-12 rounded-xl bg-cash-green text-white font-black cy-press hover:bg-cash-green-deep flex flex-col items-center justify-center"
+          className="h-12 rounded-xl bg-cash-green text-white font-black cy-press hover:bg-cash-green-deep flex flex-col items-center justify-center"
         >
           <span>تسليم الباقي للعميل</span>
           <span className="text-[10.5px] font-bold opacity-85">يُعطى نقداً الآن</span>

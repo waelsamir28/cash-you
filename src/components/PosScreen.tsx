@@ -656,7 +656,7 @@ function FnKey({
       onClick={onClick}
       disabled={busy}
       style={custom}
-      className={`cy-fn cy-btn relative border cy-press cy-focus flex flex-col items-center justify-center gap-0.5 font-black text-[13.5px] shadow-[0_6px_16px_-10px_rgba(15,23,42,0.9)] disabled:opacity-60 hover:brightness-110 ${
+      className={`cy-fn ${custom ? "" : "cy-btn"} relative border cy-press cy-focus flex flex-col items-center justify-center gap-0.5 font-black text-[13.5px] shadow-[0_6px_16px_-10px_rgba(15,23,42,0.9)] disabled:opacity-60 hover:brightness-110 ${
         custom ? "text-white" : (FN_TONES[tone] ?? "")
       }`}
     >

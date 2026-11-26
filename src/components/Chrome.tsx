@@ -396,12 +396,15 @@ export function FloatingMenu({
   onClose,
   onPick,
   onCustomize,
+  showIcons,
 }: {
   open: boolean;
   onClose: () => void;
   onPick: (kind: ModuleKind, label: string) => void;
   onCustomize: () => void;
+  showIcons: boolean;
 }) {
+  const prefsIcons = showIcons;
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -416,7 +419,7 @@ export function FloatingMenu({
     <div className="fixed inset-0 z-[90]" onMouseDown={onClose} dir="rtl">
       <div
         onMouseDown={(e) => e.stopPropagation()}
-        className="cy-menu-drop cy-menu-panel cy-fluent-panel absolute top-[104px] right-2 w-[260px] p-2"
+        className="cy-menu-drop cy-menu-panel cy-fluent-panel absolute top-[104px] right-2 p-2"
       >
         <div className="flex items-center justify-between px-1.5 pb-2 mb-1 border-b border-white/15">
           <span className="text-[12px] font-black tracking-wide">القائمة</span>
@@ -440,10 +443,12 @@ export function FloatingMenu({
                 onClose();
                 onPick(it.kind, it.label);
               }}
-              className="cy-menu-item cy-btn flex items-center gap-2.5 h-10 px-3 text-[13px] font-bold text-right"
+              className="cy-menu-item flex items-center gap-2 px-2 text-[13px] font-bold"
             >
-              <span className="opacity-90">{it.icon}</span>
-              <span className="flex-1">{it.label}</span>
+              {/* ترتيب العناصر في RTL: المسافة يمين، الكلام في المنتصف، والأيقونة على الشمال */}
+              <span className="w-6 shrink-0" />
+              <span className="flex-1 text-center">{it.label}</span>
+              {prefsIcons && <span className="w-6 shrink-0 grid place-items-center opacity-90">{it.icon}</span>}
             </button>
           ))}
         </div>
