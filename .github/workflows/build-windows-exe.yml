@@ -27,7 +27,7 @@ jobs:
         run: npm run build
 
       - name: Package NSIS installer
-        run: npx electron-builder --win nsis --x64
+        run: npx electron-builder --win nsis --x64 --publish never -c.extraMetadata.version=1.4.2
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
@@ -45,7 +45,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          APP_VERSION=$(node -p "require('./package.json').version")
+          APP_VERSION=$(node -p "require('./package.json').version || '1.4.2'")
           TAG="desktop-v${APP_VERSION}"
           FILES=()
           while IFS= read -r -d '' f; do FILES+=("$f"); done < <(find release -maxdepth 1 -type f \( -name '*.exe' -o -name '*.blockmap' \) -print0)
