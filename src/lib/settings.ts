@@ -427,6 +427,19 @@ export type ShopSettings = {
   shopAddress: string;
   /** شعار المحل: data-URL (base64) أو رابط */
   shopLogo: string;
+  /** خلفية الشاشة الرئيسية: data-URL (base64) أو رابط */
+  homeBgImage: string;
+  /** إعدادات محرر قوالب الفاتورة */
+  receiptEditor: {
+    showLogo: boolean;
+    showPhone: boolean;
+    showAddress: boolean;
+    showQr: boolean;
+    watermark: string;
+    accentColor: string;
+    fontSize: number;
+    marginMm: number;
+  };
   /** رسالة أسفل الفاتورة */
   invoiceFooter: string;
   /** إظهار سطر «شكراً لتعاملكم معنا» */
@@ -514,6 +527,17 @@ export const DEFAULT_SETTINGS: ShopSettings = {
   loginMessage: "أدر مبيعاتك ومخزونك وحساباتك من شاشة واحدة — بسرعة ودقة.",
   loginBg: "mesh",
   loginBgImage: "",
+  homeBgImage: "",
+  receiptEditor: {
+    showLogo: true,
+    showPhone: true,
+    showAddress: true,
+    showQr: false,
+    watermark: "",
+    accentColor: "#0f172a",
+    fontSize: 12,
+    marginMm: 4,
+  },
   loginBgColor: "#0b1220",
   loginParts: defaultLoginParts(),
 };

@@ -1655,3 +1655,84 @@ export function ShortcutsOverlay({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
+
+/* ================================================================
+   ماسح الباركود بالكاميرا (موبايل / ويب كام)
+   ================================================================ */
+export function CameraBarcodeModal({
+  onDetected,
+  onClose,
+}: {
+  onDetected: (code: string) => void;
+  onClose: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [err, setErr] = useState("");
+  const [manual, setManual] = useState("");
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let raf = 0;
+    let stopped = false;
+
+    const start = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        if (stopped) { stream.getTracks().forEach((t) => t.stop()); return; }
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+        const BD = (window as unknown as { BarcodeDetector?: new (opts: { formats: string[] }) => { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> } }).BarcodeDetector;
+        if (!BD) {
+          setErr("المتصفح لا يدعم BarcodeDetector — يمكنك إدخال الكود يدوياً أدناه");
+          return;
+        }
+        const detector = new BD({ formats: ["ean_13", "ean_8", "code_128", "code_39", "qr_code", "upc_a"] });
+        const tick = async () => {
+          if (stopped || !videoRef.current) return;
+          try {
+            const codes = await detector.detect(videoRef.current);
+            if (codes.length > 0 && codes[0].rawValue) {
+              onDetected(codes[0].rawValue);
+              onClose();
+              return;
+            }
+          } catch { /* تجاهل */ }
+          raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+      } catch {
+        setErr("تعذر فتح الكاميرا — تأكد من السماح بالوصول للكاميرا");
+      }
+    };
+    void start();
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(raf);
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [onDetected, onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-md bg-white rounded-xl border border-slate-300 shadow-2xl overflow-hidden" dir="rtl" onClick={(e) => e.stopPropagation()}>
+        <div className="h-11 px-4 bg-ink-900 text-white flex items-center justify-between">
+          <span className="font-black text-[13px]">مسح الباركود بالكاميرا</span>
+          <button onClick={onClose} className="text-slate-300 hover:text-white"><IcoX className="w-4 h-4" /></button>
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="relative aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
+            <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+            <div className="absolute inset-8 border-2 border-amber-400/80 rounded-lg pointer-events-none" />
+          </div>
+          {err && <p className="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 font-bold">{err}</p>}
+          <form onSubmit={(e) => { e.preventDefault(); if (manual.trim()) { onDetected(manual.trim()); onClose(); } }} className="flex gap-2">
+            <input value={manual} onChange={(e) => setManual(e.target.value)} placeholder="أو اكتب الباركود يدوياً..." className="flex-1 h-9 px-3 rounded border border-slate-300 text-[13px] font-mono" />
+            <button type="submit" className="h-9 px-4 rounded bg-cash-blue text-white font-black text-[12px]">إضافة</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

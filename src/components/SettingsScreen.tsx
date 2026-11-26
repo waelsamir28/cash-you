@@ -502,6 +502,47 @@ export function SettingsScreen({
                 </div>
               </Panel>
 
+              <Panel title="محرر قوالب الفاتورة" hint="تخصيص كامل لعناصر وألوان الفاتورة">
+                <div className="p-3 space-y-3 text-[12px]">
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { key: "showLogo", label: "إظهار الشعار" },
+                      { key: "showPhone", label: "إظهار الهاتف" },
+                      { key: "showAddress", label: "إظهار العنوان" },
+                      { key: "showQr", label: "إظهار رمز QR" },
+                    ] as const).map((item) => (
+                      <label key={item.key} className="flex items-center gap-2 cursor-pointer font-bold text-ink-800">
+                        <input
+                          type="checkbox"
+                          checked={form.receiptEditor?.[item.key] ?? true}
+                          onChange={(e) => patch({ receiptEditor: { ...form.receiptEditor, [item.key]: e.target.checked } })}
+                          className="w-4 h-4 accent-cash-blue"
+                        />
+                        {item.label}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">لون التمييز</label>
+                      <input type="color" value={form.receiptEditor?.accentColor ?? "#0f172a"} onChange={(e) => patch({ receiptEditor: { ...form.receiptEditor, accentColor: e.target.value } })} className="h-8 w-full rounded border border-slate-300 cursor-pointer" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">حجم الخط (px)</label>
+                      <input type="number" min={9} max={18} value={form.receiptEditor?.fontSize ?? 12} onChange={(e) => patch({ receiptEditor: { ...form.receiptEditor, fontSize: Number(e.target.value) || 12 } })} className="h-8 w-full rounded border border-slate-300 px-2 font-mono" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">الهامش (مم)</label>
+                      <input type="number" min={0} max={15} value={form.receiptEditor?.marginMm ?? 4} onChange={(e) => patch({ receiptEditor: { ...form.receiptEditor, marginMm: Number(e.target.value) || 4 } })} className="h-8 w-full rounded border border-slate-300 px-2 font-mono" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">علامة مائية (اختياري)</label>
+                    <input value={form.receiptEditor?.watermark ?? ""} onChange={(e) => patch({ receiptEditor: { ...form.receiptEditor, watermark: e.target.value } })} placeholder="مثال: نسخة أصلية" className="h-8 w-full rounded border border-slate-300 px-2" />
+                  </div>
+                </div>
+              </Panel>
+
               <Panel title="مقاس الورق" hint="حسب طابعة الكاشير">
                 <div className="grid grid-cols-3 gap-1.5 p-3">
                   {([
