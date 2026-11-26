@@ -207,9 +207,11 @@ export type Bootstrap = {
   summary: Summary;
   nextInvoiceNumber: number;
   nextPurchaseNumber: number;
-  shop: { name: string; phone: string };
+  shop: ShopInfo;
   trial?: TrialStatus;
 };
+
+export type ShopInfo = { name: string; phone: string; address: string; logo: string };
 
 export type InstallmentInput = {
   downPayment: number;
@@ -248,4 +250,5 @@ export type ModuleKind =
   | "treasury"
   | "reports"
   | "users"
-  | "activation";
+  | "activation"
+  | "settings";

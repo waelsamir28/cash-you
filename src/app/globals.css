@@ -325,3 +325,37 @@
     display: none !important;
   }
 }
+/* ---------- تخصيص الأزرار (من صفحة الإعدادات) ---------- */
+.cy-fn {
+  border-radius: var(--cy-btn-radius, 12px);
+  height: var(--cy-fn-h, 52px);
+}
+
+/* ---------- الوضع الفاتح ----------
+ * الأسطح الداكنة (bg-ink-*) تصبح بلون الشريط المختار، والنصوص الفاتحة فوقها تصبح داكنة.
+ * عناصر الشاشة نفسها (البطاقات البيضاء والجداول) تبقى كما هي. */
+html[data-mode="light"] .bg-ink-950,
+html[data-mode="light"] .bg-ink-900,
+html[data-mode="light"] .bg-ink-800,
+html[data-mode="light"] .bg-ink-700,
+html[data-mode="light"] .bg-ink-600 {
+  background-color: var(--cy-chrome) !important;
+}
+html[data-mode="light"] .cy-aurora {
+  display: none !important;
+}
+html[data-mode="light"] [class*="bg-ink-"].text-white,
+html[data-mode="light"] [class*="bg-ink-"] .text-white,
+html[data-mode="light"] [class*="bg-ink-"] .text-slate-100,
+html[data-mode="light"] [class*="bg-ink-"] .text-slate-200,
+html[data-mode="light"] [class*="bg-ink-"] .text-slate-300 {
+  color: var(--cy-on-chrome) !important;
+}
+html[data-mode="light"] [class*="bg-ink-"] .text-slate-400,
+html[data-mode="light"] [class*="bg-ink-"] .text-slate-500 {
+  color: var(--cy-on-chrome-muted) !important;
+}
+html[data-mode="light"] [class*="bg-ink-"] .border-white\/10,
+html[data-mode="light"] [class*="bg-ink-"] .border-white\/15 {
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
