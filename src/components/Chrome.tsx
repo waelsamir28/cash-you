@@ -396,12 +396,15 @@ export function FloatingMenu({
   onClose,
   onPick,
   onCustomize,
+  showIcons,
 }: {
   open: boolean;
   onClose: () => void;
   onPick: (kind: ModuleKind, label: string) => void;
   onCustomize: () => void;
+  showIcons: boolean;
 }) {
+  const prefsIcons = showIcons;
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -416,7 +419,7 @@ export function FloatingMenu({
     <div className="fixed inset-0 z-[90]" onMouseDown={onClose} dir="rtl">
       <div
         onMouseDown={(e) => e.stopPropagation()}
-        className="cy-menu-drop cy-menu-panel cy-fluent-panel absolute top-[104px] right-2 w-[260px] p-2"
+        className="cy-menu-drop cy-menu-panel cy-fluent-panel absolute top-[104px] right-2 p-2"
       >
         <div className="flex items-center justify-between px-1.5 pb-2 mb-1 border-b border-white/15">
           <span className="text-[12px] font-black tracking-wide">القائمة</span>
@@ -440,10 +443,12 @@ export function FloatingMenu({
                 onClose();
                 onPick(it.kind, it.label);
               }}
-              className="cy-menu-item cy-btn flex items-center gap-2.5 h-10 px-3 text-[13px] font-bold text-right"
+              className="cy-menu-item flex items-center gap-2 px-2 text-[13px] font-bold"
             >
-              <span className="opacity-90">{it.icon}</span>
-              <span className="flex-1">{it.label}</span>
+              {/* ترتيب العناصر في RTL: المسافة يمين، الكلام في المنتصف، والأيقونة على الشمال */}
+              <span className="w-6 shrink-0" />
+              <span className="flex-1 text-center">{it.label}</span>
+              {prefsIcons && <span className="w-6 shrink-0 grid place-items-center opacity-90">{it.icon}</span>}
             </button>
           ))}
         </div>
@@ -470,7 +475,8 @@ export function TabStrip({
   menuOpen: boolean;
 }) {
   return (
-    <div className="shrink-0 flex items-stretch bg-paper border-b border-line" dir="rtl">
+    <div className="shrink-0 flex flex-col bg-paper border-b border-line" dir="rtl">
+      <div className="flex items-stretch min-w-0">
       <nav className="flex items-end gap-1 px-2 pt-1.5 overflow-x-auto cy-scroll flex-1 min-w-0">
         <button
           onClick={onToggleMenu}
@@ -532,9 +538,11 @@ export function TabStrip({
           +
         </button>
       </nav>
+      </div>
 
-      <div className="hidden sm:flex items-center gap-2 px-3 border-r border-line bg-white/60 text-[11px] font-bold text-slate-500">
-        <span className="w-1.5 h-1.5 rounded-full bg-cash-green" />
+      {/* وحدة نقاط البيع: تحت التبويبات على الشمال، بمقاس صغير */}
+      <div className="hidden sm:flex mr-auto items-center gap-1 h-[18px] px-2 mb-0.5 rounded-md bg-white/60 border border-line text-[10px] font-bold leading-none text-slate-500 whitespace-nowrap">
+        <span className="w-1 h-1 rounded-full bg-cash-green" />
         وحدة نقاط البيع 01
       </div>
     </div>

@@ -4,6 +4,8 @@
  * تُحفظ على هذا الجهاز فقط في localStorage، وتُطبَّق كمتغيرات CSS وسمات على الصفحة.
  */
 
+import type { CSSProperties } from "react";
+
 export type ThemeId = "dark" | "light-blue" | "light-green" | "light-gold" | "light-gray";
 export type ButtonRadius = "sharp" | "rounded" | "pill";
 export type ButtonSize = "compact" | "normal" | "large";
@@ -11,6 +13,67 @@ export type InvoiceTemplate = "classic" | "modern" | "compact";
 export type LineTemplate = "striped" | "bordered" | "minimal";
 export type ButtonTemplate = "filled" | "outline" | "soft";
 export type AnimSpeed = "fast" | "normal" | "slow";
+/** ست حركات دخول للصفحات والقائمة */
+export const ENTER_MOTIONS = [
+  { id: "fade", label: "تلاشي" },
+  { id: "slide", label: "انزلاق جانبي" },
+  { id: "zoom", label: "تكبير" },
+  { id: "drop", label: "هبوط من الأعلى" },
+  { id: "bounce", label: "ارتداد" },
+  { id: "flip", label: "قلب" },
+] as const;
+export type EnterMotion = (typeof ENTER_MOTIONS)[number]["id"];
+/** ست حركات للأزرار عند المرور والضغط */
+export const BUTTON_MOTIONS = [
+  { id: "none", label: "بدون" },
+  { id: "lift", label: "رفع" },
+  { id: "press", label: "ضغط" },
+  { id: "pulse", label: "نبض" },
+  { id: "tilt", label: "ميل" },
+  { id: "glow", label: "توهج" },
+] as const;
+export type ButtonMotion = (typeof BUTTON_MOTIONS)[number]["id"];
+export type MenuItemHeight = "compact" | "normal" | "large";
+
+/** خانات المبالغ الكبيرة في شاشة البيع والمستندات */
+export const AMOUNT_TILES = [
+  { key: "net", label: "المبلغ الصافي" },
+  { key: "paid", label: "المدفوع" },
+  { key: "rem", label: "المتبقي / الباقي للزبون" },
+  { key: "prev", label: "الرصيد السابق" },
+  { key: "after", label: "الرصيد بعد الفاتورة" },
+] as const;
+export type AmountKey = (typeof AMOUNT_TILES)[number]["key"];
+export type TextAlign = "right" | "center" | "left";
+export type AmountStyle = {
+  bg: string; // لون الخانة
+  text: string; // لون الأرقام
+  label: string; // لون الاسم
+  border: string; // لون الإطار
+  width: number; // العرض بالبكسل
+  height: number; // الارتفاع بالبكسل
+  numSize: number; // حجم خط الرقم
+  labelSize: number; // حجم خط الاسم
+  numAlign: TextAlign; // محاذاة الرقم
+  labelAlign: TextAlign; // محاذاة الاسم
+};
+
+const AMOUNT_BASE: Omit<AmountStyle, "bg" | "text" | "label" | "border"> = {
+  width: 156,
+  height: 56,
+  numSize: 20,
+  labelSize: 11,
+  numAlign: "center",
+  labelAlign: "center",
+};
+
+export const DEFAULT_AMOUNTS: Record<AmountKey, AmountStyle> = {
+  net: { ...AMOUNT_BASE, bg: "#1e293b", text: "#ffffff", label: "#cbd5e1", border: "#020617" },
+  paid: { ...AMOUNT_BASE, bg: "#fef08a", text: "#047857", label: "#334155", border: "#f59e0b" },
+  rem: { ...AMOUNT_BASE, bg: "#fef9c3", text: "#ef4444", label: "#b91c1c", border: "#ef4444" },
+  prev: { ...AMOUNT_BASE, bg: "#ffffff", text: "#1e293b", label: "#334155", border: "#cbd5e1" },
+  after: { ...AMOUNT_BASE, bg: "#fef08a", text: "#0f172a", label: "#334155", border: "#f59e0b" },
+};
 
 export type ReceiptPrefs = {
   paperWidth: 58 | 80;
@@ -57,6 +120,10 @@ export type UiPrefs = {
     save: string; // زر حفظ
     savePrint: string; // زر حفظ وطباعة
     template: ButtonTemplate;
+    base: string; // اللون الأساسي للزر
+    hover: string; // لون المرور
+    press: string; // لون الضغط
+    text: string; // لون الكلام على الزر
   };
   templates: {
     invoice: InvoiceTemplate;
@@ -65,11 +132,19 @@ export type UiPrefs = {
   anim: {
     enabled: boolean;
     speed: AnimSpeed;
+    page: EnterMotion; // حركة انتقال الصفحات
+    menu: EnterMotion; // حركة فتح القائمة
+    button: ButtonMotion; // حركة الأزرار
   };
   menu: {
     bg: string; // لون القائمة العائمة
     text: string; // لون الكلام فيها
     button: string; // لون الأزرار فيها
+    opacity: number; // شفافية القائمة 40–100
+    width: number; // عرض القائمة بالبكسل
+    itemHeight: MenuItemHeight;
+    icons: boolean; // إظهار الأيقونات (تكون على الشمال والكلام في المنتصف)
+    radius: number; // انحناء الأزرار بالبكسل
   };
   login: {
     title: string;
@@ -82,6 +157,7 @@ export type UiPrefs = {
   centerText: boolean;
   receipt: ReceiptPrefs;
   showWelcome: boolean;
+  amounts: Record<AmountKey, AmountStyle>;
 };
 
 type ThemePreset = { id: ThemeId; label: string; mode: "dark" | "light"; chrome: string; paper: string; accent: string };
@@ -97,10 +173,20 @@ export const THEMES: ThemePreset[] = [
 export const DEFAULT_PREFS: UiPrefs = {
   theme: "dark",
   colors: { chrome: "#1e293b", paper: "#f1f5f9", accent: "#f59e0b" },
-  buttons: { radius: "rounded", size: "normal", save: "#10b981", savePrint: "#047857", template: "filled" },
+  buttons: {
+    radius: "rounded",
+    size: "normal",
+    save: "#10b981",
+    savePrint: "#047857",
+    template: "filled",
+    base: "#1e293b",
+    hover: "#334155",
+    press: "#0f172a",
+    text: "#ffffff",
+  },
   templates: { invoice: "classic", lines: "striped" },
-  anim: { enabled: true, speed: "normal" },
-  menu: { bg: "#1e293b", text: "#f8fafc", button: "#334155" },
+  anim: { enabled: true, speed: "normal", page: "fade", menu: "slide", button: "lift" },
+  menu: { bg: "#1e293b", text: "#f8fafc", button: "#334155", opacity: 96, width: 260, itemHeight: "normal", icons: true, radius: 8 },
   login: {
     title: "كاش يو — نقاط البيع",
     subtitle: "نظام كاشير سريع للمحلات والتوريدات",
@@ -119,6 +205,7 @@ export const DEFAULT_PREFS: UiPrefs = {
     footerText: "شكراً لزيارتكم — البضاعة المباعة ترد خلال 14 يوم",
   },
   showWelcome: true,
+  amounts: DEFAULT_AMOUNTS,
 };
 
 const STORAGE_KEY = "cash-you.ui-prefs.v1";
@@ -154,6 +241,24 @@ export function mergePrefs(p: Partial<UiPrefs>): UiPrefs {
     login: { ...DEFAULT_PREFS.login, ...(p.login ?? {}) },
     hidden: { ...(p.hidden ?? {}) },
     receipt: { ...DEFAULT_PREFS.receipt, ...(p.receipt ?? {}) },
+    amounts: mergeAmounts(p.amounts),
+  };
+}
+
+function mergeAmounts(src: Partial<Record<AmountKey, Partial<AmountStyle>>> | undefined): Record<AmountKey, AmountStyle> {
+  const out = { ...DEFAULT_AMOUNTS };
+  for (const t of AMOUNT_TILES) out[t.key] = { ...DEFAULT_AMOUNTS[t.key], ...(src?.[t.key] ?? {}) };
+  return out;
+}
+
+/** نمط الخانة كـ CSS مباشر (يُستخدم في المعاينة داخل الإعدادات) */
+export function amountPreviewStyle(s: AmountStyle): CSSProperties {
+  return {
+    width: s.width,
+    height: s.height,
+    background: s.bg,
+    color: s.text,
+    borderColor: s.border,
   };
 }
 
@@ -171,6 +276,7 @@ export function isLightColor(hex: string): boolean {
 const RADIUS: Record<ButtonRadius, string> = { sharp: "4px", rounded: "8px", pill: "999px" };
 const FN_HEIGHT: Record<ButtonSize, string> = { compact: "40px", normal: "46px", large: "56px" };
 const ANIM_MS: Record<AnimSpeed, string> = { fast: "140ms", normal: "240ms", slow: "420ms" };
+const ITEM_H: Record<MenuItemHeight, string> = { compact: "34px", normal: "40px", large: "48px" };
 
 /** يطبّق التفضيلات على الصفحة عبر متغيرات CSS وسمات على عنصر <html> */
 export function applyPrefs(prefs: UiPrefs): void {
@@ -186,6 +292,7 @@ export function applyPrefs(prefs: UiPrefs): void {
   root.dataset.tplLines = prefs.templates.lines;
   root.dataset.tplButtons = prefs.buttons.template;
   root.dataset.anim = prefs.anim.enabled ? "on" : "off";
+  root.dataset.btnMotion = prefs.anim.button;
   root.dataset.center = prefs.centerText ? "1" : "0";
   root.dataset.hide = HIDE_ITEMS.filter((h) => prefs.hidden[h.key]).map((h) => h.key).join(" ");
 
@@ -201,8 +308,32 @@ export function applyPrefs(prefs: UiPrefs): void {
   root.style.setProperty("--cy-menu-bg", prefs.menu.bg);
   root.style.setProperty("--cy-menu-text", prefs.menu.text);
   root.style.setProperty("--cy-menu-btn", prefs.menu.button);
+  root.style.setProperty("--cy-menu-opacity", String(Math.min(100, Math.max(40, prefs.menu.opacity))));
+  root.style.setProperty("--cy-menu-width", `${prefs.menu.width}px`);
+  root.style.setProperty("--cy-menu-item-h", ITEM_H[prefs.menu.itemHeight]);
+  root.style.setProperty("--cy-menu-radius", `${prefs.menu.radius}px`);
+  root.style.setProperty("--cy-page-anim", `cy-m-${prefs.anim.page}`);
+  root.style.setProperty("--cy-menu-anim", `cy-m-${prefs.anim.menu}`);
+  root.style.setProperty("--cy-btn-base", prefs.buttons.base);
+  root.style.setProperty("--cy-btn-hover", prefs.buttons.hover);
+  root.style.setProperty("--cy-btn-press", prefs.buttons.press);
+  root.style.setProperty("--cy-btn-text", prefs.buttons.text);
   root.style.setProperty("--cy-anim-dur", ANIM_MS[prefs.anim.speed]);
   root.style.setProperty("--cy-btn-accent", accent);
   root.style.setProperty("--cy-login-bg", prefs.login.bg);
+  for (const t of AMOUNT_TILES) {
+    const a = prefs.amounts[t.key];
+    const k = `--cy-amt-${t.key}`;
+    root.style.setProperty(`${k}-bg`, a.bg);
+    root.style.setProperty(`${k}-text`, a.text);
+    root.style.setProperty(`${k}-label`, a.label);
+    root.style.setProperty(`${k}-border`, a.border);
+    root.style.setProperty(`${k}-w`, `${a.width}px`);
+    root.style.setProperty(`${k}-h`, `${a.height}px`);
+    root.style.setProperty(`${k}-num`, `${a.numSize}px`);
+    root.style.setProperty(`${k}-lbl`, `${a.labelSize}px`);
+    root.style.setProperty(`${k}-na`, a.numAlign);
+    root.style.setProperty(`${k}-la`, a.labelAlign);
+  }
   root.style.setProperty("--cy-login-accent", prefs.login.accent);
 }

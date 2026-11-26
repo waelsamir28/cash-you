@@ -5,6 +5,7 @@ import type { Bootstrap, Product } from "@/lib/types";
 import type { Draft, Totals } from "@/lib/draft";
 import { lineTotal } from "@/lib/draft";
 import { money, qtyText } from "@/lib/format";
+import { AmountTile } from "@/components/AmountTile";
 import {
   IcoBarcode,
   IcoChevronLeft,
@@ -442,31 +443,32 @@ export function PosScreen({
 
       {/* ============ خانات المبالغ: مقاس موحد، والأرقام في المنتصف ============ */}
       <div className="shrink-0 flex flex-wrap items-stretch justify-center gap-1.5">
-        <AmountTile label="المبلغ الصافي" tone="dark">
+        <AmountTile k="net" label="المبلغ الصافي">
           {money(totals.total)}
         </AmountTile>
 
-        <AmountTile label="المدفوع" tone="amber">
+        <AmountTile k="paid" label="المدفوع">
           <input
             value={draft.paidText}
             onChange={(e) => actions.patch({ paidText: e.target.value })}
             onFocus={(e) => e.currentTarget.select()}
             inputMode="decimal"
             aria-label="المدفوع"
-            className="w-full bg-transparent outline-none text-center text-cash-green-deep font-black text-[20px] leading-none cy-num focus:bg-white/60 rounded"
+            style={{ textAlign: "var(--cy-amt-paid-na)" as React.CSSProperties["textAlign"] }}
+            className="w-full bg-transparent outline-none font-black leading-none cy-num focus:bg-white/60 rounded"
           />
         </AmountTile>
 
-        <AmountTile label={totals.remaining < 0 ? "الباقي للزبون" : "المتبقي"} tone={totals.remaining > 0 ? "red" : "green"}>
+        <AmountTile k="rem" label={totals.remaining < 0 ? "الباقي للزبون" : "المتبقي"}>
           {money(Math.abs(totals.remaining))}
         </AmountTile>
 
         <div className="cy-h-balances flex flex-wrap gap-1.5">
-          <AmountTile label="الرصيد السابق" tone="slate">
+          <AmountTile k="prev" label="الرصيد السابق">
             {money(prevBalance)}
           </AmountTile>
 
-          <AmountTile label="الرصيد بعد الفاتورة" tone="amber">
+          <AmountTile k="after" label="الرصيد بعد الفاتورة">
             {money(afterBalance)}
           </AmountTile>
         </div>
@@ -501,35 +503,6 @@ export function PosScreen({
 }
 
 /* ---------------- عناصر مساعدة ---------------- */
-
-const TILE_TONES: Record<string, string> = {
-  dark: "bg-ink-800 text-white border-black/40",
-  amber: "bg-amber-soft text-ink-900 border-amber-brand/70",
-  red: "bg-amber-cream text-cash-red border-cash-red/60",
-  green: "bg-amber-cream text-cash-green-deep border-cash-green/60",
-  slate: "bg-white text-ink-800 border-line",
-};
-
-function AmountTile({
-  label,
-  tone,
-  children,
-}: {
-  label: string;
-  tone: keyof typeof TILE_TONES;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className={`relative w-[156px] h-[56px] rounded-xl border-2 px-2 py-1.5 flex flex-col items-center justify-center text-center shadow-sm ${TILE_TONES[tone]}`}
-    >
-      <span className={`text-[11px] font-black leading-none ${tone === "dark" ? "text-slate-300" : "opacity-80"}`}>
-        {label}
-      </span>
-      <div className="w-full mt-1 text-center font-black text-[20px] leading-none cy-num">{children}</div>
-    </div>
-  );
-}
 
 function Field({
   label,
@@ -656,7 +629,7 @@ function FnKey({
       onClick={onClick}
       disabled={busy}
       style={custom}
-      className={`cy-fn cy-btn relative border cy-press cy-focus flex flex-col items-center justify-center gap-0.5 font-black text-[13.5px] shadow-[0_6px_16px_-10px_rgba(15,23,42,0.9)] disabled:opacity-60 hover:brightness-110 ${
+      className={`cy-fn ${custom ? "" : "cy-btn"} relative border cy-press cy-focus flex flex-col items-center justify-center gap-0.5 font-black text-[13.5px] shadow-[0_6px_16px_-10px_rgba(15,23,42,0.9)] disabled:opacity-60 hover:brightness-110 ${
         custom ? "text-white" : (FN_TONES[tone] ?? "")
       }`}
     >

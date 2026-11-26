@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { Bootstrap, SessionUser } from "@/lib/types";
 import {
+  AMOUNT_TILES,
+  BUTTON_MOTIONS,
+  DEFAULT_AMOUNTS,
   DEFAULT_PREFS,
+  amountPreviewStyle,
+  type AmountKey,
+  type AmountStyle,
+  type TextAlign,
+  ENTER_MOTIONS,
   HIDE_ITEMS,
   THEMES,
   type AnimSpeed,
@@ -24,6 +32,7 @@ const TABS = [
   { id: "shop", label: "بيانات المحل" },
   { id: "theme", label: "الثيمات والألوان" },
   { id: "templates", label: "القوالب والحركات" },
+  { id: "amounts", label: "خانات المبالغ" },
   { id: "menu", label: "القائمة" },
   { id: "login", label: "شاشة الدخول" },
   { id: "visibility", label: "الإظهار والإخفاء" },
@@ -92,6 +101,7 @@ export function SettingsScreen({
               <AnimationSection prefs={prefs} onChange={onChange} />
             </>
           )}
+          {tab === "amounts" && <AmountsSection prefs={prefs} onChange={onChange} />}
           {tab === "menu" && <MenuSection prefs={prefs} onChange={onChange} />}
           {tab === "login" && <LoginSection prefs={prefs} onChange={onChange} />}
           {tab === "visibility" && <VisibilitySection prefs={prefs} onChange={onChange} />}
@@ -288,7 +298,7 @@ function ColorSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change })
       </div>
       <button
         onClick={() => onChange({ ...prefs, colors: { ...DEFAULT_PREFS.colors }, theme: "dark" })}
-        className="cy-btn mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
+        className="mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
       >
         استعادة ألوان الثيم الداكن
       </button>
@@ -448,6 +458,10 @@ function ButtonTemplateSection({ prefs, onChange }: { prefs: UiPrefs; onChange: 
             { value: "large", label: "كبير" },
           ]}
         />
+        <ColorField label="اللون الأساسي للزر" value={prefs.buttons.base} onChange={(v) => setBtn({ base: v })} />
+        <ColorField label="لون المرور (Hover)" value={prefs.buttons.hover} onChange={(v) => setBtn({ hover: v })} />
+        <ColorField label="لون الضغط (Press)" value={prefs.buttons.press} onChange={(v) => setBtn({ press: v })} />
+        <ColorField label="لون الكلام على الزر" value={prefs.buttons.text} onChange={(v) => setBtn({ text: v })} />
         <ColorField label="لون زر حفظ" value={prefs.buttons.save} onChange={(v) => setBtn({ save: v })} />
         <ColorField label="لون زر حفظ وطباعة" value={prefs.buttons.savePrint} onChange={(v) => setBtn({ savePrint: v })} />
       </div>
@@ -461,18 +475,176 @@ const SPEEDS: { value: AnimSpeed; label: string }[] = [
   { value: "slow", label: "بطيئة" },
 ];
 
+function MotionPicker<T extends string>({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: T;
+  onChange: (v: T) => void;
+  options: readonly { id: T; label: string }[];
+}) {
+  return (
+    <div className="mt-2">
+      <p className="text-[12px] font-black text-ink-700 mb-1">{label}</p>
+      <div className="grid grid-cols-3 gap-1.5">
+        {options.map((o) => (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            className={`cy-press h-9 rounded-lg text-[12px] font-black border-2 ${
+              value === o.id ? "border-amber-brand bg-amber-soft text-ink-900" : "border-line bg-white text-ink-700 hover:border-slate-400"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function AnimationSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
   const setAnim = (patch: Partial<UiPrefs["anim"]>) => onChange({ ...prefs, anim: { ...prefs.anim, ...patch } });
   return (
-    <Card title="الحركات" subtitle="انتقال الصفحات، والقائمة، والنوافذ، والأزرار">
+    <Card title="الحركات" subtitle="انتقال الصفحات وحركة الأزرار (القائمة لها تحكم منفصل)">
       <Toggle label="تفعيل الحركات" checked={prefs.anim.enabled} onChange={(v) => setAnim({ enabled: v })} />
       <div className="mt-2">
-        <Segmented<AnimSpeed>
-          label="السرعة"
-          value={prefs.anim.speed}
-          onChange={(v) => setAnim({ speed: v })}
-          options={SPEEDS}
+        <Segmented<AnimSpeed> label="السرعة" value={prefs.anim.speed} onChange={(v) => setAnim({ speed: v })} options={SPEEDS} />
+      </div>
+      <MotionPicker label="حركة انتقال الصفحات" value={prefs.anim.page} options={ENTER_MOTIONS} onChange={(v) => setAnim({ page: v })} />
+      <MotionPicker label="حركة الأزرار" value={prefs.anim.button} options={BUTTON_MOTIONS} onChange={(v) => setAnim({ button: v })} />
+    </Card>
+  );
+}
+
+function Slider({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  unit = "",
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1 mt-2">
+      <span className="flex items-center justify-between text-[12px] font-black text-ink-700">
+        <span>{label}</span>
+        <span className="cy-num text-ink-900">
+          {value}
+          {unit}
+        </span>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-amber-500"
+      />
+    </label>
+  );
+}
+
+/* ---------------- خانات المبالغ الكبيرة ---------------- */
+
+const TEXT_ALIGNS: { value: TextAlign; label: string }[] = [
+  { value: "right", label: "يمين" },
+  { value: "center", label: "وسط" },
+  { value: "left", label: "شمال" },
+];
+
+function AmountsSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
+  const [key, setKey] = useState<AmountKey>("net");
+  const cur = prefs.amounts[key];
+  const setCur = (patch: Partial<AmountStyle>) =>
+    onChange({ ...prefs, amounts: { ...prefs.amounts, [key]: { ...cur, ...patch } } });
+  const curLabel = AMOUNT_TILES.find((t) => t.key === key)?.label ?? "";
+  return (
+    <Card title="خانات المبالغ الكبيرة" subtitle="اضغط على الخانة لتعديلها — الألوان والمقاس والمحاذاة وحجم الخط">
+      <div className="flex flex-wrap items-stretch justify-center gap-2 rounded-xl bg-paper p-3">
+        {AMOUNT_TILES.map((t) => {
+          const a = prefs.amounts[t.key];
+          const selected = t.key === key;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setKey(t.key)}
+              aria-pressed={selected}
+              className={`relative rounded-xl border-2 px-2 py-1.5 flex flex-col justify-center shadow-sm cy-press overflow-hidden ${
+                selected ? "ring-2 ring-amber-brand ring-offset-2 ring-offset-paper" : ""
+              }`}
+              style={{ ...amountPreviewStyle(a), maxWidth: "100%" }}
+            >
+              <span
+                className="block w-full leading-none font-black truncate"
+                style={{ fontSize: a.labelSize, color: a.label, textAlign: a.labelAlign }}
+              >
+                {t.label}
+              </span>
+              <span
+                className="block w-full mt-1 leading-none font-black cy-num"
+                style={{ fontSize: a.numSize, textAlign: a.numAlign }}
+              >
+                1,250.00
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="mt-3 text-[12px] font-black text-ink-900">تعديل: {curLabel}</p>
+      <div className="mt-2 grid gap-2">
+        <ColorField label="لون الخانة" value={cur.bg} onChange={(v) => setCur({ bg: v })} />
+        <ColorField label="لون الأرقام" value={cur.text} onChange={(v) => setCur({ text: v })} />
+        <ColorField label="لون الاسم" value={cur.label} onChange={(v) => setCur({ label: v })} />
+        <ColorField label="لون الإطار" value={cur.border} onChange={(v) => setCur({ border: v })} />
+      </div>
+      <Slider label="عرض الخانة" value={cur.width} min={120} max={300} unit="px" onChange={(v) => setCur({ width: v })} />
+      <Slider label="ارتفاع الخانة" value={cur.height} min={40} max={100} unit="px" onChange={(v) => setCur({ height: v })} />
+      <Slider label="حجم خط الرقم" value={cur.numSize} min={12} max={40} unit="px" onChange={(v) => setCur({ numSize: v })} />
+      <Slider label="حجم خط الاسم" value={cur.labelSize} min={8} max={18} unit="px" onChange={(v) => setCur({ labelSize: v })} />
+      <div className="mt-2 grid gap-1">
+        <Segmented<TextAlign>
+          label="محاذاة الرقم"
+          value={cur.numAlign}
+          onChange={(v) => setCur({ numAlign: v })}
+          options={TEXT_ALIGNS}
         />
+        <Segmented<TextAlign>
+          label="محاذاة الاسم"
+          value={cur.labelAlign}
+          onChange={(v) => setCur({ labelAlign: v })}
+          options={TEXT_ALIGNS}
+        />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          onClick={() => setCur({ ...DEFAULT_AMOUNTS[key] })}
+          className="h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
+        >
+          استعادة هذه الخانة
+        </button>
+        <button
+          onClick={() => onChange({ ...prefs, amounts: DEFAULT_AMOUNTS })}
+          className="h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
+        >
+          استعادة كل الخانات
+        </button>
       </div>
     </Card>
   );
@@ -480,37 +652,62 @@ function AnimationSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Chang
 
 /* ---------------- القائمة ---------------- */
 
+const ITEM_HEIGHTS: { value: "compact" | "normal" | "large"; label: string }[] = [
+  { value: "compact", label: "صغيرة" },
+  { value: "normal", label: "متوسطة" },
+  { value: "large", label: "كبيرة" },
+];
+
 function MenuSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
   const setMenu = (patch: Partial<UiPrefs["menu"]>) => onChange({ ...prefs, menu: { ...prefs.menu, ...patch } });
+  const setAnim = (patch: Partial<UiPrefs["anim"]>) => onChange({ ...prefs, anim: { ...prefs.anim, ...patch } });
+  const m = prefs.menu;
   return (
-    <Card title="ألوان القائمة" subtitle="القائمة العائمة من زر «القائمة» بجانب تبويب الرئيسية">
-      <div
-        className="rounded-xl p-3 border border-black/10 cy-fluent-panel"
-        style={{ background: prefs.menu.bg, color: prefs.menu.text }}
-      >
-        <p className="text-[11px] font-black opacity-80 mb-2">معاينة</p>
-        {["الرئيسية", "فاتورة مبيعات", "الإعدادات"].map((label) => (
-          <div
-            key={label}
-            className="h-9 mb-1.5 px-3 rounded-lg flex items-center text-[12.5px] font-bold"
-            style={{ background: prefs.menu.button, color: prefs.menu.text, borderRadius: "var(--cy-btn-radius)" }}
-          >
-            {label}
-          </div>
-        ))}
-      </div>
-      <div className="mt-3 grid gap-2">
-        <ColorField label="لون خلفية القائمة" value={prefs.menu.bg} onChange={(v) => setMenu({ bg: v })} />
-        <ColorField label="لون الكلام" value={prefs.menu.text} onChange={(v) => setMenu({ text: v })} />
-        <ColorField label="لون الأزرار" value={prefs.menu.button} onChange={(v) => setMenu({ button: v })} />
-      </div>
-      <button
-        onClick={() => setMenu({ ...DEFAULT_PREFS.menu })}
-        className="cy-btn mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
-      >
-        استعادة ألوان القائمة الافتراضية
-      </button>
-    </Card>
+    <>
+      <Card title="القائمة الرئيسية" subtitle="زر «القائمة» بجانب تبويب الرئيسية، والضغط بره القائمة يقفلها">
+        <div
+          className="rounded-xl p-3 border border-black/10"
+          style={{ background: `color-mix(in srgb, ${m.bg} ${m.opacity}%, transparent)`, color: m.text, width: m.width, maxWidth: "100%" }}
+        >
+          <p className="text-[11px] font-black opacity-80 mb-2">معاينة</p>
+          {["الرئيسية", "فاتورة مبيعات", "الإعدادات"].map((label) => (
+            <div
+              key={label}
+              className="px-2 mb-1.5 flex items-center text-[12.5px] font-bold"
+              style={{ background: m.button, color: m.text, borderRadius: m.radius, minHeight: m.itemHeight === "compact" ? 34 : m.itemHeight === "large" ? 48 : 40 }}
+            >
+              <span className="w-6" />
+              <span className="flex-1 text-center">{label}</span>
+              {m.icons && <span className="w-6 text-center opacity-90">●</span>}
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 grid gap-2">
+          <ColorField label="لون خلفية القائمة" value={m.bg} onChange={(v) => setMenu({ bg: v })} />
+          <ColorField label="لون الكلام" value={m.text} onChange={(v) => setMenu({ text: v })} />
+          <ColorField label="لون الأزرار" value={m.button} onChange={(v) => setMenu({ button: v })} />
+          <Toggle label="إظهار الأيقونات (على الشمال)" checked={m.icons} onChange={(v) => setMenu({ icons: v })} />
+        </div>
+        <Slider label="شفافية القائمة" value={m.opacity} min={40} max={100} unit="%" onChange={(v) => setMenu({ opacity: v })} />
+        <Slider label="عرض القائمة" value={m.width} min={200} max={360} unit="px" onChange={(v) => setMenu({ width: v })} />
+        <Slider label="انحناء الأزرار" value={m.radius} min={0} max={20} unit="px" onChange={(v) => setMenu({ radius: v })} />
+        <div className="mt-2">
+          <Segmented<"compact" | "normal" | "large">
+            label="ارتفاع الزر"
+            value={m.itemHeight}
+            onChange={(v) => setMenu({ itemHeight: v })}
+            options={ITEM_HEIGHTS}
+          />
+        </div>
+        <MotionPicker label="حركة فتح القائمة" value={prefs.anim.menu} options={ENTER_MOTIONS} onChange={(v) => setAnim({ menu: v })} />
+        <button
+          onClick={() => setMenu({ ...DEFAULT_PREFS.menu })}
+          className="mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
+        >
+          استعادة إعدادات القائمة الافتراضية
+        </button>
+      </Card>
+    </>
   );
 }
 
@@ -566,7 +763,7 @@ function VisibilitySection({ prefs, onChange }: { prefs: UiPrefs; onChange: Chan
       </div>
       <button
         onClick={() => onChange({ ...prefs, hidden: {} })}
-        className="cy-btn mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
+        className="mt-3 h-9 px-3 rounded-lg bg-slate-200 text-ink-800 text-[12px] font-black cy-press hover:bg-slate-300"
       >
         إظهار كل العناصر
       </button>
@@ -684,7 +881,7 @@ function DatabaseSection({ isOwner, notify }: { isOwner: boolean; notify: Notify
         <button
           onClick={() => void test()}
           disabled={busy || !url.trim()}
-          className="cy-btn h-10 px-4 rounded-lg bg-slate-200 text-ink-800 text-[12.5px] font-black cy-press hover:bg-slate-300 disabled:opacity-50"
+          className="h-10 px-4 rounded-lg bg-slate-200 text-ink-800 text-[12.5px] font-black cy-press hover:bg-slate-300 disabled:opacity-50"
         >
           اختبار الاتصال
         </button>

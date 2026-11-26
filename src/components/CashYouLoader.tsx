@@ -159,6 +159,9 @@ export default function CashYouLoader() {
     );
   }
 
+  /* أثناء تحميل البيانات بعد الدخول: شاشة تحميل محايدة فقط، والترحيب يظهر مرة واحدة في شاشة النظام */
+  if (loading) return <Splash text="جارٍ تشغيل كاش يو" />;
+
   return (
     <main className="relative min-h-[100dvh] w-full overflow-hidden cy-mesh cy-grain grid place-items-center p-5" dir="rtl">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-1 cy-aurora" />
@@ -170,33 +173,21 @@ export default function CashYouLoader() {
           <h1 className="mt-1 text-[30px] font-black tracking-[0.16em] text-white sm:text-[36px]" dir="ltr">
             CASH<span className="text-amber-brand"> YOU</span>
           </h1>
-          <p className="mt-1 text-[15px] font-bold text-slate-300">مرحباً {auth.user.fullName}</p>
-
           <div className="mt-7 rounded-2xl border border-white/10 bg-ink-950/45 px-4 py-4">
-            {loading ? (
-              <>
-                <span className="mx-auto block h-8 w-8 animate-spin rounded-full border-[3px] border-white/15 border-t-amber-brand" />
-                <p className="mt-3 text-[13px] font-black text-white">جارٍ تشغيل كاش يو</p>
-                <p className="mt-1 text-[11.5px] font-semibold text-slate-400">الاتصال بقاعدة البيانات وتحميل بيانات الأصناف والعملاء</p>
-              </>
-            ) : (
-              <>
-                <span className="mx-auto grid h-9 w-9 place-items-center rounded-full bg-cash-red/15 text-cash-red text-lg font-black">!</span>
-                <p className="mt-3 text-[13px] font-black text-white">تعذر فتح واجهة النظام</p>
-                <p className="mt-1 text-[11.5px] font-semibold leading-relaxed text-slate-300">{error}</p>
-                <button
-                  onClick={() => setAttempt((n) => n + 1)}
-                  className="mt-4 h-10 rounded-xl bg-amber-brand px-6 text-[12.5px] font-black text-ink-900 shadow-lg transition hover:brightness-110 active:translate-y-0.5"
-                >
-                  إعادة المحاولة
-                </button>
-              </>
-            )}
+            <span className="mx-auto grid h-9 w-9 place-items-center rounded-full bg-cash-red/15 text-cash-red text-lg font-black">!</span>
+            <p className="mt-3 text-[13px] font-black text-white">تعذر فتح واجهة النظام</p>
+            <p className="mt-1 text-[11.5px] font-semibold leading-relaxed text-slate-300">{error}</p>
+            <button
+              onClick={() => setAttempt((n) => n + 1)}
+              className="mt-4 h-10 rounded-xl bg-amber-brand px-6 text-[12.5px] font-black text-ink-900 shadow-lg transition hover:brightness-110 active:translate-y-0.5"
+            >
+              إعادة المحاولة
+            </button>
           </div>
 
           <div className="mt-5 flex items-center justify-center gap-2 text-[10.5px] font-bold text-slate-500">
-            <span className={`h-2 w-2 rounded-full ${loading ? "animate-pulse bg-amber-brand" : error ? "bg-cash-red" : "bg-cash-green"}`} />
-            <span>{loading ? "تهيئة قاعدة البيانات" : error ? "الخادم لم يرسل البيانات" : "النظام جاهز"}</span>
+            <span className="h-2 w-2 rounded-full bg-cash-red" />
+            <span>الخادم لم يرسل البيانات</span>
             <span>·</span>
             <span>الدعم الفني: م / وائل الجمال</span>
           </div>
