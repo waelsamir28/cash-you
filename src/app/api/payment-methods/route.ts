@@ -2,16 +2,15 @@ import { db } from "@/db";
 import { asc } from "drizzle-orm";
 import { paymentMethods } from "@/db/schema";
 import { withOfflineIdempotency } from "@/lib/offline-idempotency";
-import { withTenant } from "@/lib/tenant-routes";
 
 export const dynamic = "force-dynamic";
 
-export const GET = withTenant(async () => {
+export async function GET() {
   const rows = await db.select().from(paymentMethods).orderBy(asc(paymentMethods.id));
   return Response.json(rows);
-});
+}
 
-export const POST = withTenant(async (req: Request) => {
+export async function POST(req: Request) {
   return withOfflineIdempotency(req, async () => {
     try {
       const body = (await req.json()) as { name?: string };
@@ -23,4 +22,4 @@ export const POST = withTenant(async (req: Request) => {
       return Response.json({ error: err instanceof Error ? err.message : "تعذر إضافة طريقة الدفع" }, { status: 500 });
     }
   });
-});
+}

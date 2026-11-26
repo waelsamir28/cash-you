@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>مثبّت CASH YOU</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <!-- شريط العنوان (Frameless) -->
+    <header class="titlebar">
+      <div class="brand">
+        <span class="dot"></span>
+        <span>مثبّت CASH YOU · نظام نقاط البيع المتكامل</span>
+        <span id="ver-badge" class="badge">v1.4.1</span>
+      </div>
+      <div class="win-controls">
+        <button id="btn-min" title="تصغير" aria-label="تصغير">—</button>
+        <button id="btn-close" class="close" title="إغلاق" aria-label="إغلاق">✕</button>
+      </div>
+    </header>
+
+    <!-- شريط الخطوات (Stepper) -->
+    <nav class="stepper" aria-label="خطوات التثبيت">
+      <div class="step active" data-step="0"><span>1</span><b>ترحيب</b></div>
+      <div class="line"></div>
+      <div class="step" data-step="1"><span>2</span><b>مسار التثبيت</b></div>
+      <div class="line"></div>
+      <div class="step" data-step="2"><span>3</span><b>التثبيت</b></div>
+      <div class="line"></div>
+      <div class="step" data-step="3"><span>4</span><b>الإنهاء</b></div>
+    </nav>
+
+    <!-- محتوى الخطوات -->
+    <main class="stage">
+      <!-- 1. ترحيب -->
+      <section class="pane active" id="pane-0">
+        <div class="split">
+          <div class="art-box">
+            <img src="assets/welcome-art.png" alt="CASH YOU" />
+          </div>
+          <div class="info-box">
+            <h1>مرحباً بك في <span class="gold">CASH YOU</span></h1>
+            <p class="lead">نظام الكاشير وإدارة المبيعات والمخزون والحسابات — جاهز للعمل فوراً بقاعدة بيانات محلية مدمجة بدون أي إعدادات معقدة.</p>
+            <ul class="features">
+              <li>⚡ فواتير سريعة وباركود الميزان والكاميرا</li>
+              <li>🗄️ قاعدة بيانات محلية مدمجة + ربط سحابي</li>
+              <li>📊 تقارير أرباح ومخزون وسجل نشاط كامل</li>
+            </ul>
+            <div class="actions end">
+              <button class="btn primary" id="to-step-1">ابدأ التثبيت ←</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. مسار التثبيت -->
+      <section class="pane" id="pane-1">
+        <h2>اختر مسار وخيارات التثبيت</h2>
+        <p class="sub">سيتم تثبيت البرنامج وملفاته في المجلد التالي:</p>
+
+        <div class="path-row">
+          <input id="install-dir" type="text" readonly />
+          <button class="btn secondary" id="btn-browse">تغيير المجلد...</button>
+        </div>
+
+        <div class="options-grid">
+          <label class="opt-card">
+            <input type="checkbox" id="opt-desktop" checked />
+            <div>
+              <strong>إنشاء اختصار على سطح المكتب</strong>
+              <span>للوصول السريع للبرنامج من سطح المكتب</span>
+            </div>
+          </label>
+          <label class="opt-card">
+            <input type="checkbox" id="opt-startmenu" checked />
+            <div>
+              <strong>إضافة إلى قائمة ابدأ (Start Menu)</strong>
+              <span>إدراج CASH YOU ضمن قائمة البرامج</span>
+            </div>
+          </label>
+          <label class="opt-card">
+            <input type="checkbox" id="opt-autostart" />
+            <div>
+              <strong>تشغيل تلقائي مع بدء ويندوز</strong>
+              <span>فتح البرنامج تلقائياً عند تشغيل الجهاز</span>
+            </div>
+          </label>
+        </div>
+
+        <div class="actions between">
+          <button class="btn ghost" id="back-to-0">→ السابق</button>
+          <button class="btn primary" id="start-install">تثبيت الآن ⚡</button>
+        </div>
+      </section>
+
+      <!-- 3. التثبيت -->
+      <section class="pane" id="pane-2">
+        <div class="installing-wrap">
+          <div class="installing-top">
+            <img src="assets/installing-art.png" alt="جاري التثبيت" class="mini-art" />
+            <div class="prog-meta">
+              <h2>جاري تثبيت CASH YOU...</h2>
+              <p id="status-text">جاري تحضير الملفات...</p>
+              <div class="progress-track">
+                <div class="progress-fill" id="progress-fill"></div>
+              </div>
+              <span class="pct" id="progress-pct">0%</span>
+            </div>
+          </div>
+
+          <!-- كروت نصائح متحركة -->
+          <div class="tip-card" id="tip-card">
+            <span class="tip-badge">💡 هل تعلم؟</span>
+            <p id="tip-text">يمكنك تعليق أي فاتورة بالضغط على Ctrl+D واستكمالها لاحقاً في أي وقت.</p>
+          </div>
+          <p id="install-error" class="err-msg hidden"></p>
+        </div>
+      </section>
+
+      <!-- 4. الإنهاء -->
+      <section class="pane" id="pane-3">
+        <div class="done-box">
+          <div class="check-circle">✓</div>
+          <h1>تم تثبيت <span class="gold">CASH YOU</span> بنجاح!</h1>
+          <p class="lead">البرنامج جاهز الآن للعمل على جهازك بكامل مميزاته.</p>
+          <label class="launch-check">
+            <input type="checkbox" id="opt-launch" checked />
+            <span>تشغيل CASH YOU فور الإغلاق</span>
+          </label>
+          <div class="actions center">
+            <button class="btn primary lg" id="btn-finish">إنهاء وتشغيل البرنامج</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- الفوتر الثابت -->
+    <footer class="footer">
+      <span>CASH YOU</span>
+      <span class="sep">|</span>
+      <span>تصميم وتنفيذ م / وائل الجمال | 01222355769</span>
+    </footer>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>

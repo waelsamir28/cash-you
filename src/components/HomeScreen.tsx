@@ -3,12 +3,10 @@
 import { useMemo } from "react";
 import type { Bootstrap, InvoiceRow, ModuleKind } from "@/lib/types";
 import { money, qtyText, shortStamp } from "@/lib/format";
-import { IcoBox, IcoCart, IcoChart, IcoCheck, IcoPrint, IcoTrash, IcoUsers, IcoWallet } from "@/components/icons";
+import { IcoBox, IcoCart, IcoChart, IcoUsers, IcoWallet } from "@/components/icons";
 
 const QUICK: { kind: ModuleKind; title: string; hint: string; color: string; icon: React.ReactNode }[] = [
   { kind: "invoice", title: "فاتورة مبيعات", hint: "بيع سريع بالباركود", color: "bg-gradient-to-bl from-amber-400 to-orange-600 text-ink-950 border-amber-700/30", icon: <IcoCart /> },
-  { kind: "invoiceHistory", title: "سجل الفواتير", hint: "بحث وطباعة وحذف", color: "bg-gradient-to-bl from-sky-400 to-blue-600 text-white border-blue-800/30", icon: <IcoChart /> },
-  { kind: "suspended", title: "الفواتير المعلقة", hint: "مسودات محفوظة", color: "bg-gradient-to-bl from-yellow-400 to-amber-600 text-ink-950 border-amber-700/30", icon: <IcoCart /> },
   { kind: "salesReturn", title: "مرتجع مبيعات", hint: "عكس المخزون والحساب", color: "bg-gradient-to-bl from-orange-400 to-red-500 text-white border-red-700/30", icon: <IcoCart /> },
   { kind: "purchase", title: "فاتورة مشتريات", hint: "توريد من الموردين", color: "bg-gradient-to-bl from-cyan-400 to-cyan-700 text-white border-cyan-800/30", icon: <IcoBox /> },
   { kind: "purchaseReturn", title: "مرتجع مشتريات", hint: "تسوية حساب المورد", color: "bg-gradient-to-bl from-violet-400 to-violet-700 text-white border-violet-800/30", icon: <IcoBox /> },
@@ -19,18 +17,6 @@ const QUICK: { kind: ModuleKind; title: string; hint: string; color: string; ico
   { kind: "expenses", title: "المصروفات", hint: "إيجار وكهرباء ورواتب", color: "bg-gradient-to-bl from-rose-400 to-rose-700 text-white border-rose-800/30", icon: <IcoWallet /> },
   { kind: "treasury", title: "الخزينة", hint: "وارد ومنصرف ووردية", color: "bg-gradient-to-bl from-teal-400 to-teal-700 text-white border-teal-800/30", icon: <IcoWallet /> },
   { kind: "reports", title: "التقارير والأرباح", hint: "تحليل النتائج والتحصيل", color: "bg-gradient-to-bl from-slate-500 to-ink-900 text-white border-black/30", icon: <IcoChart /> },
-  { kind: "dashboard", title: "لوحة المالك", hint: "مؤشرات حية", color: "bg-gradient-to-bl from-amber-400 to-yellow-600 text-ink-950 border-amber-700/30", icon: <IcoChart /> },
-  { kind: "shortages", title: "الأصناف الناقصة", hint: "تنبيه المخزون", color: "bg-gradient-to-bl from-red-400 to-rose-600 text-white border-rose-800/30", icon: <IcoBox /> },
-  { kind: "stockMovements", title: "حركات المخزون", hint: "سجل الدخول والخروج", color: "bg-gradient-to-bl from-lime-400 to-green-600 text-white border-green-800/30", icon: <IcoBox /> },
-  { kind: "itemCard", title: "كارت الصنف", hint: "حركة صنف محدد", color: "bg-gradient-to-bl from-purple-400 to-violet-600 text-white border-violet-800/30", icon: <IcoBox /> },
-  { kind: "stocktake", title: "جرد المخزون", hint: "مطابقة وتسوية", color: "bg-gradient-to-bl from-emerald-400 to-teal-600 text-white border-teal-800/30", icon: <IcoBox /> },
-  { kind: "barcodePrint", title: "طباعة الباركود", hint: "ملصقات وأرفف", color: "bg-gradient-to-bl from-cyan-400 to-sky-600 text-white border-sky-800/30", icon: <IcoPrint /> },
-  { kind: "smartPurchase", title: "الشراء الذكي", hint: "طلبية مقترحة", color: "bg-gradient-to-bl from-orange-400 to-amber-600 text-white border-amber-800/30", icon: <IcoCart /> },
-  { kind: "priceKiosk", title: "كشك السعر", hint: "استعلام بالباركود", color: "bg-gradient-to-bl from-green-400 to-emerald-600 text-white border-emerald-800/30", icon: <IcoCart /> },
-  { kind: "activityLog", title: "سجل النشاط", hint: "رقابة ومراجعة", color: "bg-gradient-to-bl from-slate-400 to-slate-600 text-white border-slate-700/30", icon: <IcoChart /> },
-  { kind: "deletedInvoices", title: "سجل المحذوفات", hint: "فواتير محذوفة", color: "bg-gradient-to-bl from-red-400 to-red-600 text-white border-red-800/30", icon: <IcoTrash /> },
-  { kind: "backup", title: "النسخ الاحتياطي", hint: "تحميل واستعادة", color: "bg-gradient-to-bl from-emerald-400 to-green-600 text-white border-green-800/30", icon: <IcoCheck /> },
-  { kind: "health", title: "صحة البرنامج", hint: "فحص النظام", color: "bg-gradient-to-bl from-teal-400 to-cyan-600 text-white border-cyan-800/30", icon: <IcoCheck /> },
 ];
 
 export function HomeScreen({
@@ -76,7 +62,7 @@ export function HomeScreen({
   );
 
   return (
-    <section className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden cy-scroll bg-paper p-2.5" dir="rtl">
+    <section className="flex-1 min-h-0 overflow-y-auto cy-scroll bg-paper p-2.5" dir="rtl">
       <div className="relative overflow-hidden rounded-2xl cy-mesh cy-grain border border-black/40 px-4 py-4 sm:px-6 sm:py-5">
         <div className="pointer-events-none absolute inset-0 cy-aurora opacity-90" />
         <div className="relative flex flex-wrap items-center gap-4">
@@ -95,15 +81,6 @@ export function HomeScreen({
                 <IcoCart className="w-4 h-4" />
                 فاتورة بيع سريع (F4)
               </button>
-              {data.invoices.length > 0 && (
-                <button
-                  onClick={() => onOpenInvoice(data.invoices[data.invoices.length - 1])}
-                  className="h-10 px-4 rounded-xl bg-white/10 border border-white/15 text-slate-200 font-bold text-[12.5px] flex items-center gap-2 hover:bg-white/20 cy-press"
-                >
-                  <IcoPrint className="w-4 h-4 text-cash-cyan" />
-                  طباعة آخر فاتورة
-                </button>
-              )}
               <span className="h-10 px-4 rounded-xl bg-white/10 border border-white/15 text-slate-200 font-bold text-[12.5px] flex items-center gap-2">
                 <IcoBox className="w-4 h-4 text-cash-cyan" />
                 {data.products.length} صنف · {data.categories.length} تصنيف
@@ -155,7 +132,7 @@ export function HomeScreen({
         {/* الفواتير الأخيرة */}
         <div className="rounded-2xl bg-white border border-line overflow-hidden shadow-sm">
           <Head title="آخر الفواتير" hint="اضغط على الفاتورة لعرض تفاصيلها" />
-          <div className="grid grid-cols-[64px_minmax(0,1fr)_84px_92px_92px_88px] bg-ink-800 text-white text-[11.5px] font-black">
+          <div className="grid grid-cols-[70px_1fr_96px_100px_100px_96px] bg-ink-800 text-white text-[11.5px] font-black">
             {["الرقم", "العميل", "النوع", "الإجمالي", "المدفوع", "التاريخ"].map((h) => (
               <div key={h} className="px-2 py-2 text-center border-l border-white/10 last:border-l-0">
                 {h}
@@ -172,7 +149,7 @@ export function HomeScreen({
                 <button
                   key={i.id}
                   onClick={() => onOpenInvoice(i)}
-                  className={`w-full grid grid-cols-[64px_minmax(0,1fr)_84px_92px_92px_88px] text-[12.5px] border-b border-slate-200 text-right hover:bg-amber-50 transition-colors ${
+                  className={`w-full grid grid-cols-[70px_1fr_96px_100px_100px_96px] text-[12.5px] border-b border-slate-200 text-right hover:bg-amber-50 transition-colors ${
                     idx % 2 ? "bg-paper-2" : "bg-white"
                   }`}
                 >

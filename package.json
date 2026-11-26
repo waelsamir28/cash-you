@@ -1,9 +1,6 @@
 {
-  "name": "cash-you",
-  "version": "1.4.1",
+  "name": "nextjs-postgresql-template",
   "private": true,
-  "description": "CASH YOU — نظام مبيعات ونقاط بيع عربي (سطح مكتب + ويب)",
-  "author": "CASH YOU",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "next dev",
@@ -15,22 +12,9 @@
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "desktop": "electron electron/main.cjs",
-    "desktop:dist": "electron-builder --win nsis --publish never",
-    "desktop:build": "node tools/make-icon.cjs && node tools/make-installer-art.cjs && node tools/build-desktop-assets.cjs",
-    "test:db-bridge": "node tools/test-db-config.cjs",
-    "test:local-server": "node tools/test-local-server.cjs",
-    "test:db-sync": "node tools/test-db-sync.cjs",
-    "test:tenant": "node tools/test-tenant-http.cjs",
-    "test:tenant-unit": "node tools/test-tenant-isolation.cjs",
-    "test:local-db": "node tools/test-local-db.cjs",
-    "test:embedded": "node tools/test-embedded-postgres.cjs",
-    "test:asar": "node tools/test-asar-paths.cjs",
-    "test:packaged": "node tools/test-packaged-postgres.cjs",
-    "test:desktop-bundle": "node tools/check-desktop-bundle.cjs"
+    "desktop:dist": "electron-builder --win nsis"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.6.0",
-    "@electric-sql/pglite-socket": "^0.3.0",
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.2",
     "next": "16.4.2",
@@ -39,14 +23,14 @@
     "react-dom": "19.2.6"
   },
   "devDependencies": {
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0",
     "@tailwindcss/postcss": "4.1.17",
     "@types/node": "22.19.15",
     "@types/pg": "8.18.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "drizzle-kit": "0.31.10",
-    "electron": "45.4.1",
-    "electron-builder": "26.18.0",
     "eslint": "9.39.4",
     "eslint-config-next": "16.4.2",
     "postcss": "8.5.23",
@@ -56,83 +40,8 @@
   "build": {
     "appId": "com.cashyou.pos",
     "productName": "CASH YOU",
-    "copyright": "CASH YOU",
-    "artifactName": "CASH-YOU-Setup-${version}.${ext}",
-    "directories": {
-      "output": "release",
-      "buildResources": "assets/branding"
-    },
-    "files": [
-      "electron/**/*",
-      "package.json",
-      "public/**/*",
-      ".next/static/**/*",
-      "node_modules/pg/**/*",
-      "node_modules/pg-pool/**/*",
-      "node_modules/pg-protocol/**/*",
-      "node_modules/pg-types/**/*",
-      "node_modules/pgpass/**/*",
-      "node_modules/pg-connection-string/**/*",
-      "node_modules/pg-int8/**/*",
-      "node_modules/postgres-array/**/*",
-      "node_modules/postgres-bytea/**/*",
-      "node_modules/postgres-date/**/*",
-      "node_modules/postgres-interval/**/*",
-      "node_modules/xtend/**/*",
-      "node_modules/split2/**/*",
-      "node_modules/embedded-postgres/**/*",
-      "node_modules/@embedded-postgres/**/*",
-      "node_modules/exit-hook/**/*",
-      "assets/fonts/**/*",
-      "assets/branding/icon.png"
-    ],
-    "win": {
-      "target": [
-        "nsis"
-      ],
-      "icon": "assets/branding/icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "include": "electron/installer.nsh",
-      "installerHeader": "installer-header.bmp",
-      "installerSidebar": "installer-sidebar.bmp",
-      "uninstallerSidebar": "uninstaller-sidebar.bmp",
-      "installerIcon": "assets/branding/icon.ico",
-      "uninstallerIcon": "assets/branding/icon.ico",
-      "installerHeaderIcon": "assets/branding/icon.ico",
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "CASH YOU",
-      "deleteAppDataOnUninstall": false,
-      "artifactName": "CASH-YOU-Setup-${version}.${ext}"
-    },
-    "asarUnpack": [
-      ".next/static/**/*",
-      "node_modules/pg/**/*",
-      "node_modules/pg-pool/**/*",
-      "node_modules/pg-protocol/**/*",
-      "node_modules/pg-types/**/*",
-      "node_modules/pgpass/**/*",
-      "node_modules/pg-connection-string/**/*",
-      "node_modules/pg-int8/**/*",
-      "node_modules/postgres-array/**/*",
-      "node_modules/postgres-bytea/**/*",
-      "node_modules/postgres-date/**/*",
-      "node_modules/postgres-interval/**/*",
-      "node_modules/xtend/**/*",
-      "node_modules/split2/**/*",
-      "node_modules/@embedded-postgres/**/*",
-      "node_modules/embedded-postgres/**/*"
-    ],
-    "afterPack": "tools/copy-standalone.cjs"
-  },
-  "optionalDependencies": {
-    "@embedded-postgres/darwin-arm64": "19.0.0-beta.20",
-    "@embedded-postgres/darwin-x64": "19.0.0-beta.20",
-    "@embedded-postgres/linux-x64": "19.0.0-beta.20",
-    "@embedded-postgres/windows-x64": "19.0.0-beta.20",
-    "embedded-postgres": "19.0.0-beta.20"
+    "files": ["electron/**/*", "package.json"],
+    "win": { "target": ["nsis"] },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
   }
 }
