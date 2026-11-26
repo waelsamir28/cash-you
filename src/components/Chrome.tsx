@@ -1,265 +1,150 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Bootstrap, InvoiceRow, ModuleKind, Product, SessionUser, TrialStatus } from "@/lib/types";
-import { money } from "@/lib/format";
+import type { Bootstrap, Customer, InvoiceRow, ModuleKind, Product, SessionUser, TrialStatus } from "@/lib/types";
+import { money, qtyText } from "@/lib/format";
 import {
   IcoBox,
+  IcoCart,
   IcoChart,
   IcoCheck,
   IcoCode,
-  IcoCart,
+  IcoCollapse,
+  IcoExpand,
+  IcoEye,
   IcoGear,
   IcoHome,
   IcoLogo,
   IcoMinus,
   IcoMute,
+  IcoPlus,
   IcoSearch,
+  IcoSliders,
   IcoSound,
-  IcoSquare,
   IcoUsers,
   IcoWallet,
   IcoX,
 } from "@/components/icons";
 
+/** نص حالة التفعيل المعروض في الشريط العلوي والسفلي */
+export function trialLabel(trial: TrialStatus | null): string {
+  if (!trial) return "";
+  if (trial.licensed) return `مفعّلة · ${trial.license?.daysLeft ?? 0} يوم`;
+  if (trial.expired) return "انتهت التجربة · فعّل";
+  return `تجريبي · ${trial.daysLeft} يوم`;
+}
+
 /* ============================ الشريط العلوي ============================ */
 
 export function TitleBar({
-  data,
+  shopName,
   muted,
   onToggleMute,
-  onPickProduct,
-  onPickInvoice,
   onWindowAction,
   minimized,
-  user,
   trial,
   onLogout,
   onOpenActivation,
+  onOpenSearch,
+  fullscreen,
+  onToggleFullscreen,
 }: {
-  data: Bootstrap;
+  shopName: string;
   muted: boolean;
   onToggleMute: () => void;
-  onPickProduct: (p: Product) => void;
-  onPickInvoice: (i: InvoiceRow) => void;
-  onWindowAction: (a: "min" | "max" | "close") => void;
+  onWindowAction: (a: "min" | "close") => void;
   minimized: boolean;
-  user: SessionUser | null;
   trial: TrialStatus | null;
   onLogout: () => void;
   onOpenActivation: () => void;
+  onOpenSearch: () => void;
+  fullscreen: boolean;
+  onToggleFullscreen: () => void;
 }) {
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
-  const [cursor, setCursor] = useState(0);
-  const boxRef = useRef<HTMLDivElement | null>(null);
-
-  const results = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return { prods: [] as Product[], custs: [] as Bootstrap["customers"], invs: [] as InvoiceRow[] };
-    return {
-      prods: data.products
-        .filter((p) => p.name.toLowerCase().includes(term) || p.code.includes(term))
-        .slice(0, 6),
-      custs: data.customers
-        .filter((c) => c.name.toLowerCase().includes(term) || c.phone.includes(term))
-        .slice(0, 4),
-      invs: data.invoices
-        .filter((i) => String(i.number).includes(term) || i.customerName.toLowerCase().includes(term))
-        .slice(0, 4),
-    };
-  }, [q, data]);
-
-  const flat = useMemo(
-    () => [
-      ...results.prods.map((p) => ({ kind: "p" as const, p })),
-      ...results.custs.map((c) => ({ kind: "c" as const, c })),
-      ...results.invs.map((i) => ({ kind: "i" as const, i })),
-    ],
-    [results],
-  );
-
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
-  const choose = (idx: number) => {
-    const hit = flat[idx];
-    if (!hit) return;
-    if (hit.kind === "p") onPickProduct(hit.p);
-    if (hit.kind === "i") onPickInvoice(hit.i);
-    if (hit.kind === "c") setQ(hit.c.name);
-    setOpen(false);
-  };
-
   return (
     <header
       className="relative z-40 shrink-0 bg-ink-800 border-b border-black/40 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.7)]"
       dir="rtl"
     >
       <div className="pointer-events-none absolute inset-0 cy-aurora opacity-70" />
-      <div className="relative flex items-center gap-2 px-2.5 h-[58px] sm:h-[62px]">
+      <div className="relative flex items-center gap-2 px-2.5 h-[54px] sm:h-[58px]">
         {/* يمين: الشعار والعنوان */}
         <div className="flex items-center gap-2.5 shrink-0">
-          <IcoLogo className="w-9 h-9 sm:w-10 sm:h-10 drop-shadow" />
+          <IcoLogo className="w-9 h-9 drop-shadow" />
           <div className="leading-none">
-            <div className="text-white font-black tracking-[0.14em] text-[15px] sm:text-[17px]">
+            <div className="text-white font-black tracking-[0.14em] text-[15px]">
               CASH<span className="text-amber-brand"> YOU</span>
             </div>
-            <div className="text-[10px] sm:text-[11px] text-slate-400 font-semibold mt-1">
-              كاش يو · نقاط البيع
-            </div>
+            <div className="text-[10px] text-slate-400 font-semibold mt-1 max-w-[160px] truncate">{shopName}</div>
           </div>
         </div>
 
         <div className="w-px h-8 bg-white/10 mx-1 hidden sm:block" />
 
-        {/* البحث العام */}
-        <div ref={boxRef} className="relative flex-1 min-w-0 max-w-[560px]">
-          <div className="flex items-center gap-2 h-9 rounded-xl bg-ink-900/80 border border-white/10 px-3 focus-within:border-amber-brand/70 focus-within:bg-ink-900 transition-colors">
-            <IcoSearch className="w-4 h-4 text-slate-400" />
-            <input
-              id="cy-global-search"
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value);
-                setOpen(true);
-                setCursor(0);
-              }}
-              onFocus={() => setOpen(true)}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  setCursor((c) => Math.min(c + 1, flat.length - 1));
-                } else if (e.key === "ArrowUp") {
-                  e.preventDefault();
-                  setCursor((c) => Math.max(c - 1, 0));
-                } else if (e.key === "Enter") {
-                  e.preventDefault();
-                  choose(cursor);
-                } else if (e.key === "Escape") {
-                  setOpen(false);
-                }
-              }}
-              placeholder="بحث عام: صنف / عميل / فاتورة..."
-              className="flex-1 bg-transparent outline-none text-[13px] text-slate-100 placeholder:text-slate-500 min-w-0"
-            />
-            {q && (
-              <button
-                onClick={() => {
-                  setQ("");
-                  setOpen(false);
-                }}
-                className="text-slate-500 hover:text-cash-red cy-press"
-                aria-label="مسح البحث"
-              >
-                <IcoX className="w-3.5 h-3.5" />
-              </button>
-            )}
-            <kbd className="hidden md:block text-[10px] text-slate-500 border border-white/10 rounded px-1.5 py-0.5">
-              Ctrl + K
-            </kbd>
-          </div>
+        {/* أيقونة البحث العام: تفتح نافذة عائمة */}
+        <button
+          onClick={onOpenSearch}
+          title="بحث عام (Ctrl + K)"
+          aria-label="بحث عام"
+          className="w-9 h-9 grid place-items-center rounded-xl bg-ink-900/80 border border-white/10 text-slate-300 cy-press cy-focus hover:border-amber-brand/70 hover:text-amber-brand"
+        >
+          <IcoSearch className="w-4 h-4" />
+        </button>
 
-          {open && q.trim() !== "" && (
-            <div className="absolute top-[calc(100%+8px)] right-0 left-0 rounded-2xl bg-white border border-line shadow-2xl overflow-hidden cy-pop">
-              {flat.length === 0 ? (
-                <div className="px-4 py-6 text-center text-[13px] text-slate-500">
-                  لا توجد نتائج مطابقة لـ «{q}»
-                </div>
-              ) : (
-                <div className="max-h-[62vh] overflow-y-auto cy-scroll py-1">
-                  {results.prods.length > 0 && <GroupLabel>الأصناف</GroupLabel>}
-                  {results.prods.map((p, i) => (
-                    <Row key={p.id} active={cursor === i} onClick={() => choose(i)}>
-                      <span className="font-mono text-[11px] text-amber-700 bg-amber-100 rounded px-1.5 py-0.5">
-                        {p.code}
-                      </span>
-                      <span className="flex-1 truncate font-semibold text-ink-800">{p.name}</span>
-                      <span className="text-[12px] font-bold text-cash-green-deep cy-num">
-                        {money(p.price)}
-                      </span>
-                    </Row>
-                  ))}
-                  {results.custs.length > 0 && <GroupLabel>العملاء</GroupLabel>}
-                  {results.custs.map((c, k) => {
-                    const i = results.prods.length + k;
-                    return (
-                      <Row key={c.id} active={cursor === i} onClick={() => choose(i)}>
-                        <IcoUsers className="w-4 h-4 text-cash-violet" />
-                        <span className="flex-1 truncate font-semibold text-ink-800">{c.name}</span>
-                        <span className="text-[12px] text-slate-500 cy-num">{c.phone || "—"}</span>
-                      </Row>
-                    );
-                  })}
-                  {results.invs.length > 0 && <GroupLabel>الفواتير</GroupLabel>}
-                  {results.invs.map((inv, k) => {
-                    const i = results.prods.length + results.custs.length + k;
-                    return (
-                      <Row key={inv.id} active={cursor === i} onClick={() => choose(i)}>
-                        <span className="font-mono text-[11px] text-white bg-ink-700 rounded px-1.5 py-0.5">
-                          {inv.number}
-                        </span>
-                        <span className="flex-1 truncate font-semibold text-ink-800">
-                          {inv.customerName}
-                        </span>
-                        <span className="text-[12px] font-bold text-ink-700 cy-num">
-                          {money(inv.total)}
-                        </span>
-                      </Row>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* يسار: الصوت + المستخدم + الترخيص + أزرار النافذة */}
-        <div className="flex items-center gap-1.5 sm:gap-2 mr-auto shrink-0">
+        {/* يسار: الصوت + ملء الشاشة + الترخيص + أزرار النافذة */}
+        <div className="flex items-center gap-1.5 mr-auto shrink-0">
           <button
             onClick={onToggleMute}
             title={muted ? "تشغيل أصوات النظام" : "كتم كل الأصوات"}
-            className={`h-9 px-2.5 rounded-xl border cy-press cy-focus flex items-center gap-1.5 text-[12px] font-bold ${
+            aria-label={muted ? "تشغيل الصوت" : "كتم الصوت"}
+            className={`w-9 h-9 rounded-xl border cy-press cy-focus grid place-items-center ${
               muted
                 ? "bg-cash-red/15 border-cash-red/50 text-cash-red"
                 : "bg-cash-green/15 border-cash-green/45 text-cash-green"
             }`}
           >
             {muted ? <IcoMute className="w-4 h-4" /> : <IcoSound className="w-4 h-4" />}
-            <span className="hidden lg:inline">{muted ? "الصوت مكتوم" : "الصوت يعمل"}</span>
           </button>
 
-          <div className="hidden md:flex items-center gap-2 h-9 rounded-xl bg-ink-700/70 border border-white/10 px-2.5">
-            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-cash-cyan to-cash-violet grid place-items-center text-[11px] font-black text-ink-900">
-              {(user?.fullName?.trim()?.[0] ?? "؟").toUpperCase()}
-            </span>
-            <span className="max-w-[150px] truncate text-[12px] font-bold text-slate-200">{user?.fullName ?? "غير مسجل"}</span>
-            {user?.role === "owner" && <span className="rounded bg-amber-brand/20 px-1.5 py-0.5 text-[9.5px] font-black text-amber-brand">مالك</span>}
-          </div>
+          <button
+            onClick={onToggleFullscreen}
+            title={fullscreen ? "الخروج من ملء الشاشة" : "تكبير الشاشة (ملء الشاشة)"}
+            aria-label={fullscreen ? "الخروج من ملء الشاشة" : "تكبير الشاشة"}
+            className="w-9 h-9 rounded-xl border border-white/10 bg-ink-700/70 text-slate-200 cy-press cy-focus grid place-items-center hover:border-amber-brand/60 hover:text-amber-brand"
+          >
+            {fullscreen ? <IcoCollapse className="w-4 h-4" /> : <IcoExpand className="w-4 h-4" />}
+          </button>
 
           {trial && (
             <button
               onClick={onOpenActivation}
-              className={`hidden sm:flex items-center gap-1.5 h-9 rounded-xl border px-2.5 transition hover:brightness-125 ${trial.licensed ? "bg-cash-green/15 border-cash-green/45 text-cash-green" : trial.expired ? "bg-cash-red/15 border-cash-red/45 text-cash-red" : trial.daysLeft <= 3 ? "bg-amber-brand/15 border-amber-brand/45 text-amber-brand" : "bg-cash-green/15 border-cash-green/45 text-cash-green"}`}
+              className={`hidden sm:flex items-center gap-1.5 h-9 rounded-xl border px-2.5 transition hover:brightness-125 ${
+                trial.licensed
+                  ? "bg-cash-green/15 border-cash-green/45 text-cash-green"
+                  : trial.expired
+                    ? "bg-cash-red/15 border-cash-red/45 text-cash-red"
+                    : trial.daysLeft <= 3
+                      ? "bg-amber-brand/15 border-amber-brand/45 text-amber-brand"
+                      : "bg-cash-green/15 border-cash-green/45 text-cash-green"
+              }`}
               title={
                 trial.licensed
                   ? `نسخة مفعّلة حتى ${trial.license?.validUntil ? new Date(trial.license.validUntil).toLocaleDateString("ar-EG") : ""} — اضغط للتفاصيل`
                   : `الفترة التجريبية: ${trial.daysLeft} يوم متبقٍ · اضغط للتفعيل · حدود: ${trial.limits.products} صنف / ${trial.limits.invoices} فاتورة / ${trial.limits.customers} عميل / ${trial.limits.suppliers} مورد`
               }
             >
-              <span className={`w-2 h-2 rounded-full ${trial.licensed ? "bg-cash-green cy-ring" : trial.expired ? "bg-cash-red" : trial.daysLeft <= 3 ? "bg-amber-brand animate-pulse" : "bg-cash-green cy-ring"}`} />
-              <span className="text-[12px] font-bold">
-                {trial.licensed
-                  ? `مفعّلة · ${trial.license?.daysLeft ?? 0} يوم`
-                  : trial.expired
-                    ? "انتهت التجربة · فعّل"
-                    : `تجريبي · ${trial.daysLeft} يوم`}
-              </span>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  trial.licensed
+                    ? "bg-cash-green cy-ring"
+                    : trial.expired
+                      ? "bg-cash-red"
+                      : trial.daysLeft <= 3
+                        ? "bg-amber-brand animate-pulse"
+                        : "bg-cash-green cy-ring"
+                }`}
+              />
+              <span className="text-[12px] font-bold">{trialLabel(trial)}</span>
             </button>
           )}
 
@@ -277,9 +162,6 @@ export function TitleBar({
             <WinBtn label="تصغير" onClick={() => onWindowAction("min")} tone="slate">
               <IcoMinus className="w-3.5 h-3.5" />
             </WinBtn>
-            <WinBtn label="تكبير" onClick={() => onWindowAction("max")} tone="slate">
-              <IcoSquare className="w-3 h-3" />
-            </WinBtn>
             <WinBtn label="إغلاق" onClick={() => onWindowAction("close")} tone="red">
               <IcoX className="w-3.5 h-3.5" />
             </WinBtn>
@@ -287,41 +169,8 @@ export function TitleBar({
         </div>
       </div>
 
-      {minimized && (
-        <div className="absolute inset-x-0 -bottom-px h-px bg-amber-brand" aria-hidden />
-      )}
-      <span className="sr-only">{data.shop.name}</span>
+      {minimized && <div className="absolute inset-x-0 -bottom-px h-px bg-amber-brand" aria-hidden />}
     </header>
-  );
-}
-
-function GroupLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="px-3 pt-2 pb-1 text-[10px] font-black tracking-widest text-slate-400">
-      {children}
-    </div>
-  );
-}
-
-function Row({
-  children,
-  active,
-  onClick,
-}: {
-  children: React.ReactNode;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onClick}
-      className={`w-full flex items-center gap-2.5 px-3 py-2 text-right text-[13px] transition-colors ${
-        active ? "bg-amber-100" : "hover:bg-slate-100"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -349,6 +198,206 @@ function WinBtn({
     >
       {children}
     </button>
+  );
+}
+
+/* ============================ البحث العام (نافذة عائمة) ============================ */
+
+type SearchHit =
+  | { kind: "p"; p: Product }
+  | { kind: "c"; c: Customer }
+  | { kind: "i"; i: InvoiceRow };
+
+export function GlobalSearch({
+  data,
+  hueName,
+  onClose,
+  onViewProduct,
+  onAddProduct,
+  onViewCustomer,
+  onViewInvoice,
+}: {
+  data: Bootstrap;
+  hueName: (catId: number) => string;
+  onClose: () => void;
+  onViewProduct: (p: Product) => void;
+  onAddProduct: (p: Product) => void;
+  onViewCustomer: (c: Customer) => void;
+  onViewInvoice: (i: InvoiceRow) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [cursor, setCursor] = useState(0);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => inputRef.current?.focus(), 30);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  const hits = useMemo<SearchHit[]>(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return [];
+    const prods = data.products
+      .filter((p) => p.name.toLowerCase().includes(term) || p.code.includes(term))
+      .slice(0, 8)
+      .map((p) => ({ kind: "p" as const, p }));
+    const custs = data.customers
+      .filter((c) => c.name.toLowerCase().includes(term) || c.phone.includes(term))
+      .slice(0, 5)
+      .map((c) => ({ kind: "c" as const, c }));
+    const invs = data.invoices
+      .filter((i) => String(i.number).includes(term) || i.customerName.toLowerCase().includes(term))
+      .slice(0, 5)
+      .map((i) => ({ kind: "i" as const, i }));
+    return [...prods, ...custs, ...invs];
+  }, [q, data]);
+
+  const viewHit = (h: SearchHit) => {
+    if (h.kind === "p") onViewProduct(h.p);
+    if (h.kind === "c") onViewCustomer(h.c);
+    if (h.kind === "i") onViewInvoice(h.i);
+  };
+
+  const groupTitle = (kind: SearchHit["kind"]) =>
+    kind === "p" ? "الأصناف" : kind === "c" ? "العملاء" : "الفواتير";
+
+  return (
+    <div
+      className="fixed inset-0 z-[85] bg-ink-950/60 backdrop-blur-[2px] cy-no-print"
+      dir="rtl"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="cy-pop mx-auto mt-[12vh] w-[min(94vw,680px)] rounded-2xl bg-white border border-line shadow-[0_40px_90px_-30px_rgba(2,6,23,0.9)] overflow-hidden">
+        <div className="flex items-center gap-2 px-3 h-14 border-b border-line bg-paper">
+          <IcoSearch className="w-5 h-5 text-slate-500" />
+          <input
+            ref={inputRef}
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setCursor(0);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setCursor((c) => Math.min(c + 1, hits.length - 1));
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setCursor((c) => Math.max(c - 1, 0));
+              } else if (e.key === "Enter") {
+                e.preventDefault();
+                const h = hits[cursor];
+                if (h) viewHit(h);
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                onClose();
+              }
+            }}
+            placeholder="ابحث عن صنف بالاسم أو الكود، أو عميل، أو رقم فاتورة..."
+            className="flex-1 min-w-0 bg-transparent outline-none text-[14px] font-bold text-ink-900 placeholder:text-slate-400 placeholder:font-normal"
+          />
+          {q && (
+            <button onClick={() => setQ("")} className="text-slate-400 hover:text-cash-red" aria-label="مسح">
+              <IcoX className="w-4 h-4" />
+            </button>
+          )}
+          <kbd className="text-[10px] font-mono text-slate-500 border border-line rounded px-1.5 py-0.5">Esc</kbd>
+        </div>
+
+        <div className="max-h-[60vh] overflow-y-auto cy-scroll py-1">
+          {q.trim() === "" ? (
+            <div className="px-4 py-10 text-center text-[13px] font-bold text-slate-500">
+              اكتب للبحث في الأصناف والعملاء والفواتير، ثم اضغط «عرض» بجوار النتيجة
+            </div>
+          ) : hits.length === 0 ? (
+            <div className="px-4 py-10 text-center text-[13px] font-bold text-slate-500">
+              لا توجد نتائج مطابقة لـ «{q}»
+            </div>
+          ) : (
+            hits.map((h, idx) => {
+              const first = idx === 0 || hits[idx - 1].kind !== h.kind;
+              const active = cursor === idx;
+              return (
+                <div key={`${h.kind}-${idx}`}>
+                  {first && (
+                    <div className="px-4 pt-2 pb-1 text-[10.5px] font-black tracking-widest text-slate-400">
+                      {groupTitle(h.kind)}
+                    </div>
+                  )}
+                  <div
+                    onMouseEnter={() => setCursor(idx)}
+                    className={`flex items-center gap-3 px-4 py-2 transition-colors ${active ? "bg-amber-100" : "hover:bg-slate-50"}`}
+                  >
+                    {h.kind === "p" && (
+                      <>
+                        <span className="font-mono text-[11px] text-amber-700 bg-amber-100 rounded px-1.5 py-0.5 shrink-0">
+                          {h.p.code}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-[13px] text-ink-800 truncate">{h.p.name}</div>
+                          <div className="text-[11px] text-slate-500 truncate">
+                            {hueName(h.p.categoryId)} · الرصيد <span className="cy-num">{qtyText(h.p.stock)}</span>
+                          </div>
+                        </div>
+                        <span className="text-[12.5px] font-black text-cash-green-deep cy-num shrink-0">{money(h.p.price)}</span>
+                      </>
+                    )}
+                    {h.kind === "c" && (
+                      <>
+                        <IcoUsers className="w-4 h-4 text-cash-violet shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-[13px] text-ink-800 truncate">{h.c.name}</div>
+                          <div className="text-[11px] text-slate-500 cy-num">{h.c.phone || "بدون تليفون"}</div>
+                        </div>
+                        <span className="text-[12px] font-bold text-ink-700 cy-num shrink-0">{money(h.c.balance)}</span>
+                      </>
+                    )}
+                    {h.kind === "i" && (
+                      <>
+                        <span className="font-mono text-[11px] text-white bg-ink-700 rounded px-1.5 py-0.5 shrink-0">
+                          {h.i.number}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-[13px] text-ink-800 truncate">{h.i.customerName}</div>
+                          <div className="text-[11px] text-slate-500 truncate">{h.i.paymentMethod}</div>
+                        </div>
+                        <span className="text-[12px] font-bold text-ink-700 cy-num shrink-0">{money(h.i.total)}</span>
+                      </>
+                    )}
+
+                    {h.kind === "p" && (
+                      <button
+                        onClick={() => onAddProduct(h.p)}
+                        disabled={h.p.stock <= 0}
+                        title="إضافة إلى الفاتورة"
+                        className="h-8 px-2.5 rounded-lg bg-cash-green text-white text-[11.5px] font-black cy-press flex items-center gap-1 shrink-0 hover:bg-cash-green-deep disabled:opacity-40"
+                      >
+                        <IcoPlus className="w-3.5 h-3.5" />
+                        إضافة
+                      </button>
+                    )}
+                    <button
+                      onClick={() => viewHit(h)}
+                      title="عرض التفاصيل"
+                      className="h-8 px-2.5 rounded-lg bg-ink-800 text-white text-[11.5px] font-black cy-press flex items-center gap-1 shrink-0 hover:bg-ink-900"
+                    >
+                      <IcoEye className="w-3.5 h-3.5" />
+                      عرض
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        <div className="px-4 h-8 border-t border-line bg-paper flex items-center justify-between text-[10.5px] font-bold text-slate-500">
+          <span>↑ ↓ للتنقل · Enter للعرض</span>
+          <span className="cy-num">{hits.length} نتيجة</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -385,7 +434,7 @@ export function TabStrip({
               key={t.id}
               className={`group flex items-center gap-2 h-9 pr-3 pl-2 rounded-t-xl border border-b-0 text-[12.5px] font-bold whitespace-nowrap transition-colors cursor-pointer ${
                 active
-                  ? "bg-white border-line text-ink-800 shadow-[0_-2px_0_0_#f59e0b_inset]"
+                  ? "bg-white border-line text-ink-800 shadow-[0_-2px_0_0_var(--color-amber-brand)_inset]"
                   : "bg-slate-200/70 border-transparent text-slate-600 hover:bg-white/70"
               }`}
               onClick={() => onSelect(t.id)}
@@ -450,6 +499,7 @@ export function IconRail({
     { icon: <IcoChart />, label: "التقارير والأرباح", kind: "reports", hover: "hover:text-cash-cyan" },
     { icon: <IcoUsers />, label: "المستخدمون", kind: "users", hover: "hover:text-amber-brand" },
     { icon: <IcoCheck />, label: "تفعيل النسخة", kind: "activation", hover: "hover:text-cash-green" },
+    { icon: <IcoSliders />, label: "الإعدادات", kind: "settings", hover: "hover:text-amber-brand" },
   ];
   return (
     <nav
@@ -518,51 +568,70 @@ function RailBtn({
 /* ============================ شريط الحالة السفلي ============================ */
 
 export function StatusBar({
-  clock,
   dateText,
   timeText,
-  invoiceNumber,
-  itemsCount,
   user,
+  trial,
+  onOpenActivation,
 }: {
-  clock: Date;
   dateText: string;
   timeText: string;
-  invoiceNumber: number;
-  itemsCount: number;
-  user?: SessionUser | null;
+  user: SessionUser | null;
+  trial: TrialStatus | null;
+  onOpenActivation: () => void;
 }) {
-  void clock;
   return (
     <footer
-      className="shrink-0 h-[34px] bg-ink-800 border-t border-black/40 text-slate-300 flex items-center px-3 gap-3 text-[11.5px] overflow-hidden"
+      className="shrink-0 h-[36px] bg-ink-800 border-t border-black/40 text-slate-300 flex items-center px-3 gap-3 text-[11.5px] overflow-hidden"
       dir="rtl"
     >
+      {/* يمين: المستخدم */}
       <div className="flex items-center gap-2 shrink-0">
         <span className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-brand to-cash-orange grid place-items-center text-[10px] font-black text-ink-900">
           {(user?.fullName?.trim()?.[0] ?? "؟").toUpperCase()}
         </span>
-        <span className="font-bold text-slate-200">المستخدم: {user?.fullName ?? "غير مسجل"}</span>
-        <span className="hidden xl:inline text-slate-500">|</span>
-        <span className="hidden xl:inline text-slate-400 cy-num">
-          فاتورة رقم {invoiceNumber} · {itemsCount} صنف
+        <span className="font-bold text-slate-200 truncate max-w-[220px]">
+          المستخدم: {user?.fullName ?? "غير مسجل"}
         </span>
+        {user?.role === "owner" && (
+          <span className="rounded bg-amber-brand/20 px-1.5 py-0.5 text-[9.5px] font-black text-amber-brand">مالك</span>
+        )}
       </div>
 
+      {/* الوسط: التاريخ والوقت + الدعم */}
       <div className="flex-1 flex items-center justify-center gap-3 min-w-0">
-        <span className="hidden md:inline text-slate-400 cy-num shrink-0">
+        <span className="hidden md:inline text-slate-300 cy-num shrink-0">
           {dateText} — {timeText}
         </span>
-        <span className="font-bold text-white truncate">
+        <span className="hidden lg:inline font-bold text-white truncate">
           الدعم الفني : م / وائل الجمال&nbsp;&nbsp;&nbsp;تليفون : 01222355769
         </span>
       </div>
 
-      <div className="flex items-center gap-1.5 shrink-0">
+      {/* يسار: حالة النظام وحالة التفعيل */}
+      <div className="flex items-center gap-2 shrink-0">
         <span className="w-2 h-2 rounded-full bg-cash-green cy-ring" />
         <span className="font-bold text-cash-green">النظام متصل</span>
-        <span className="hidden sm:inline text-slate-500">·</span>
-        <span className="hidden sm:inline text-slate-400">قاعدة البيانات جاهزة</span>
+        {trial && (
+          <>
+            <span className="text-slate-500">·</span>
+            <button
+              onClick={onOpenActivation}
+              className={`font-black hover:underline ${
+                trial.licensed
+                  ? "text-cash-green"
+                  : trial.expired
+                    ? "text-cash-red"
+                    : trial.daysLeft <= 3
+                      ? "text-amber-brand"
+                      : "text-cash-cyan"
+              }`}
+              title="فتح صفحة تفعيل النسخة"
+            >
+              {trialLabel(trial)}
+            </button>
+          </>
+        )}
       </div>
     </footer>
   );

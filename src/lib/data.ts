@@ -105,7 +105,12 @@ export async function getBootstrap(): Promise<Bootstrap> {
     },
     nextInvoiceNumber: Number.isFinite(next) ? next : 1,
     nextPurchaseNumber: Number.isFinite(nextPurchase) ? nextPurchase : 7001,
-    shop: { name: await getSetting("shop_name", "كاش يو للتجارة والتوريدات المكتبية"), phone: await getSetting("shop_phone", "01222355769") },
+    shop: {
+      name: await getSetting("shop_name", "كاش يو للتجارة والتوريدات المكتبية"),
+      phone: await getSetting("shop_phone", "01222355769"),
+      address: await getSetting("shop_address", ""),
+      logo: await getSetting("shop_logo", ""),
+    },
   };
 }
 

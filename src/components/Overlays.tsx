@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Bootstrap, InvoiceRow } from "@/lib/types";
+import type { Bootstrap, Customer, Product, ShopInfo, InvoiceRow } from "@/lib/types";
+import type { ReceiptPrefs } from "@/lib/ui-prefs";
 import type { Draft, Totals } from "@/lib/draft";
 import { lineTotal } from "@/lib/draft";
 import { apiFetch } from "@/lib/offline-sync";
@@ -85,54 +86,65 @@ export function Modal({
 /* ============================ رسالة الترحيب الوسطية ============================ */
 
 /**
- * رسالة عائمة في منتصف الشاشة ترحب بالمستخدم بعد تسجيل الدخول،
- * وتختفي تلقائياً بعد ثلاث ثوانٍ (أو بالضغط عليها).
+ * شاشة ترحيب كاملة بعد تسجيل الدخول: شعار المحل واسمه، وتختفي تلقائياً بعد ثلاث ثوانٍ (أو بالضغط عليها).
  */
 export function WelcomeToast({
   name,
   detail,
+  shopName,
+  logo,
   onDone,
 }: {
   name: string;
   detail?: string;
+  shopName: string;
+  logo: string;
   onDone: () => void;
 }) {
+  // نحتفظ بأحدث onDone في ref حتى لا تُعاد مؤقتات الإخفاء مع كل تحديث للساعة
+  const doneRef = useRef(onDone);
   useEffect(() => {
-    const timer = window.setTimeout(onDone, 3000);
-    return () => window.clearTimeout(timer);
+    doneRef.current = onDone;
   }, [onDone]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => doneRef.current(), 3000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <div
-      className="fixed inset-0 z-[120] grid place-items-center pointer-events-none cy-no-print"
+      className="fixed inset-0 z-[120] grid place-items-center bg-ink-950/90 backdrop-blur-md cy-no-print"
       dir="rtl"
       role="status"
       aria-live="polite"
     >
       <button
         type="button"
-        onClick={onDone}
-        className="cy-toast-pop pointer-events-auto relative w-[min(92vw,380px)] overflow-hidden rounded-[26px] border border-white/15 bg-ink-900/95 px-6 py-7 text-center shadow-[0_40px_120px_-30px_rgba(0,0,0,.95)] backdrop-blur-xl"
+        onClick={() => doneRef.current()}
+        className="cy-toast-pop relative w-[min(92vw,460px)] overflow-hidden rounded-[28px] border border-white/15 bg-ink-900 px-8 py-9 text-center shadow-[0_40px_120px_-30px_rgba(0,0,0,.95)]"
       >
-        <span className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-cash-cyan/20 blur-3xl" />
-        <span className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-amber-brand/20 blur-3xl" />
+        <span className="pointer-events-none absolute -top-16 -right-10 h-44 w-44 rounded-full bg-cash-cyan/20 blur-3xl" />
+        <span className="pointer-events-none absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-amber-brand/20 blur-3xl" />
 
-        <span className="relative mx-auto grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-amber-brand to-orange-500 shadow-[0_12px_30px_-10px_rgba(245,158,11,.9)]">
-          <span className="text-[26px] font-black text-ink-900">✓</span>
+        <span className="relative mx-auto grid h-28 w-28 place-items-center rounded-3xl bg-white p-2 shadow-[0_18px_40px_-12px_rgba(245,158,11,.7)]">
+          {logo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logo} alt={shopName} className="max-h-full max-w-full object-contain" />
+          ) : (
+            <IcoLogo className="w-24 h-24" />
+          )}
         </span>
 
-        <p className="relative mt-4 text-[11px] font-black tracking-[0.24em] text-cash-cyan">CASH YOU</p>
-        <h2 className="relative mt-1.5 text-[21px] font-black leading-snug text-white">
-          أهلاً بك، {name}
-        </h2>
-        <p className="relative mt-2 text-[12.5px] font-bold leading-6 text-slate-300">
+        <h1 className="relative mt-5 text-[24px] font-black leading-snug text-white">{shopName}</h1>
+        <p className="relative mt-3 text-[18px] font-black text-amber-brand">أهلاً بك، {name}</p>
+        <p className="relative mt-1.5 text-[12.5px] font-bold leading-6 text-slate-300">
           {detail ?? "تم تسجيل الدخول بنجاح — نتمنى لك يوماً موفقاً"}
         </p>
 
-        <span className="relative mt-5 block h-1 w-full overflow-hidden rounded-full bg-white/10">
+        <span className="relative mt-6 block h-1 w-full overflow-hidden rounded-full bg-white/10">
           <span className="cy-toast-bar block h-full rounded-full bg-gradient-to-l from-amber-brand to-cash-cyan" />
         </span>
-        <p className="relative mt-2 text-[10px] font-bold text-slate-500">تختفي تلقائياً بعد 3 ثوانٍ</p>
+        <p className="relative mt-2 text-[10px] font-bold text-slate-500">تختفي تلقائياً بعد 3 ثوانٍ · اضغط للمتابعة</p>
       </button>
     </div>
   );
@@ -334,7 +346,6 @@ export type ReceiptData = {
   customerName: string;
   paymentMethod: string;
   saleType: string;
-  discountPercent: number;
   subtotal: number;
   total: number;
   paid: number;
@@ -345,35 +356,49 @@ export type ReceiptData = {
 export function ReceiptModal({
   receipt,
   shop,
+  prefs,
   onClose,
 }: {
   receipt: ReceiptData;
-  shop: { name: string; phone: string };
+  shop: ShopInfo;
+  prefs: ReceiptPrefs;
   onClose: () => void;
 }) {
   const [printed, setPrinted] = useState(false);
+  const width = prefs.paperWidth === 58 ? 232 : 300;
   return (
     <Modal
       title={`تم حفظ الفاتورة رقم ${receipt.number}`}
-      subtitle="معاينة الإيصال قبل الطباعة — 80 مم"
+      subtitle={`معاينة الإيصال قبل الطباعة — ${prefs.paperWidth} مم`}
       onClose={onClose}
       width="max-w-md"
     >
       <div
         id="cy-print-area"
-        className="mx-auto w-[300px] bg-white text-black border border-dashed border-slate-400 rounded-lg p-3 text-[11.5px] cy-scroll max-h-[52vh] overflow-y-auto"
+        style={{ width }}
+        className="mx-auto bg-white text-black border border-dashed border-slate-400 rounded-lg p-3 text-[11.5px] cy-scroll max-h-[52vh] overflow-y-auto"
       >
         <div className="text-center">
-          <div className="font-black text-[16px] tracking-widest">CASH YOU</div>
+          {prefs.showLogo && shop.logo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={shop.logo} alt={shop.name} className="mx-auto mb-1 h-14 object-contain" />
+          ) : (
+            <div className="font-black text-[16px] tracking-widest">CASH YOU</div>
+          )}
           <div className="font-bold text-[12px]">{shop.name}</div>
-          <div className="cy-num">تليفون: {shop.phone}</div>
+          {prefs.showAddress && shop.address && <div className="text-[10.5px]">{shop.address}</div>}
+          {prefs.showPhone && shop.phone && <div className="cy-num">تليفون: {shop.phone}</div>}
           <div className="border-b border-dashed border-slate-400 my-2" />
         </div>
         <div className="grid grid-cols-2 gap-y-0.5 cy-num">
           <span className="font-bold">رقم الفاتورة</span>
           <span className="text-left">{receipt.number}</span>
-          <span className="font-bold">التاريخ</span>
-          <span className="text-left">{shortStamp(receipt.createdAt)}</span>
+          {prefs.showDateTime && (
+            <>
+              <span className="font-bold">التاريخ</span>
+              <span className="text-left">{shortStamp(receipt.createdAt)}</span>
+            </>
+          )}
           <span className="font-bold">العميل</span>
           <span className="text-left truncate">{receipt.customerName}</span>
           <span className="font-bold">النوع / الدفع</span>
@@ -384,8 +409,8 @@ export function ReceiptModal({
         <div className="border-b border-dashed border-slate-400 my-2" />
         <table className="w-full">
           <thead>
-            <tr className="font-black">
-              <th className="text-right">الصنف</th>
+            <tr className="font-black border-b border-slate-300">
+              <th className="text-right py-0.5">الصنف</th>
               <th className="text-center w-9">كمية</th>
               <th className="text-center w-12">سعر</th>
               <th className="text-left w-14">إجمالي</th>
@@ -404,11 +429,7 @@ export function ReceiptModal({
         </table>
         <div className="border-b border-dashed border-slate-400 my-2" />
         <div className="space-y-0.5 cy-num">
-          <Row2 k="الإجمالي قبل الخصم" v={money(receipt.subtotal)} />
-          {receipt.discountPercent > 0 && (
-            <Row2 k={`الخصم (${receipt.discountPercent}%)`} v={money(receipt.subtotal - receipt.total)} />
-          )}
-          <Row2 k="الصافي" v={money(receipt.total)} big />
+          <Row2 k="الإجمالي" v={money(receipt.total)} big />
           <Row2 k="المدفوع" v={money(receipt.paid)} />
           <Row2
             k={receipt.remaining < 0 ? "الباقي للزبون" : "المتبقي"}
@@ -417,9 +438,7 @@ export function ReceiptModal({
         </div>
         <div className="border-b border-dashed border-slate-400 my-2" />
         <div className="text-center font-bold leading-relaxed">
-          <div>الدعم الفني : م / وائل الجمال</div>
-          <div className="cy-num">01222355769</div>
-          <div className="mt-1">شكراً لزيارتكم — البضاعة المباعة ترد خلال 14 يوم</div>
+          {prefs.footerText && <div className="mt-1">{prefs.footerText}</div>}
         </div>
       </div>
 
@@ -456,6 +475,90 @@ function Row2({ k, v, big }: { k: string; v: string; big?: boolean }) {
       <span>{k}</span>
       <span>{v}</span>
     </div>
+  );
+}
+
+/* ============================ عرض صنف / عميل (من البحث العام) ============================ */
+
+export function ItemViewDialog({
+  product,
+  categoryName,
+  onAdd,
+  onClose,
+}: {
+  product: Product;
+  categoryName: string;
+  onAdd: () => void;
+  onClose: () => void;
+}) {
+  const rows: [string, string][] = [
+    ["الكود", product.code],
+    ["التصنيف", categoryName],
+    ["الوحدة", product.unit || "—"],
+    ["سعر البيع", money(product.price)],
+    ["سعر الجملة", money(product.wholesalePrice)],
+    ["الرصيد الحالي", qtyText(product.stock)],
+  ];
+  return (
+    <Modal title={product.name} subtitle="بيانات الصنف" onClose={onClose} width="max-w-md">
+      <div className="grid grid-cols-2 gap-2">
+        {rows.map(([k, v]) => (
+          <div key={k} className="rounded-xl bg-paper-2 border border-line px-3 py-2">
+            <div className="text-[10.5px] font-black text-slate-500">{k}</div>
+            <div className="cy-num font-black text-ink-900 text-[14px] mt-0.5 truncate">{v}</div>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2 mt-4">
+        <button
+          onClick={onAdd}
+          disabled={product.stock <= 0}
+          className="flex-1 h-11 rounded-xl bg-cash-green text-white font-black cy-press hover:bg-cash-green-deep disabled:opacity-40"
+        >
+          إضافة إلى الفاتورة
+        </button>
+        <button onClick={onClose} className="h-11 px-5 rounded-xl bg-slate-200 text-ink-800 font-black cy-press hover:bg-slate-300">
+          إغلاق
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+export function CustomerViewDialog({
+  customer,
+  onUse,
+  onClose,
+}: {
+  customer: Customer;
+  onUse: () => void;
+  onClose: () => void;
+}) {
+  const rows: [string, string][] = [
+    ["التليفون", customer.phone || "—"],
+    ["العنوان", customer.address || "—"],
+    ["الرصيد الحالي", money(customer.balance)],
+    ["الرصيد الافتتاحي", money(customer.openingBalance)],
+  ];
+  return (
+    <Modal title={customer.name} subtitle="بيانات العميل" onClose={onClose} width="max-w-md" tone="amber">
+      <div className="grid grid-cols-2 gap-2">
+        {rows.map(([k, v]) => (
+          <div key={k} className="rounded-xl bg-paper-2 border border-line px-3 py-2">
+            <div className="text-[10.5px] font-black text-slate-500">{k}</div>
+            <div className="cy-num font-black text-ink-900 text-[14px] mt-0.5 truncate">{v}</div>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2 mt-4">
+        <button onClick={onUse} className="flex-1 h-11 rounded-xl bg-ink-800 text-white font-black cy-press hover:bg-ink-900">
+          اختيار في الفاتورة الحالية
+        </button>
+        <button onClick={onClose} className="h-11 px-5 rounded-xl bg-slate-200 text-ink-800 font-black cy-press hover:bg-slate-300">
+          إغلاق
+        </button>
+      </div>
+    </Modal>
   );
 }
 

@@ -3,6 +3,7 @@
 import { apiFetch, flushOfflineQueue, pendingOfflineCount } from "@/lib/offline-sync";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Bootstrap, Customer, InstallmentInput, InvoiceRow, ModuleKind, PaymentMethod, Product, SessionUser, TrialStatus } from "@/lib/types";
+import { applyPrefs, loadPrefs, savePrefs, type UiPrefs } from "@/lib/ui-prefs";
 import { computeTotals, emptyDraft, lineTotal, newLine, type Draft } from "@/lib/draft";
 import { arDate, arTime, money, uid } from "@/lib/format";
 import {
@@ -17,7 +18,8 @@ import {
   sfxScan,
   sfxToggle,
 } from "@/lib/sound";
-import { IconRail, StatusBar, TabStrip, TitleBar, type Tab } from "@/components/Chrome";
+import { GlobalSearch, IconRail, StatusBar, TabStrip, TitleBar, type Tab } from "@/components/Chrome";
+import { SettingsScreen } from "@/components/SettingsScreen";
 import { PosScreen, type PosActions } from "@/components/PosScreen";
 import { HomeScreen } from "@/components/HomeScreen";
 import { ProductsScreen, PartiesScreen } from "@/components/ManagementScreens";
@@ -30,8 +32,9 @@ import { readOfflineBootstrap, saveOfflineBootstrap } from "@/lib/offline-cache"
 import {
   CloseConfirm,
   CustomerDisplay,
-  DiscountDialog,
+  CustomerViewDialog,
   InvoiceDetail,
+  ItemViewDialog,
   MinimizedBar,
   PromptDialog,
   ReceiptModal,
@@ -48,7 +51,8 @@ type Overlay =
   | { kind: "customerScreen" }
   | { kind: "addCustomer" }
   | { kind: "addPayment" }
-  | { kind: "discount" }
+  | { kind: "productView"; product: Product }
+  | { kind: "customerView"; customer: Customer }
   | { kind: "close" }
   | { kind: "receipt"; receipt: ReceiptData }
   | { kind: "invoice"; invoice: InvoiceRow }
@@ -84,6 +88,29 @@ export default function CashYouApp({
   const [syncPending, setSyncPending] = useState(0);
   const [online, setOnline] = useState(true);
   const [now, setNow] = useState(() => new Date());
+  const [prefs, setPrefs] = useState<UiPrefs>(() => loadPrefs());
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+
+  /* ---------------- تفضيلات الواجهة (الثيم والألوان والأزرار) ---------------- */
+  useEffect(() => {
+    applyPrefs(prefs);
+  }, [prefs]);
+  const updatePrefs = useCallback((next: UiPrefs) => {
+    setPrefs(next);
+    savePrefs(next);
+  }, []);
+
+  useEffect(() => {
+    const onChange = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    sfxKey();
+    if (!document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(() => undefined);
+    else void document.exitFullscreen?.().catch(() => undefined);
+  }, []);
 
   const barcodeRef = useRef<HTMLInputElement | null>(null);
   const seq = useRef(1);
@@ -122,6 +149,15 @@ export default function CashYouApp({
     const t = window.setTimeout(() => barcodeRef.current?.focus(), 90);
     return () => window.clearTimeout(t);
   }, [activeId, activeKind]);
+
+  /** تعديل مسودة فاتورة بعينها (قد تكون غير النشطة) */
+  const updateDraftOf = useCallback((id: string, fn: (cur: Draft) => Draft) => {
+    setDrafts((prev) => {
+      const cur = prev[id];
+      if (!cur) return prev;
+      return { ...prev, [id]: fn(cur) };
+    });
+  }, []);
 
   const patch = useCallback(
     (p: Partial<Draft>) => {
@@ -232,30 +268,35 @@ export default function CashYouApp({
   );
 
   /* ---------------- إضافة الأصناف ---------------- */
-  const addProduct = useCallback(
-    (p: Product, qty = 1) => {
-      setDrafts((prev) => {
-        const cur = prev[activeId];
-        if (!cur) return prev;
+  const addProductTo = useCallback(
+    (id: string, p: Product, qty = 1) => {
+      updateDraftOf(id, (cur) => {
         const existing = cur.items.find((li) => li.productId === p.id);
-        let items;
-        let lastUid: string;
         if (existing) {
-          lastUid = existing.uid;
-          items = cur.items.map((li) =>
-            li.uid === existing.uid ? { ...li, qty: li.qty + qty } : li,
-          );
-        } else {
-          const li = newLine(p.id, p.code, p.name, p.unit, p.price);
-          lastUid = li.uid;
-          items = [...cur.items, li];
+          return {
+            ...cur,
+            items: cur.items.map((li) => (li.uid === existing.uid ? { ...li, qty: li.qty + qty } : li)),
+            lastAddedUid: existing.uid,
+          };
         }
-        return { ...prev, [activeId]: { ...cur, items, lastAddedUid: lastUid } };
+        const li = newLine(p.id, p.code, p.name, p.unit, p.price);
+        return { ...cur, items: [...cur.items, { ...li, qty }], lastAddedUid: li.uid };
       });
       sfxAdd();
       if (p.stock <= 0) toast("warn", `تنبيه: رصيد الصنف «${p.name}» نفد من المخزون`);
     },
-    [activeId, toast],
+    [updateDraftOf, toast],
+  );
+
+  const addProduct = useCallback((p: Product, qty = 1) => addProductTo(activeId, p, qty), [activeId, addProductTo]);
+
+  /** إضافة صنف من أي مكان (البحث العام): يفتح فاتورة جديدة إن لم تكن فاتورة نشطة */
+  const addProductAnywhere = useCallback(
+    (p: Product) => {
+      if (activeTab?.kind === "invoice") addProductTo(activeId, p);
+      else addProductTo(openInvoiceTab(), p);
+    },
+    [activeTab, activeId, addProductTo, openInvoiceTab],
   );
 
   const addByCode = useCallback(
@@ -279,7 +320,7 @@ export default function CashYouApp({
   );
 
   const updateLine = useCallback(
-    (lineUid: string, p: Partial<{ qty: number; price: number; discount: number }>) => {
+    (lineUid: string, p: Partial<{ qty: number; price: number }>) => {
       setDrafts((prev) => {
         const cur = prev[activeId];
         if (!cur) return prev;
@@ -381,7 +422,7 @@ export default function CashYouApp({
             customerName: snapshot.customerName,
             paymentMethod: snapshot.paymentMethod,
             saleType: snapshot.saleType,
-            discountPercent: snapshot.discountPercent,
+            discountPercent: 0,
             paid: t.paid,
             printed: false,
             installment,
@@ -405,7 +446,6 @@ export default function CashYouApp({
           customerName: snapshot.customerName,
           paymentMethod: snapshot.paymentMethod,
           saleType: snapshot.saleType,
-          discountPercent: snapshot.discountPercent,
           subtotal: t.subtotal,
           total: json.total,
           paid: json.paid,
@@ -493,7 +533,7 @@ export default function CashYouApp({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const keys = ["F3", "F4", "F5", "F10", "F11", "F12"];
+      const keys = ["F3", "F4", "F5", "F10", "F12"];
       if (keys.includes(e.key)) {
         e.preventDefault();
         if (shutdown || minimized) return;
@@ -506,32 +546,25 @@ export default function CashYouApp({
         if (kindRef.current !== "invoice") return;
         if (e.key === "F5") void saveRef.current(false);
         if (e.key === "F10") void saveRef.current(true);
-        if (e.key === "F11") {
-          sfxKey();
-          setOverlay({ kind: "discount" });
-        }
         if (e.key === "F12") payRef.current();
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        document.getElementById("cy-global-search")?.focus();
+        sfxKey();
+        setSearchOpen(true);
       }
+      if (e.key === "Escape" && searchOpen) setSearchOpen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [shutdown, minimized]);
+  }, [shutdown, minimized, searchOpen]);
 
   /* ---------------- أزرار النافذة ---------------- */
-  const onWindowAction = useCallback((a: "min" | "max" | "close") => {
+  const onWindowAction = useCallback((a: "min" | "close") => {
     sfxKey();
     if (a === "min") setMinimized(true);
     if (a === "close") setOverlay({ kind: "close" });
-    if (a === "max") {
-      const el = document.documentElement;
-      if (!document.fullscreenElement) void el.requestFullscreen?.().catch(() => undefined);
-      else void document.exitFullscreen?.().catch(() => undefined);
-    }
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -552,10 +585,6 @@ export default function CashYouApp({
       save: (p: boolean) => void save(p),
       newInvoice,
       payFull,
-      openDiscount: () => {
-        sfxKey();
-        setOverlay({ kind: "discount" });
-      },
       openCustomerScreen: () => {
         sfxToggle();
         setOverlay({ kind: "customerScreen" });
@@ -632,32 +661,20 @@ export default function CashYouApp({
   return (
     <div className="h-[100dvh] w-full flex flex-col bg-ink-950 overflow-hidden">
       <TitleBar
-        data={data}
+        shopName={data.shop.name}
         muted={muted}
         onToggleMute={toggleMute}
-        onPickProduct={(p) => {
-          if (activeTab?.kind !== "invoice") {
-            const id = openInvoiceTab();
-            window.setTimeout(() => {
-              setDrafts((prev) => {
-                const cur = prev[id];
-                if (!cur) return prev;
-                const li = newLine(p.id, p.code, p.name, p.unit, p.price);
-                return { ...prev, [id]: { ...cur, items: [...cur.items, li], lastAddedUid: li.uid } };
-              });
-              sfxAdd();
-            }, 30);
-          } else {
-            addProduct(p);
-          }
-        }}
-        onPickInvoice={(i) => setOverlay({ kind: "invoice", invoice: i })}
         onWindowAction={onWindowAction}
         minimized={minimized}
-        user={user}
         trial={trial}
         onOpenActivation={() => openModule("activation", "تفعيل النسخة")}
         onLogout={() => void onLogout()}
+        onOpenSearch={() => {
+          sfxKey();
+          setSearchOpen(true);
+        }}
+        fullscreen={fullscreen}
+        onToggleFullscreen={toggleFullscreen}
       />
       {(!online || syncPending > 0) && (
         <div className={`flex items-center gap-2 px-3 py-1.5 text-[11px] font-black ${online ? "bg-amber-100 text-amber-900" : "bg-cash-red text-white"}`}>
@@ -694,6 +711,15 @@ export default function CashYouApp({
           )}
 
           {activeTab?.kind === "source" && <SourceScreen />}
+          {activeTab?.kind === "settings" && (
+            <SettingsScreen
+              data={data}
+              prefs={prefs}
+              onChange={updatePrefs}
+              refresh={refreshData}
+              notify={toast}
+            />
+          )}
           {activeTab?.kind === "products" && <ProductsScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "parties" && <PartiesScreen key={activeTab.id} initialKind={activeTab.title === "الموردون" ? "supplier" : "customer"} data={data} refresh={refreshData} notify={toast} />}
           {(activeTab?.kind === "purchase" || activeTab?.kind === "salesReturn" || activeTab?.kind === "purchaseReturn") && (
@@ -725,19 +751,17 @@ export default function CashYouApp({
               actions={actions}
               barcodeRef={barcodeRef}
               saving={saving}
-              stamp={stamp}
             />
           )}
         </main>
       </div>
 
       <StatusBar
-        clock={now}
         dateText={stamp.date}
         timeText={stamp.time}
-        invoiceNumber={draft.number}
-        itemsCount={draft.items.length}
         user={user}
+        trial={trial}
+        onOpenActivation={() => openModule("activation", "تفعيل النسخة")}
       />
 
       {/* ---------------- الطبقات العلوية ---------------- */}
@@ -776,16 +800,55 @@ export default function CashYouApp({
         />
       )}
 
-      {overlay.kind === "discount" && (
-        <DiscountDialog
-          current={draft.discountPercent}
-          subtotal={totals.subtotal}
-          onClose={() => setOverlay({ kind: "none" })}
-          onApply={(percent) => {
-            patch({ discountPercent: percent });
+      {overlay.kind === "productView" && (
+        <ItemViewDialog
+          product={overlay.product}
+          categoryName={data.categories.find((c) => c.id === overlay.product.categoryId)?.name ?? "—"}
+          onAdd={() => {
+            addProductAnywhere(overlay.product);
             setOverlay({ kind: "none" });
-            sfxCash();
-            toast("ok", `تم تطبيق خصم ${percent}% على الفاتورة`);
+          }}
+          onClose={() => setOverlay({ kind: "none" })}
+        />
+      )}
+
+      {overlay.kind === "customerView" && (
+        <CustomerViewDialog
+          customer={overlay.customer}
+          onUse={() => {
+            const id = activeTab?.kind === "invoice" ? activeId : openInvoiceTab();
+            updateDraftOf(id, (cur) => ({
+              ...cur,
+              customerId: overlay.customer.id,
+              customerName: overlay.customer.name,
+            }));
+            setOverlay({ kind: "none" });
+            sfxKey();
+          }}
+          onClose={() => setOverlay({ kind: "none" })}
+        />
+      )}
+
+      {searchOpen && (
+        <GlobalSearch
+          data={data}
+          hueName={(catId) => data.categories.find((c) => c.id === catId)?.name ?? "—"}
+          onClose={() => setSearchOpen(false)}
+          onViewProduct={(p) => {
+            setSearchOpen(false);
+            setOverlay({ kind: "productView", product: p });
+          }}
+          onAddProduct={(p) => {
+            setSearchOpen(false);
+            addProductAnywhere(p);
+          }}
+          onViewCustomer={(c) => {
+            setSearchOpen(false);
+            setOverlay({ kind: "customerView", customer: c });
+          }}
+          onViewInvoice={(i) => {
+            setSearchOpen(false);
+            setOverlay({ kind: "invoice", invoice: i });
           }}
         />
       )}
@@ -803,7 +866,12 @@ export default function CashYouApp({
       )}
 
       {overlay.kind === "receipt" && (
-        <ReceiptModal receipt={overlay.receipt} shop={data.shop} onClose={() => setOverlay({ kind: "none" })} />
+        <ReceiptModal
+          receipt={overlay.receipt}
+          shop={data.shop}
+          prefs={prefs.receipt}
+          onClose={() => setOverlay({ kind: "none" })}
+        />
       )}
 
       {overlay.kind === "invoice" && (
@@ -825,8 +893,10 @@ export default function CashYouApp({
 
       <Toasts toasts={toasts} onDismiss={dismiss} />
 
-      {welcome && (
+      {welcome && prefs.showWelcome && (
         <WelcomeToast
+          shopName={data.shop.name}
+          logo={data.shop.logo}
           name={user?.fullName ?? "بك"}
           detail={
             trial?.licensed

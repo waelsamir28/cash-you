@@ -8,7 +8,6 @@ export type Draft = {
   customerName: string;
   paymentMethod: string;
   saleType: "نقدي" | "آجل" | "تقسيط";
-  discountPercent: number;
   paidText: string;
   categoryId: number | "all";
   query: string;
@@ -24,7 +23,6 @@ export function emptyDraft(number: number): Draft {
     customerName: "عميل نقدي",
     paymentMethod: "نقدي",
     saleType: "نقدي",
-    discountPercent: 0,
     paidText: "0",
     categoryId: "all",
     query: "",
@@ -41,7 +39,6 @@ export function lineTotal(li: LineItem): number {
 
 export type Totals = {
   subtotal: number;
-  discountValue: number;
   total: number;
   paid: number;
   remaining: number;
@@ -50,15 +47,13 @@ export type Totals = {
 };
 
 export function computeTotals(d: Draft): Totals {
+  // لا يوجد خصم على مستوى الفاتورة في شاشة البيع
   const subtotal = r2(d.items.reduce((s, li) => s + lineTotal(li), 0));
-  const pct = Math.min(100, Math.max(0, d.discountPercent || 0));
-  const discountValue = r2((subtotal * pct) / 100);
-  const total = r2(subtotal - discountValue);
+  const total = subtotal;
   const paid = r2(Number.parseFloat(d.paidText.replace(/[^\d.-]/g, "")) || 0);
   const remaining = r2(total - paid);
   return {
     subtotal,
-    discountValue,
     total,
     paid,
     remaining,
