@@ -138,21 +138,6 @@ jobs:
             exit 1
           fi
 
-      - name: Build Custom Electron GUI Installer
-        shell: bash
-        run: |
-          set -euo pipefail
-          trap 'echo "::error::Build Custom Electron GUI Installer failed at line $LINENO"' ERR
-          APP_VERSION=$(node -p "require('./package.json').version")
-          mkdir -p installer/bin
-          cp node_modules/7zip-bin/win/x64/7za.exe installer/bin/7za.exe
-          rm -f installer/payload.7z
-          ./installer/bin/7za.exe a -t7z -mx=5 installer/payload.7z ./release/win-unpacked/*
-          ELECTRON_VER=$(node -p "require('./package.json').devDependencies.electron.replace(/^[^0-9]*/, '')")
-          npx electron-builder --config installer/builder.json --win portable -c.electronVersion="$ELECTRON_VER"
-          rm -f release/*.exe release/*.blockmap
-          cp release-installer/CASH-YOU-Setup-${APP_VERSION}.exe release/CASH-YOU-Setup-${APP_VERSION}.exe
-
       - name: Upload the installer as a workflow artifact
         uses: actions/upload-artifact@v4
         with:
