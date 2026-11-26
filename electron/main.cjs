@@ -28,7 +28,34 @@ function readConfig() {
 
 const windowIcon = path.join(__dirname, "icon.png");
 
+const LICENSE_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzktSC9YahZcVUUcjGKd1y2JxNE/W
+z/6WUr+O53CM8CBotP75BTtH1cxMRUbJe6dILaTctYH1nkTFR38xFsElAA==
+-----END PUBLIC KEY-----`;
+
 ipcMain.handle("cash-you:get-device-code", () => getDeviceCode());
+
+ipcMain.handle("cash-you:verify-license", (_event, code) => {
+  try {
+    const parts = String(code || "").trim().split(".");
+    if (parts.length !== 3 || parts[0] !== "CY1") {
+      return { ok: false, error: "صيغة كود التفعيل غير صحيحة" };
+    }
+    const [, payloadB64, sigB64] = parts;
+    const pubKey = process.env.CASH_YOU_LICENSE_PUBLIC_KEY || LICENSE_PUBLIC_KEY;
+    const ok = require("node:crypto").verify(
+      "sha256",
+      Buffer.from(payloadB64, "utf8"),
+      pubKey,
+      Buffer.from(sigB64, "base64url"),
+    );
+    if (!ok) return { ok: false, error: "التوقيع الرقمي غير صالح" };
+    const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8"));
+    return { ok: true, payload };
+  } catch {
+    return { ok: false, error: "تعذر التحقق من كود التفعيل" };
+  }
+});
 ipcMain.handle("cash-you:get-activation-record", () => {
   const file = path.join(app.getPath("userData"), "cash-you-license.bin");
   try {
