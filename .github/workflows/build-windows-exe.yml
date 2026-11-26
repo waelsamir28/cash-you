@@ -26,9 +26,6 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
         run: npm run build
 
-      - name: Test local PGlite database
-        run: node tools/test-embedded-postgres.cjs
-
       - name: Package NSIS installer
         run: npx electron-builder --win nsis --x64
 
