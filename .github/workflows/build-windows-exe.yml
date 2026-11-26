@@ -146,7 +146,7 @@ jobs:
           mkdir -p installer/bin
           cp node_modules/7zip-bin/win/x64/7za.exe installer/bin/7za.exe
           rm -f installer/payload.7z
-          7z a -t7z -mx=5 installer/payload.7z ./release/win-unpacked/*
+          ./installer/bin/7za.exe a -t7z -mx=5 installer/payload.7z ./release/win-unpacked/*
           node -e "const p=JSON.parse(require('fs').readFileSync('installer/package.json','utf8')); p.version='${APP_VERSION}'; require('fs').writeFileSync('installer/package.json', JSON.stringify(p, null, 2)+'\n');"
           ELECTRON_VER=$(node -p "require('./package.json').devDependencies.electron.replace(/^[^0-9]*/, '')")
           npx electron-builder --projectDir installer --win portable -c.electronVersion="$ELECTRON_VER"
