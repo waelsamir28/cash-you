@@ -27,7 +27,9 @@ jobs:
         run: npm run build
 
       - name: Package NSIS installer
-        run: npx electron-builder --win nsis --x64 --publish never -c.extraMetadata.version=1.4.2
+        run: |
+          node -e "const p=JSON.parse(require('fs').readFileSync('package.json','utf8')); p.version='1.4.2'; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2)+'\n');"
+          npx electron-builder --win nsis --x64 --publish never
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
