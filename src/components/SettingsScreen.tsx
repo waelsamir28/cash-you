@@ -24,6 +24,7 @@ import {
   type UiPrefs,
 } from "@/lib/ui-prefs";
 import { IcoCheck, IcoLogo, IcoTrash } from "@/components/icons";
+import type { OverpayChoice } from "@/lib/ui-prefs";
 
 type Notify = (kind: "ok" | "warn" | "err" | "info", text: string) => void;
 type Change = (next: UiPrefs) => void;
@@ -35,6 +36,7 @@ const TABS = [
   { id: "amounts", label: "خانات المبالغ" },
   { id: "menu", label: "القائمة" },
   { id: "login", label: "شاشة الدخول" },
+  { id: "overpay", label: "الدفع الزائد" },
   { id: "visibility", label: "الإظهار والإخفاء" },
   { id: "database", label: "قاعدة البيانات" },
 ] as const;
@@ -104,6 +106,8 @@ export function SettingsScreen({
           {tab === "amounts" && <AmountsSection prefs={prefs} onChange={onChange} />}
           {tab === "menu" && <MenuSection prefs={prefs} onChange={onChange} />}
           {tab === "login" && <LoginSection prefs={prefs} onChange={onChange} />}
+          {tab === "login" && <IdleLockSection prefs={prefs} onChange={onChange} />}
+          {tab === "overpay" && <OverpaySection prefs={prefs} onChange={onChange} />}
           {tab === "visibility" && <VisibilitySection prefs={prefs} onChange={onChange} />}
           {tab === "database" && <DatabaseSection isOwner={user?.role === "owner"} notify={notify} />}
         </div>
@@ -730,6 +734,109 @@ function LoginSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change })
         <ColorField label="لون الخلفية" value={prefs.login.bg} onChange={(v) => setLogin({ bg: v })} />
         <ColorField label="لون التمييز" value={prefs.login.accent} onChange={(v) => setLogin({ accent: v })} />
         <Toggle label="إظهار الشعار" checked={prefs.login.showLogo} onChange={(v) => setLogin({ showLogo: v })} />
+      </div>
+    </Card>
+  );
+}
+
+/* ---------------- قفل الشاشة بعد الخمول ---------------- */
+
+function IdleLockSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
+  return (
+    <Card title="قفل الشاشة تلقائياً" subtitle="يطلب كلمة مرور المستخدم بعد فترة بدون استخدام">
+      <Segmented
+        label="القفل بعد الخمول"
+        value={String(prefs.lock.idleMinutes)}
+        onChange={(v) => onChange({ ...prefs, lock: { idleMinutes: Number(v) } })}
+        options={[
+          { value: "0", label: "مُعطَّل" },
+          { value: "5", label: "5 دقايق" },
+          { value: "10", label: "10 دقايق" },
+          { value: "15", label: "15 دقيقة" },
+          { value: "30", label: "30 دقيقة" },
+        ]}
+      />
+    </Card>
+  );
+}
+
+/* ---------------- الدفع الزائد ---------------- */
+
+function OverpaySection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
+  const o = prefs.overpay;
+  const set = (patch: Partial<UiPrefs["overpay"]>) => onChange({ ...prefs, overpay: { ...o, ...patch } });
+  const creditOk = o.showCredit;
+  const choices = [
+    o.showChange && { value: "change" as const, label: o.changeLabel || "تسليم الباقي" },
+    o.showCredit && { value: "credit" as const, label: o.creditLabel || "تنزيل من الحساب" },
+  ].filter(Boolean) as { value: OverpayChoice; label: string }[];
+  return (
+    <Card title="نافذة المبلغ المدفوع أكبر من المطلوب" subtitle="تظهر في البيع والمشتريات لما المدفوع يزيد عن الإجمالي">
+      <div className="rounded-xl border border-line bg-white p-3 text-center shadow-sm">
+        <p className="text-[13px] font-black text-ink-900">{o.title || "—"}</p>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {choices.map((c) => (
+            <div
+              key={c.value}
+              className={`rounded-lg px-2 py-2 text-[12px] font-black text-white ${c.value === "change" ? "bg-cash-green" : "bg-ink-800"} ${
+                o.defaultChoice === c.value ? "ring-2 ring-amber-brand" : ""
+              }`}
+            >
+              {c.label}
+            </div>
+          ))}
+        </div>
+        {o.mode !== "ask" && (
+          <p className="mt-2 text-[11px] font-bold text-slate-500">
+            الوضع الحالي: الزيادة تُطبَّق تلقائياً بدون سؤال ({o.mode === "change" ? "تسليم الباقي" : "تنزيل من الحساب"}).
+          </p>
+        )}
+      </div>
+
+      <div className="mt-3 grid gap-2">
+        <Segmented
+          label="طريقة التعامل مع الزيادة"
+          value={o.mode}
+          onChange={(v) => set({ mode: v })}
+          options={[
+            { value: "ask", label: "اسأل كل مرة" },
+            { value: "change", label: "تسليم دائماً" },
+            { value: "credit", label: "تنزيل دائماً" },
+          ]}
+        />
+        <TextField label="عنوان النافذة" value={o.title} onChange={(v) => set({ title: v })} />
+        <Toggle label="إظهار خانة الرصيد السابق" checked={o.showPreviousBalance} onChange={(v) => set({ showPreviousBalance: v })} />
+
+        <div className="rounded-xl border border-line p-3 grid gap-2">
+          <Toggle
+            label="إظهار زر «تسليم الباقي»"
+            checked={o.showChange}
+            onChange={(v) => set(v || o.showCredit ? { showChange: v } : {})}
+          />
+          <TextField label="نص زر التسليم" value={o.changeLabel} onChange={(v) => set({ changeLabel: v })} />
+          <TextField label="الوصف تحت زر التسليم" value={o.changeHint} onChange={(v) => set({ changeHint: v })} />
+        </div>
+
+        <div className="rounded-xl border border-line p-3 grid gap-2">
+          <Toggle
+            label="إظهار زر «تنزيل من الحساب»"
+            checked={o.showCredit}
+            onChange={(v) => set(v || o.showChange ? { showCredit: v } : {})}
+          />
+          <TextField label="نص زر التنزيل" value={o.creditLabel} onChange={(v) => set({ creditLabel: v })} />
+          <TextField label="الوصف تحت زر التنزيل (استخدم {name} لاسم العميل أو المورد)" value={o.creditHint} onChange={(v) => set({ creditHint: v })} />
+          {!creditOk && <p className="text-[11px] font-bold text-slate-500">زر التنزيل مخفي حالياً.</p>}
+        </div>
+
+        <Segmented
+          label="الزر المحدد افتراضياً (يُختار بـ Enter)"
+          value={o.defaultChoice}
+          onChange={(v) => set({ defaultChoice: v })}
+          options={[
+            { value: "change", label: "تسليم الباقي" },
+            { value: "credit", label: "تنزيل من الحساب" },
+          ]}
+        />
       </div>
     </Card>
   );

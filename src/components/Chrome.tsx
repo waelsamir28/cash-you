@@ -14,6 +14,7 @@ import {
   IcoEye,
   IcoGear,
   IcoDownload,
+  IcoPrint,
   IcoHome,
   IcoLogo,
   IcoMenu,
@@ -388,6 +389,7 @@ export const MENU_ITEMS: { kind: ModuleKind; label: string; icon: React.ReactNod
   { kind: "reports", label: "التقارير والأرباح", icon: <IcoChart className="w-4 h-4" /> },
   { kind: "users", label: "المستخدمون", icon: <IcoUsers className="w-4 h-4" /> },
   { kind: "activation", label: "تفعيل النسخة", icon: <IcoCheck className="w-4 h-4" /> },
+  { kind: "lastInvoice", label: "آخر فاتورة", icon: <IcoPrint className="w-4 h-4" /> },
   { kind: "backup", label: "النسخ الاحتياطي", icon: <IcoDownload className="w-4 h-4" /> },
   { kind: "settings", label: "الإعدادات", icon: <IcoSliders className="w-4 h-4" /> },
 ];

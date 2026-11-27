@@ -152,6 +152,10 @@ export async function saveInvoice(p: SavePayload): Promise<SavedInvoice> {
   if (credit > 0 && !p.customerId) throw new Error("اختر عميلاً لتنزيل الزيادة على حسابه");
   const remaining = r2(total - paid);
   const number = Number.parseInt(await getSetting("next_invoice", "1"), 10);
+  // الرصيد قبل هذه الفاتورة، ويُطبع على الإيصال
+  const previousBalance = p.customerId
+    ? r2((await db.select().from(customers).where(eq(customers.id, p.customerId)).limit(1))[0]?.balance ?? 0)
+    : null;
   const inserted = await db.insert(invoices).values({
     number, customerId: p.customerId, customerName: p.customerName || "عميل نقدي",
     paymentMethod: p.paymentMethod || "نقدي", saleType: p.saleType || "نقدي",
@@ -196,7 +200,7 @@ export async function saveInvoice(p: SavePayload): Promise<SavedInvoice> {
   }
   if (paid > 0) await db.insert(treasuryMovements).values({ direction: "وارد", source: "مبيعات", reference: `بيع-${number}`, partyName: p.customerName || "عميل نقدي", amount: paid, notes: p.saleType === "تقسيط" ? "مقدم تعاقد تقسيط" : "مدفوع فاتورة مبيعات" });
   await setSetting("next_invoice", String(number + 1));
-  return { id: invoiceId, number, total, paid, remaining, customerName: p.customerName || "عميل نقدي", createdAt: inserted[0].createdAt.toISOString(), newCustomerBalance, nextInvoiceNumber: number + 1, installmentPlanId, installmentIds };
+  return { id: invoiceId, number, total, paid, remaining, customerName: p.customerName || "عميل نقدي", createdAt: inserted[0].createdAt.toISOString(), newCustomerBalance, nextInvoiceNumber: number + 1, installmentPlanId, installmentIds, previousBalance, overpayCredit: credit };
 }
 
 export async function markInvoicePrinted(number: number): Promise<void> {

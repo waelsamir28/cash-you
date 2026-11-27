@@ -4,6 +4,7 @@ const { createHash } = require("node:crypto");
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const path = require("node:path");
 const { createBundledPostgres } = require("./bundled-postgres.cjs");
+const { createUpdateService } = require("./updater.cjs");
 const { startLocalServer } = require("./local-server.cjs");
 
 function getDeviceCode() {
@@ -79,6 +80,8 @@ ipcMain.handle("cash-you:save-activation-record", (_event, record) => {
 const APP_SERVER_PORT = 3917;
 const DATA_ROOT = () => app.getPath("userData");
 let bundledPg = null;
+let mainWindow = null;
+const updateService = createUpdateService({ getWindow: () => mainWindow });
 let localServer = null;
 
 function isBundledInstall() {
@@ -151,6 +154,7 @@ function createWindow() {
     },
   });
 
+  mainWindow = win;
   if (isBundledInstall()) {
     win.webContents.setWindowOpenHandler(({ url }) => {
       if (url.startsWith("https://") || url.startsWith("http://")) void shell.openExternal(url);
@@ -195,12 +199,14 @@ app.whenReady().then(async () => {
   }
 
   createWindow();
+  updateService.init();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on("before-quit", () => {
+  updateService.dispose();
   try {
     localServer?.stop();
   } catch {

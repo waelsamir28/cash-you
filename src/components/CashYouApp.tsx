@@ -13,6 +13,7 @@ import {
   sfxCash,
   sfxError,
   sfxKey,
+  sfxOutOfStock,
   sfxRemove,
   sfxSave,
   sfxScan,
@@ -20,6 +21,8 @@ import {
 } from "@/lib/sound";
 import { FloatingMenu, GlobalSearch, StatusBar, TabStrip, TitleBar, type Tab } from "@/components/Chrome";
 import { OverpayDialog, SalePreviewDialog } from "@/components/SaleDialogs";
+import { IdleLock } from "@/components/IdleLock";
+import { DesktopUpdateToast } from "@/components/DesktopUpdateToast";
 import { SettingsScreen } from "@/components/SettingsScreen";
 import { PosScreen, type PosActions } from "@/components/PosScreen";
 import { HomeScreen } from "@/components/HomeScreen";
@@ -45,6 +48,7 @@ import {
   WelcomeToast,
   type ReceiptData,
   type Toast,
+  ShortcutsDialog,
 } from "@/components/Overlays";
 
 type Overlay =
@@ -60,7 +64,8 @@ type Overlay =
   | { kind: "overpay"; print: boolean }
   | { kind: "invoice"; invoice: InvoiceRow }
   | { kind: "installment"; print: boolean }
-  | { kind: "backup" };
+  | { kind: "backup" }
+  | { kind: "shortcuts" };
 
 export default function CashYouApp({
   initial,
@@ -193,6 +198,16 @@ export default function CashYouApp({
     return id;
   }, [data.nextInvoiceNumber, tabs]);
 
+  const openLastInvoice = () => {
+    sfxKey();
+    const last = data.invoices[0];
+    if (!last) {
+      toast("warn", "لا توجد فواتير محفوظة بعد");
+      return;
+    }
+    setOverlay({ kind: "invoice", invoice: last });
+  };
+
   const openModule = useCallback((kind: ModuleKind, title: string) => {
     if (kind === "invoice") { openInvoiceTab(); return; }
     if (kind === "home") { setActiveId("home"); sfxKey(); return; }
@@ -288,7 +303,8 @@ export default function CashYouApp({
         const li = newLine(p.id, p.code, p.name, p.unit, p.price);
         return { ...cur, items: [...cur.items, { ...li, qty }], lastAddedUid: li.uid };
       });
-      sfxAdd();
+      if (p.stock <= 0) sfxOutOfStock();
+      else sfxAdd();
       if (p.stock <= 0) toast("warn", `تنبيه: رصيد الصنف «${p.name}» نفد من المخزون`);
     },
     [updateDraftOf, toast],
@@ -425,11 +441,15 @@ export default function CashYouApp({
       const t = computeTotals(snapshot);
       // المدفوع أكبر من الفاتورة: يختار المستخدم تسليم الباقي أو تنزيله على الحساب
       const extra = Math.round((t.paid - t.total) * 100) / 100;
-      if (!installment && snapshot.saleType !== "تقسيط" && extra > 0 && !opts?.overMode) {
+      const fixedMode = prefs.overpay.mode === "ask" ? undefined : prefs.overpay.mode;
+      const requested = opts?.overMode ?? fixedMode;
+      // التنزيل على الحساب يحتاج عميلاً مسجلاً؛ بدونه يُسلَّم الباقي نقداً
+      const overMode = requested === "credit" && snapshot.customerId === null ? "change" : requested;
+      if (!installment && snapshot.saleType !== "تقسيط" && extra > 0 && !overMode) {
         setOverlay({ kind: "overpay", print });
         return;
       }
-      const credit = !installment && extra > 0 && opts?.overMode === "credit" ? extra : 0;
+      const credit = !installment && extra > 0 && overMode === "credit" ? extra : 0;
       setSaving(true);
       try {
         const res = await apiFetch("/api/invoices", {
@@ -467,6 +487,8 @@ export default function CashYouApp({
           total: json.total,
           paid: json.paid,
           remaining: json.remaining,
+          previousBalance: json.previousBalance ?? null,
+          overpayCredit: json.overpayCredit ?? 0,
           items: snapshot.items.map((li) => ({
             name: li.name,
             code: li.code,
@@ -490,6 +512,16 @@ export default function CashYouApp({
           itemsCount: snapshot.items.length,
           createdAt: json.createdAt,
         };
+
+        // تنبيه عند وصول صنف إلى حد التنبيه (من فوق الحد إلى الحد أو أقل) بعد هذه الفاتورة
+        const soldQty = new Map<string, number>();
+        snapshot.items.forEach((li) => {
+          if (li.productId) soldQty.set(String(li.productId), (soldQty.get(String(li.productId)) ?? 0) + li.qty);
+        });
+        const reachedLimit = data.products
+          .filter((p) => soldQty.has(String(p.id)) && p.stock > p.minStockLimit && p.stock - (soldQty.get(String(p.id)) ?? 0) <= p.minStockLimit)
+          .map((p) => p.name);
+        if (reachedLimit.length) toast("warn", `وصل للحد الأدنى: ${reachedLimit.join("، ")}`);
 
         setData((prev) => {
           const stockMap = new Map<string, number>();
@@ -533,7 +565,7 @@ export default function CashYouApp({
         setSaving(false);
       }
     },
-    [activeId, activeTab, draft, saving, toast, refreshData],
+    [activeId, activeTab, draft, saving, toast, refreshData, prefs.overpay.mode, data.products],
   );
 
   /* ---------------- اختصارات لوحة المفاتيح ---------------- */
@@ -550,10 +582,15 @@ export default function CashYouApp({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const keys = ["F3", "F4", "F5", "F10", "F12"];
+      const keys = ["F1", "F3", "F4", "F5", "F10", "F12"];
       if (keys.includes(e.key)) {
         e.preventDefault();
         if (shutdown || minimized) return;
+        if (e.key === "F1") {
+          sfxKey();
+          setOverlay({ kind: "shortcuts" });
+          return;
+        }
         if (e.key === "F3") {
           sfxKey();
           barcodeRef.current?.focus();
@@ -719,7 +756,7 @@ export default function CashYouApp({
       <FloatingMenu
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
-        onPick={(kind, label) => openModule(kind, label)}
+        onPick={(kind, label) => (kind === "lastInvoice" ? openLastInvoice() : openModule(kind, label))}
         onCustomize={() => openSettings("menu")}
         showIcons={prefs.menu.icons}
       />
@@ -751,7 +788,7 @@ export default function CashYouApp({
           {activeTab?.kind === "products" && <ProductsScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "parties" && <PartiesScreen key={activeTab.id} initialKind={activeTab.title === "الموردون" ? "supplier" : "customer"} data={data} refresh={refreshData} notify={toast} />}
           {(activeTab?.kind === "purchase" || activeTab?.kind === "salesReturn" || activeTab?.kind === "purchaseReturn") && (
-            <TradeScreen key={activeTab.id} kind={activeTab.kind} data={data} refresh={refreshData} notify={toast} stamp={stamp} />
+            <TradeScreen key={activeTab.id} kind={activeTab.kind} data={data} refresh={refreshData} notify={toast} stamp={stamp} overpay={prefs.overpay} />
           )}
           {activeTab?.kind === "installments" && <InstallmentsScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "expenses" && <ExpensesScreen data={data} refresh={refreshData} notify={toast} />}
@@ -794,6 +831,8 @@ export default function CashYouApp({
       />
 
       {/* ---------------- الطبقات العلوية ---------------- */}
+      <IdleLock minutes={prefs.lock.idleMinutes} />
+      <DesktopUpdateToast />
       {overlay.kind === "customerScreen" && (
         <CustomerDisplay
           draft={draft}
@@ -916,6 +955,7 @@ export default function CashYouApp({
             total: totals.total,
             paid: totals.paid,
             remaining: totals.remaining,
+            previousBalance: draft.customerId ? (data.customers.find((c) => c.id === draft.customerId)?.balance ?? null) : null,
             items: draft.items.map((li) => ({
               name: li.name,
               code: li.code,
@@ -941,8 +981,9 @@ export default function CashYouApp({
           previousBalance={data.customers.find((c) => c.id === draft.customerId)?.balance ?? 0}
           total={totals.total}
           paid={totals.paid}
-          hasCustomer={draft.customerId !== null}
-          customerName={draft.customerName}
+          partyName={draft.customerName}
+          creditAllowed={draft.customerId !== null}
+          prefs={prefs.overpay}
           onClose={() => setOverlay({ kind: "none" })}
           onPick={(mode) => {
             const print = overlay.print;
@@ -955,6 +996,8 @@ export default function CashYouApp({
       {overlay.kind === "invoice" && (
         <InvoiceDetail invoice={overlay.invoice} onClose={() => setOverlay({ kind: "none" })} />
       )}
+
+      {overlay.kind === "shortcuts" && <ShortcutsDialog onClose={() => setOverlay({ kind: "none" })} />}
 
       {overlay.kind === "backup" && (
         <BackupPanel

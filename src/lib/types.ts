@@ -234,6 +234,10 @@ export type SavedInvoice = {
   nextInvoiceNumber: number;
   installmentPlanId?: number;
   installmentIds?: number[];
+  /** الرصيد قبل الفاتورة (للعميل فقط) */
+  previousBalance?: number | null;
+  /** المبلغ الذي نُزّل على حساب العميل من الزيادة */
+  overpayCredit?: number;
 };
 
 export type ModuleKind =
@@ -252,4 +256,5 @@ export type ModuleKind =
   | "users"
   | "activation"
   | "backup"
+  | "lastInvoice"
   | "settings";

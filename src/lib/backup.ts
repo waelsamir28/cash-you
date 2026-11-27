@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pool } from "@/db";
 import { resolveDatabaseUrl } from "@/lib/db-config";
@@ -115,8 +116,14 @@ export type Snapshot = {
   app: "cash-you";
   version: 1;
   createdAt: string;
+  /** بصمة SHA-256 لمحتوى الجداول: تكشف أي تلف أو تعديل للملف قبل الاسترداد */
+  checksum?: string;
   tables: Record<string, Record<string, unknown>[]>;
 };
+
+export function tablesChecksum(tables: Record<string, unknown>): string {
+  return createHash("sha256").update(JSON.stringify(tables)).digest("hex");
+}
 
 export async function createSnapshot(): Promise<Snapshot> {
   const tables: Record<string, Record<string, unknown>[]> = {};
@@ -126,7 +133,7 @@ export async function createSnapshot(): Promise<Snapshot> {
     const res = await pool.query({ text: `select * from "${name}"`, types: RAW_TYPES as never });
     tables[name] = res.rows as Record<string, unknown>[];
   }
-  return { app: "cash-you", version: 1, createdAt: new Date().toISOString(), tables };
+  return { app: "cash-you", version: 1, createdAt: new Date().toISOString(), checksum: tablesChecksum(tables), tables };
 }
 
 /* ============================ الاسترداد ============================ */
@@ -143,7 +150,31 @@ export function validateSnapshot(input: unknown): Snapshot {
       throw new Error(`بيانات الجدول ${name} غير صالحة`);
     }
   }
+  if (s.checksum !== undefined && s.checksum !== tablesChecksum(s.tables)) {
+    throw new Error("ملف النسخة تالف أو تم تعديله، لم يتم الاسترداد");
+  }
   return s as Snapshot;
+}
+
+/** حجم القاعدة والمساحة الفاضية على الجهاز لمكان النسخ */
+export async function storageStats(): Promise<{ databaseBytes: number | null; diskFreeBytes: number | null; diskTotalBytes: number | null }> {
+  let databaseBytes: number | null = null;
+  try {
+    const res = await pool.query<{ size: string }>("select pg_database_size(current_database())::text as size");
+    databaseBytes = Number(res.rows[0]?.size ?? 0);
+  } catch {
+    databaseBytes = null;
+  }
+  let diskFreeBytes: number | null = null;
+  let diskTotalBytes: number | null = null;
+  try {
+    const fs = statfsSync(backupDir());
+    diskFreeBytes = Number(fs.bavail) * Number(fs.bsize);
+    diskTotalBytes = Number(fs.blocks) * Number(fs.bsize);
+  } catch {
+    /* المساحة غير متاحة على هذا النظام */
+  }
+  return { databaseBytes, diskFreeBytes, diskTotalBytes };
 }
 
 /** يستبدل بيانات القاعدة بالنسخة في معاملة واحدة، ويحتفظ بإعدادات التفعيل والتجربة الحالية */
