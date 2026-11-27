@@ -1,4 +1,5 @@
 import { createSession, findUserByUsername, sessionCookie, verifyPassword, ensureTrialStarted } from "@/lib/auth";
+import { effectivePermissions } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
           username: user.username,
           fullName: user.fullName,
           role: user.role === "cashier" ? "cashier" : "owner",
+          permissions: effectivePermissions(user.role, user.permissions),
         },
       },
       { headers: { "Set-Cookie": sessionCookie(token) } },

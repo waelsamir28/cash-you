@@ -4,6 +4,7 @@ import { and, eq, gt } from "drizzle-orm";
 import { db } from "@/db";
 import { appSessions, appUsers, usageCounters } from "@/db/schema";
 import { ensureAuthSchema } from "@/lib/ensure-schema";
+import { effectivePermissions, type ScreenKey } from "@/lib/permissions";
 import {
   computeTrial,
   limitMessage,
@@ -24,6 +25,8 @@ export type PublicUser = {
   username: string;
   fullName: string;
   role: "owner" | "cashier";
+  /** الشاشات المسموح بها لهذا الحساب (المالك: الكل) */
+  permissions: ScreenKey[];
 };
 
 const SESSION_DAYS = 30;
@@ -86,6 +89,7 @@ export async function getSessionUser(req: Request): Promise<PublicUser | null> {
       username: appUsers.username,
       fullName: appUsers.fullName,
       role: appUsers.role,
+      permissions: appUsers.permissions,
     })
     .from(appSessions)
     .innerJoin(appUsers, eq(appUsers.id, appSessions.userId))
@@ -93,7 +97,8 @@ export async function getSessionUser(req: Request): Promise<PublicUser | null> {
     .limit(1);
   const user = rows[0];
   if (!user) return null;
-  return { id: user.id, username: user.username, fullName: user.fullName, role: user.role === "cashier" ? "cashier" : "owner" };
+  const role = user.role === "cashier" ? "cashier" : "owner";
+  return { id: user.id, username: user.username, fullName: user.fullName, role, permissions: effectivePermissions(role, user.permissions) };
 }
 
 export async function destroySession(req: Request): Promise<void> {
@@ -122,7 +127,10 @@ export async function findUserByUsername(username: string) {
 export async function listUsers(): Promise<PublicUser[]> {
   await ensureAuthSchema();
   const rows = await db.select().from(appUsers).orderBy(appUsers.id);
-  return rows.map((u) => ({ id: u.id, username: u.username, fullName: u.fullName, role: u.role === "cashier" ? "cashier" : "owner" }));
+  return rows.map((u) => {
+    const role = u.role === "cashier" ? "cashier" : "owner";
+    return { id: u.id, username: u.username, fullName: u.fullName, role, permissions: effectivePermissions(role, u.permissions) };
+  });
 }
 
 /* ============================ الفترة التجريبية والحدود ============================ */

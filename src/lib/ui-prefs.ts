@@ -176,6 +176,14 @@ export type UiPrefs = {
   amounts: Record<AmountKey, AmountStyle>;
   overpay: OverpayPrefs;
   lock: { idleMinutes: number }; // 0 = مُعطَّل
+  /** ميزان الباركود: باركود EAN-13 يبدأ بالبادئة ويحمل كود الصنف والوزن أو السعر */
+  scale: ScalePrefs;
+};
+
+export type ScalePrefs = {
+  enabled: boolean;
+  prefix: string; // البادئة (عادة "2")
+  mode: "weight" | "price"; // وزن بالجرام، أو سعر بالجنيه
 };
 
 type ThemePreset = { id: ThemeId; label: string; mode: "dark" | "light"; chrome: string; paper: string; accent: string };
@@ -237,6 +245,7 @@ export const DEFAULT_PREFS: UiPrefs = {
     defaultChoice: "change",
   },
   lock: { idleMinutes: 0 },
+  scale: { enabled: false, prefix: "2", mode: "weight" },
 };
 
 const STORAGE_KEY = "cash-you.ui-prefs.v1";
@@ -275,7 +284,17 @@ export function mergePrefs(p: Partial<UiPrefs>): UiPrefs {
     amounts: mergeAmounts(p.amounts),
     overpay: mergeOverpay(p.overpay),
     lock: { idleMinutes: [0, 5, 10, 15, 30].includes(Number(p.lock?.idleMinutes)) ? Number(p.lock?.idleMinutes) : 0 },
+    scale: mergeScale(p.scale),
   };
+}
+
+function mergeScale(src: Partial<ScalePrefs> | undefined): ScalePrefs {
+  const out: ScalePrefs = { ...DEFAULT_PREFS.scale, ...(src ?? {}) };
+  out.prefix = String(out.prefix ?? "").replace(/\D/g, "").slice(0, 2);
+  if (!out.prefix) out.prefix = "2";
+  if (out.mode !== "weight" && out.mode !== "price") out.mode = "weight";
+  out.enabled = Boolean(out.enabled);
+  return out;
 }
 
 function mergeOverpay(src: Partial<OverpayPrefs> | undefined): OverpayPrefs {

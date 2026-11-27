@@ -1,4 +1,5 @@
 import { db } from "@/db";
+import { guardPermission, isDenied } from "@/lib/permission-guard";
 import { asc } from "drizzle-orm";
 import { paymentMethods } from "@/db/schema";
 import { withOfflineIdempotency } from "@/lib/offline-idempotency";
@@ -12,6 +13,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   return withOfflineIdempotency(req, async () => {
+    const guard = await guardPermission(req, ["sales", "purchases"]);
+    if (isDenied(guard)) return guard;
     try {
       const body = (await req.json()) as { name?: string };
       const name = (body.name ?? "").trim();

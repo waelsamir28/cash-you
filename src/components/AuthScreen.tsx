@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { DEFAULT_PREFS, loadPrefs } from "@/lib/ui-prefs";
 import { IcoLogo } from "@/components/icons";
 import { TRIAL_DAYS, TRIAL_LIMITS } from "@/lib/trial";
+import type { SessionUser } from "@/lib/types";
 
-export type AuthUser = { id: number; username: string; fullName: string; role: "owner" | "cashier" };
+export type AuthUser = SessionUser;
 
 type Props = {
   /** إن لم يوجد أي مستخدم بعد، تُفتح شاشة إنشاء حساب المالك. */

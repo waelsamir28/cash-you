@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { SessionUser } from "@/lib/types";
 import { IcoCheck, IcoUsers, IcoWarn } from "@/components/icons";
 import { btnCls, Empty, Field, inputCls, ModuleShell, ModuleTitle, Panel } from "@/components/ModuleUI";
+import { Modal } from "@/components/Overlays";
+import { CASHIER_DEFAULT, SCREENS, type ScreenKey } from "@/lib/permissions";
 
 /**
  * شاشة المستخدمين (للمالك فقط):
@@ -21,6 +23,9 @@ export function UsersScreen({
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ fullName: "", username: "", password: "", role: "cashier" as "owner" | "cashier" });
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState<SessionUser | null>(null);
+  const [draftPerms, setDraftPerms] = useState<ScreenKey[]>([]);
+  const [savingPerms, setSavingPerms] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,6 +72,32 @@ export function UsersScreen({
   };
 
   const isOwner = user.role === "owner";
+
+  const openPerms = (row: SessionUser) => {
+    setEditing(row);
+    setDraftPerms(row.permissions ?? [...CASHIER_DEFAULT]);
+  };
+
+  const savePerms = async () => {
+    if (!editing || savingPerms) return;
+    setSavingPerms(true);
+    try {
+      const res = await fetch("/api/auth/permissions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ userId: editing.id, permissions: draftPerms }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "تعذر حفظ الصلاحيات");
+      notify("ok", `تم حفظ صلاحيات ${editing.fullName}`);
+      setEditing(null);
+      await load();
+    } catch (error) {
+      notify("err", error instanceof Error ? error.message : "تعذر حفظ الصلاحيات");
+    } finally {
+      setSavingPerms(false);
+    }
+  };
 
   return (
     <ModuleShell>
@@ -155,7 +186,7 @@ export function UsersScreen({
             <table className="w-full text-[12px]">
               <thead className="sticky top-0 bg-ink-800 text-white">
                 <tr>
-                  {["الحالة", "النوع", "اسم المستخدم", "الاسم"].map((h) => (
+                  {["الحالة", "النوع", "اسم المستخدم", "الاسم", "الصلاحيات"].map((h) => (
                     <th key={h} className="border-l border-white/10 px-2 py-2.5">
                       {h}
                     </th>
@@ -187,6 +218,25 @@ export function UsersScreen({
                       {row.username}
                     </td>
                     <td className="px-2 py-1.5 font-bold text-ink-800">{row.fullName}</td>
+                    <td className="p-1.5 text-center">
+                      {row.role === "owner" ? (
+                        <span className="text-[11px] font-bold text-slate-500">كل الشاشات</span>
+                      ) : (
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="cy-num text-[11px] font-bold text-slate-500">
+                            {(row.permissions ?? CASHIER_DEFAULT).length}/{SCREENS.length}
+                          </span>
+                          {isOwner && (
+                            <button
+                              onClick={() => openPerms(row)}
+                              className="h-7 rounded-md bg-ink-800 px-2.5 text-[11px] font-black text-white cy-press hover:bg-ink-900"
+                            >
+                              تعديل
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -196,6 +246,65 @@ export function UsersScreen({
           </div>
         </Panel>
       </div>
+      {editing && (
+        <Modal
+          title={`صلاحيات ${editing.fullName}`}
+          subtitle={`الكاشير @${editing.username} — اختر الشاشات التي يستطيع فتحها`}
+          onClose={() => !savingPerms && setEditing(null)}
+          width="max-w-lg"
+        >
+          <div className="space-y-1.5">
+            {SCREENS.map((screen) => {
+              const on = draftPerms.includes(screen.key);
+              return (
+                <label
+                  key={screen.key}
+                  className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
+                    on ? "border-amber-brand bg-amber-soft/50" : "border-line bg-paper-2 hover:bg-white"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() =>
+                      setDraftPerms((prev) => (on ? prev.filter((k) => k !== screen.key) : [...prev, screen.key]))
+                    }
+                    className="h-4 w-4 accent-amber-600"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[12.5px] font-black text-ink-900">{screen.label}</span>
+                    <span className="block text-[11px] font-bold text-slate-500">{screen.hint}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => setDraftPerms([...CASHIER_DEFAULT])}
+              disabled={savingPerms}
+              className={`${btnCls} bg-slate-200 text-ink-800`}
+            >
+              الافتراضي
+            </button>
+            <button
+              onClick={() => setDraftPerms(SCREENS.map((s) => s.key))}
+              disabled={savingPerms}
+              className={`${btnCls} bg-slate-200 text-ink-800`}
+            >
+              تحديد الكل
+            </button>
+            <button
+              onClick={() => void savePerms()}
+              disabled={savingPerms}
+              className={`${btnCls} flex flex-1 items-center justify-center gap-2 bg-cash-green text-white`}
+            >
+              <IcoCheck />
+              {savingPerms ? "جارٍ الحفظ..." : "حفظ الصلاحيات"}
+            </button>
+          </div>
+        </Modal>
+      )}
     </ModuleShell>
   );
 }

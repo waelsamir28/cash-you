@@ -1,3 +1,5 @@
+import type { ScreenKey } from "@/lib/permissions";
+
 export type Category = { id: number; name: string; hue: string; sortOrder: number };
 
 export type Product = {
@@ -165,6 +167,8 @@ export type SessionUser = {
   username: string;
   fullName: string;
   role: "owner" | "cashier";
+  /** الشاشات المسموح بها لهذا الحساب (المالك: الكل) */
+  permissions: ScreenKey[];
 };
 
 export type TrialLimitKey = "products" | "invoices" | "customers" | "suppliers";
@@ -257,4 +261,6 @@ export type ModuleKind =
   | "activation"
   | "backup"
   | "lastInvoice"
-  | "settings";
+  | "settings"
+  | "inventory"
+  | "audit";

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, safeStorage } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, safeStorage, dialog } = require("electron");
 const { execFileSync } = require("node:child_process");
 const { createHash } = require("node:crypto");
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -37,6 +37,31 @@ z/6WUr+O53CM8CBotP75BTtH1cxMRUbJe6dILaTctYH1nkTFR38xFsElAA==
 -----END PUBLIC KEY-----`;
 
 ipcMain.handle("cash-you:get-device-code", () => getDeviceCode());
+
+/* تصدير الفاتورة PDF: يُحمَّل مستند HTML في نافذة مخفية ثم يُحوَّل إلى PDF بعد اختيار مكان الحفظ */
+ipcMain.handle("cash-you:export-pdf", async (event, payload) => {
+  const html = typeof payload?.html === "string" ? payload.html : "";
+  if (!html || html.length > 5_000_000) throw new Error("محتوى الفاتورة غير صالح");
+  const safeName = String(payload?.fileName || "فاتورة.pdf").replace(/[\\/:*?"<>|]/g, "-");
+  const owner = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+  const picked = await dialog.showSaveDialog(owner, {
+    title: "حفظ الفاتورة كملف PDF",
+    defaultPath: path.join(app.getPath("documents"), safeName.endsWith(".pdf") ? safeName : `${safeName}.pdf`),
+    filters: [{ name: "PDF", extensions: ["pdf"] }],
+  });
+  if (picked.canceled || !picked.filePath) return { canceled: true };
+  const tempHtml = path.join(app.getPath("temp"), "cash-you-invoice-export.html");
+  writeFileSync(tempHtml, html, "utf8");
+  const pdfWindow = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
+  try {
+    await pdfWindow.loadFile(tempHtml);
+    const pdf = await pdfWindow.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true, pageSize: "A4" });
+    writeFileSync(picked.filePath, pdf);
+    return { canceled: false, filePath: picked.filePath };
+  } finally {
+    pdfWindow.destroy();
+  }
+});
 
 ipcMain.handle("cash-you:verify-license", (_event, code) => {
   try {

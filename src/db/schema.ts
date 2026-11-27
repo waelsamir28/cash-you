@@ -78,6 +78,8 @@ export const invoices = pgTable("invoices", {
   itemsCount: integer("items_count").notNull().default(0),
   userName: text("user_name").notNull().default("م. وائل الجمال"),
   printed: boolean("printed").notNull().default(false),
+  /** أثر الفاتورة على رصيد العميل (متبقي + فائدة − تنزيل على الحساب). null للفواتير القديمة */
+  balanceEffect: doublePrecision("balance_effect"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -233,6 +235,8 @@ export const appUsers = pgTable("app_users", {
   fullName: text("full_name").notNull(),
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default("owner"), // owner | cashier
+  /** صلاحيات الشاشات للكاشير (JSON array). null = الافتراضي */
+  permissions: text("permissions"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
 });
@@ -249,4 +253,28 @@ export const usageCounters = pgTable("usage_counters", {
   key: text("key").primaryKey(),
   count: integer("count").notNull().default(0),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+/** سجل النشاط: من عمل ماذا ومتى (حذف فواتير، جرد، تعديل صلاحيات) */
+export const auditLog = pgTable("audit_log", {
+  id: serial("id").primaryKey(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  userName: text("user_name").notNull().default(""),
+  action: text("action").notNull(),
+  entity: text("entity").notNull().default(""),
+  reference: text("reference").notNull().default(""),
+  details: text("details").notNull().default(""),
+});
+
+/** حركات تسوية المخزون الناتجة عن الجرد */
+export const stockAdjustments = pgTable("stock_adjustments", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull(),
+  productName: text("product_name").notNull().default(""),
+  before: doublePrecision("before").notNull().default(0),
+  after: doublePrecision("after").notNull().default(0),
+  diff: doublePrecision("diff").notNull().default(0),
+  reason: text("reason").notNull().default(""),
+  userName: text("user_name").notNull().default(""),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });

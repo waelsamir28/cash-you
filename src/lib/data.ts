@@ -151,6 +151,11 @@ export async function saveInvoice(p: SavePayload): Promise<SavedInvoice> {
   const credit = p.installment ? 0 : r2(Math.max(0, p.credit || 0));
   if (credit > 0 && !p.customerId) throw new Error("اختر عميلاً لتنزيل الزيادة على حسابه");
   const remaining = r2(total - paid);
+  // أثر الفاتورة على رصيد العميل، يُحفظ لتستطيع الحذف لاحقاً عكسه بدقة
+  const planInterest = p.installment && p.customerId
+    ? r2(Math.max(0, total - paid) * Math.max(0, p.installment.interestRate) / 100)
+    : 0;
+  const balanceEffect = p.customerId ? r2(remaining + planInterest - credit) : 0;
   const number = Number.parseInt(await getSetting("next_invoice", "1"), 10);
   // الرصيد قبل هذه الفاتورة، ويُطبع على الإيصال
   const previousBalance = p.customerId
@@ -160,7 +165,7 @@ export async function saveInvoice(p: SavePayload): Promise<SavedInvoice> {
     number, customerId: p.customerId, customerName: p.customerName || "عميل نقدي",
     paymentMethod: p.paymentMethod || "نقدي", saleType: p.saleType || "نقدي",
     subtotal, discountPercent, discountValue, total, paid, remaining,
-    itemsCount: rows.length, printed: p.printed,
+    itemsCount: rows.length, printed: p.printed, balanceEffect,
   }).returning({ id: invoices.id, createdAt: invoices.createdAt });
   const invoiceId = inserted[0].id;
   if (rows.length) await db.insert(invoiceItems).values(rows.map((r) => ({ ...r, invoiceId })));

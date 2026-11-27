@@ -381,12 +381,14 @@ export const MENU_ITEMS: { kind: ModuleKind; label: string; icon: React.ReactNod
   { kind: "home", label: "الرئيسية", icon: <IcoHome className="w-4 h-4" /> },
   { kind: "invoice", label: "فاتورة مبيعات", icon: <IcoCart className="w-4 h-4" /> },
   { kind: "products", label: "الأصناف والمخازن", icon: <IcoBox className="w-4 h-4" /> },
+  { kind: "inventory", label: "الجرد", icon: <IcoBox className="w-4 h-4" /> },
   { kind: "purchase", label: "فاتورة مشتريات", icon: <IcoCart className="w-4 h-4" /> },
   { kind: "parties", label: "العملاء والموردون", icon: <IcoUsers className="w-4 h-4" /> },
   { kind: "installments", label: "نظام التقسيط", icon: <IcoWallet className="w-4 h-4" /> },
   { kind: "expenses", label: "المصروفات", icon: <IcoGear className="w-4 h-4" /> },
   { kind: "treasury", label: "الخزينة", icon: <IcoWallet className="w-4 h-4" /> },
   { kind: "reports", label: "التقارير والأرباح", icon: <IcoChart className="w-4 h-4" /> },
+  { kind: "audit", label: "سجل النشاط", icon: <IcoCode className="w-4 h-4" /> },
   { kind: "users", label: "المستخدمون", icon: <IcoUsers className="w-4 h-4" /> },
   { kind: "activation", label: "تفعيل النسخة", icon: <IcoCheck className="w-4 h-4" /> },
   { kind: "lastInvoice", label: "آخر فاتورة", icon: <IcoPrint className="w-4 h-4" /> },
@@ -401,12 +403,15 @@ export function FloatingMenu({
   onPick,
   onCustomize,
   showIcons,
+  canOpen,
 }: {
   open: boolean;
   onClose: () => void;
   onPick: (kind: ModuleKind, label: string) => void;
   onCustomize: () => void;
   showIcons: boolean;
+  /** يخفي العناصر التي لا تسمح بها صلاحيات الحساب */
+  canOpen?: (kind: ModuleKind) => boolean;
 }) {
   const prefsIcons = showIcons;
   useEffect(() => {
@@ -440,7 +445,7 @@ export function FloatingMenu({
           </button>
         </div>
         <div className="grid gap-1 max-h-[calc(100vh-150px)] overflow-y-auto cy-scroll">
-          {MENU_ITEMS.map((it) => (
+          {MENU_ITEMS.filter((it) => !canOpen || canOpen(it.kind)).map((it) => (
             <button
               key={it.kind + it.label}
               onClick={() => {

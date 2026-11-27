@@ -33,6 +33,13 @@ import { InstallmentDialog } from "@/components/InstallmentDialog";
 import { UsersScreen } from "@/components/UsersScreen";
 import { ActivationScreen } from "@/components/ActivationScreen";
 import { BackupPanel } from "@/components/BackupPanel";
+import { InventoryScreen, ItemCardDialog } from "@/components/InventoryScreen";
+import { AuditScreen } from "@/components/AuditScreen";
+import { FloatingCalculator } from "@/components/FloatingCalculator";
+import { HeldInvoicesDialog } from "@/components/HeldInvoicesDialog";
+import { can, MODULE_SCREEN } from "@/lib/permissions";
+import { parseScaleCode, sameItemCode, scaleQty } from "@/lib/scale";
+import { holdInvoice, readHeld, readRestorable, removeHeld, writeSession, type HeldInvoice } from "@/lib/held-invoices";
 import { readOfflineBootstrap, saveOfflineBootstrap } from "@/lib/offline-cache";
 import {
   CloseConfirm,
@@ -59,13 +66,15 @@ type Overlay =
   | { kind: "productView"; product: Product }
   | { kind: "customerView"; customer: Customer }
   | { kind: "close" }
-  | { kind: "receipt"; receipt: ReceiptData; autoPrint: boolean }
+  | { kind: "receipt"; receipt: ReceiptData; autoPrint: boolean; customerPhone: string | null }
   | { kind: "preview" }
   | { kind: "overpay"; print: boolean }
   | { kind: "invoice"; invoice: InvoiceRow }
   | { kind: "installment"; print: boolean }
   | { kind: "backup" }
-  | { kind: "shortcuts" };
+  | { kind: "shortcuts" }
+  | { kind: "held" }
+  | { kind: "itemCard"; product: Product };
 
 export default function CashYouApp({
   initial,
@@ -77,15 +86,23 @@ export default function CashYouApp({
   onLogout: () => Promise<void> | void;
 }) {
   const [data, setData] = useState<Bootstrap>(initial);
-  const [tabs, setTabs] = useState<Tab[]>([
-    { id: "home", kind: "home", title: "الرئيسية" },
-    { id: "inv-1", kind: "invoice", title: "فاتورة مبيعات" },
-  ]);
+  /* استرجاع التبويبات المحفوظة تلقائياً لنفس المستخدم (بعد انقطاع الكهرباء أو إغلاق البرنامج) */
+  const [restore] = useState(() => (user ? readRestorable(user.id) : null));
+  const [tabs, setTabs] = useState<Tab[]>(
+    () =>
+      restore?.tabs ?? [
+        { id: "home", kind: "home", title: "الرئيسية" },
+        { id: "inv-1", kind: "invoice", title: "فاتورة مبيعات" },
+      ],
+  );
   /* يفتح البرنامج على الشاشة الرئيسية، وتبقى فاتورة المبيعات تبويباً جاهزاً */
-  const [activeId, setActiveId] = useState("home");
-  const [drafts, setDrafts] = useState<Record<string, Draft>>({
-    "inv-1": emptyDraft(initial.nextInvoiceNumber),
-  });
+  const [activeId, setActiveId] = useState(() => restore?.activeId ?? "home");
+  const [drafts, setDrafts] = useState<Record<string, Draft>>(
+    () =>
+      restore?.drafts ?? {
+        "inv-1": emptyDraft(initial.nextInvoiceNumber),
+      },
+  );
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [muted, setMutedState] = useState(false);
   const [overlay, setOverlay] = useState<Overlay>({ kind: "none" });
@@ -103,6 +120,8 @@ export default function CashYouApp({
   const [fullscreen, setFullscreen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsFocus, setSettingsFocus] = useState<{ tab: string; nonce: number } | null>(null);
+  const [held, setHeld] = useState<HeldInvoice[]>(() => readHeld());
+  const [calcOpen, setCalcOpen] = useState(false);
 
   /* ---------------- تفضيلات الواجهة (الثيم والألوان والأزرار) ---------------- */
   useEffect(() => {
@@ -125,7 +144,20 @@ export default function CashYouApp({
   }, []);
 
   const barcodeRef = useRef<HTMLInputElement | null>(null);
-  const seq = useRef(1);
+  const seq = useRef(restore?.maxSeq ?? 1);
+
+  /* ---------------- الحفظ التلقائي للتبويبات (يُسترجع عند الدخول التالي) ---------------- */
+  useEffect(() => {
+    if (!user) return;
+    const timer = window.setTimeout(() => {
+      const kept: Record<string, Draft> = {};
+      tabs.forEach((t) => {
+        if (t.kind === "invoice" && drafts[t.id]) kept[t.id] = drafts[t.id];
+      });
+      writeSession({ userId: user.id, savedAt: new Date().toISOString(), activeId, tabs, drafts: kept });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [user, tabs, activeId, drafts]);
 
   /* ---------------- الساعة الحية ---------------- */
   useEffect(() => {
@@ -209,6 +241,12 @@ export default function CashYouApp({
   };
 
   const openModule = useCallback((kind: ModuleKind, title: string) => {
+    const screen = MODULE_SCREEN[kind];
+    if (screen && !can(user, screen)) {
+      sfxError();
+      toast("warn", "ليس لديك صلاحية فتح هذه الشاشة. اطلب من المالك تفعيلها لك.");
+      return;
+    }
     if (kind === "invoice") { openInvoiceTab(); return; }
     if (kind === "home") { setActiveId("home"); sfxKey(); return; }
     if (kind === "backup") { setOverlay({ kind: "backup" }); sfxKey(); return; }
@@ -216,7 +254,7 @@ export default function CashYouApp({
     setTabs((prev) => prev.some((t) => t.id === id) ? prev : [...prev, { id, kind, title }]);
     setActiveId(id);
     sfxKey();
-  }, [openInvoiceTab]);
+  }, [openInvoiceTab, user, toast]);
 
   /** فتح الإعدادات على قسم بعينه (مثلاً تخصيص القائمة) */
   const openSettings = useCallback(
@@ -325,6 +363,25 @@ export default function CashYouApp({
     (raw: string) => {
       const term = raw.trim();
       if (!term) return false;
+      // ملصق الميزان: يضيف الصنف بالوزن أو بالسعر المطبوع على الملصق
+      const reading = parseScaleCode(term, prefs.scale);
+      if (reading) {
+        const item = data.products.find((p) => sameItemCode(p.code, reading.itemCode));
+        if (!item) {
+          sfxError();
+          toast("err", `ملصق الميزان لا يطابق أي صنف (كود ${reading.itemCode})`);
+          return false;
+        }
+        const qty = scaleQty(reading, item.price);
+        if (qty <= 0) {
+          sfxError();
+          toast("err", `تعذر حساب الكمية من ملصق الميزان للصنف «${item.name}»`);
+          return false;
+        }
+        sfxScan();
+        addProduct(item, qty);
+        return true;
+      }
       const hit =
         data.products.find((p) => p.code === term) ??
         data.products.find((p) => p.code.endsWith(term)) ??
@@ -338,7 +395,7 @@ export default function CashYouApp({
       addProduct(hit);
       return true;
     },
-    [data.products, addProduct, toast],
+    [data.products, addProduct, toast, prefs.scale],
   );
 
   const updateLine = useCallback(
@@ -556,7 +613,8 @@ export default function CashYouApp({
         await refreshData();
         sfxSave();
         // Both save actions show the saved receipt so the user can print or cancel.
-        setOverlay({ kind: "receipt", receipt, autoPrint: print });
+        const customerPhone = data.customers.find((c) => c.id === snapshot.customerId)?.phone || null;
+        setOverlay({ kind: "receipt", receipt, autoPrint: print, customerPhone });
         window.setTimeout(() => barcodeRef.current?.focus(), 80);
       } catch (err) {
         sfxError();
@@ -565,10 +623,51 @@ export default function CashYouApp({
         setSaving(false);
       }
     },
-    [activeId, activeTab, draft, saving, toast, refreshData, prefs.overpay.mode, data.products],
+    [activeId, activeTab, draft, saving, toast, refreshData, prefs.overpay.mode, data.products, data.customers],
+  );
+
+  /* ---------------- تعليق الفاتورة واسترجاعها ---------------- */
+  const holdCurrent = useCallback(() => {
+    if (activeTab?.kind !== "invoice") return;
+    if (draft.items.length === 0) {
+      sfxError();
+      toast("warn", "لا توجد أصناف في الفاتورة لتعليقها");
+      return;
+    }
+    holdInvoice(draft, computeTotals(draft).total);
+    setHeld(readHeld());
+    updateDraftOf(activeId, () => emptyDraft(data.nextInvoiceNumber));
+    sfxKey();
+    toast("ok", "تم تعليق الفاتورة — تجدها في «الفواتير المعلّقة» لاسترجاعها");
+    window.setTimeout(() => barcodeRef.current?.focus(), 60);
+  }, [activeTab, draft, activeId, data.nextInvoiceNumber, updateDraftOf, toast]);
+
+  const resumeHeld = useCallback(
+    (row: HeldInvoice) => {
+      const number = data.nextInvoiceNumber + tabs.filter((t) => t.kind === "invoice").length;
+      setHeld(removeHeld(row.id));
+      const activeIsEmpty = activeTab?.kind === "invoice" && draft.items.length === 0 && !draft.customerId;
+      if (activeIsEmpty) {
+        updateDraftOf(activeId, () => ({ ...row.draft, number }));
+      } else {
+        seq.current += 1;
+        const id = `inv-${seq.current}`;
+        setDrafts((prev) => ({ ...prev, [id]: { ...row.draft, number } }));
+        setTabs((prev) => [...prev, { id, kind: "invoice", title: "فاتورة مبيعات" }]);
+        setActiveId(id);
+      }
+      setOverlay({ kind: "none" });
+      sfxKey();
+      toast("ok", `تم استرجاع فاتورة «${row.customerName}»`);
+    },
+    [data.nextInvoiceNumber, tabs, activeTab, draft, activeId, updateDraftOf, toast],
   );
 
   /* ---------------- اختصارات لوحة المفاتيح ---------------- */
+  const holdRef = useRef(holdCurrent);
+  useEffect(() => {
+    holdRef.current = holdCurrent;
+  }, [holdCurrent]);
   const saveRef = useRef(save);
   const newRef = useRef(newInvoice);
   const payRef = useRef(payFull);
@@ -582,7 +681,7 @@ export default function CashYouApp({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const keys = ["F1", "F3", "F4", "F5", "F10", "F12"];
+      const keys = ["F1", "F3", "F4", "F5", "F8", "F10", "F12"];
       if (keys.includes(e.key)) {
         e.preventDefault();
         if (shutdown || minimized) return;
@@ -601,6 +700,7 @@ export default function CashYouApp({
         if (e.key === "F5") void saveRef.current(false);
         if (e.key === "F10") void saveRef.current(true);
         if (e.key === "F12") payRef.current();
+        if (e.key === "F8") holdRef.current();
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
@@ -650,6 +750,16 @@ export default function CashYouApp({
       quickAddPayment: () => {
         sfxKey();
         setOverlay({ kind: "addPayment" });
+      },
+      hold: () => holdRef.current(),
+      openHeld: () => {
+        sfxKey();
+        setHeld(readHeld());
+        setOverlay({ kind: "held" });
+      },
+      toggleCalc: () => {
+        sfxKey();
+        setCalcOpen((v) => !v);
       },
     }),
     [patch, addProduct, addByCode, updateLine, removeLine, save, newInvoice, payFull],
@@ -759,6 +869,7 @@ export default function CashYouApp({
         onPick={(kind, label) => (kind === "lastInvoice" ? openLastInvoice() : openModule(kind, label))}
         onCustomize={() => openSettings("menu")}
         showIcons={prefs.menu.icons}
+        canOpen={(kind) => !MODULE_SCREEN[kind] || can(user, MODULE_SCREEN[kind])}
       />
 
       <div className="flex-1 min-h-0 flex">
@@ -770,6 +881,7 @@ export default function CashYouApp({
               onNewInvoice={openInvoiceTab}
               onOpenInvoice={(i) => setOverlay({ kind: "invoice", invoice: i })}
               onOpenModule={openModule}
+              canOpen={(kind) => !MODULE_SCREEN[kind] || can(user, MODULE_SCREEN[kind])}
             />
           )}
 
@@ -794,6 +906,18 @@ export default function CashYouApp({
           {activeTab?.kind === "expenses" && <ExpensesScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "treasury" && <TreasuryScreen data={data} refresh={refreshData} notify={toast} />}
           {activeTab?.kind === "reports" && <ReportsScreen data={data} />}
+          {activeTab?.kind === "inventory" &&
+            (can(user, "inventory") ? (
+              <InventoryScreen
+                data={data}
+                refresh={refreshData}
+                notify={toast}
+                onOpenCard={(p) => setOverlay({ kind: "itemCard", product: p })}
+              />
+            ) : (
+              <DeniedScreen />
+            ))}
+          {activeTab?.kind === "audit" && (can(user, "audit") ? <AuditScreen /> : <DeniedScreen />)}
           {activeTab?.kind === "users" && user && <UsersScreen user={user} notify={toast} />}
           {activeTab?.kind === "activation" && user && (
             <ActivationScreen
@@ -816,6 +940,7 @@ export default function CashYouApp({
               actions={actions}
               barcodeRef={barcodeRef}
               saving={saving}
+              heldCount={held.length}
             />
           )}
         </div>
@@ -877,6 +1002,7 @@ export default function CashYouApp({
             setOverlay({ kind: "none" });
           }}
           onClose={() => setOverlay({ kind: "none" })}
+          onCard={can(user, "products") || can(user, "inventory") ? () => setOverlay({ kind: "itemCard", product: overlay.product }) : undefined}
         />
       )}
 
@@ -939,8 +1065,24 @@ export default function CashYouApp({
           shop={data.shop}
           prefs={prefs.receipt}
           autoPrint={overlay.autoPrint}
+          customerPhone={overlay.customerPhone}
+          notify={toast}
           onClose={() => setOverlay({ kind: "none" })}
         />
+      )}
+
+      {calcOpen && <FloatingCalculator onClose={() => setCalcOpen(false)} />}
+
+      {overlay.kind === "held" && (
+        <HeldInvoicesDialog
+          rows={held}
+          onResume={resumeHeld}
+          onClose={() => setOverlay({ kind: "none" })}
+        />
+      )}
+
+      {overlay.kind === "itemCard" && (
+        <ItemCardDialog product={overlay.product} onClose={() => setOverlay({ kind: "none" })} />
       )}
 
       {overlay.kind === "preview" && (
@@ -994,7 +1136,19 @@ export default function CashYouApp({
       )}
 
       {overlay.kind === "invoice" && (
-        <InvoiceDetail invoice={overlay.invoice} onClose={() => setOverlay({ kind: "none" })} />
+        <InvoiceDetail
+          invoice={overlay.invoice}
+          shop={data.shop}
+          customerPhone={data.customers.find((c) => c.id === overlay.invoice.customerId)?.phone || null}
+          canDelete={can(user, "invoiceDelete")}
+          notify={toast}
+          onClose={() => setOverlay({ kind: "none" })}
+          onDeleted={(number) => {
+            setOverlay({ kind: "none" });
+            toast("ok", `تم حذف الفاتورة رقم ${number} وعكس أثرها، وسُجّلت في سجل النشاط`);
+            void refreshData().catch(() => undefined);
+          }}
+        />
       )}
 
       {overlay.kind === "shortcuts" && <ShortcutsDialog onClose={() => setOverlay({ kind: "none" })} />}
@@ -1050,6 +1204,17 @@ export default function CashYouApp({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function DeniedScreen() {
+  return (
+    <div className="flex flex-1 items-center justify-center p-10">
+      <div className="max-w-sm rounded-2xl border border-line bg-white p-6 text-center shadow-sm">
+        <p className="text-[14px] font-black text-ink-900">ليس لديك صلاحية لهذه الشاشة</p>
+        <p className="mt-2 text-[12px] font-bold text-slate-500">اطلب من المالك تفعيل الشاشة من «المستخدمون والصلاحيات».</p>
+      </div>
     </div>
   );
 }
