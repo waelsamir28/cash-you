@@ -14,7 +14,9 @@ const ROOT = path.join(__dirname, "..");
 const OUT = path.join(ROOT, "vendor", "postgres");
 const MARKER = path.join(OUT, ".version");
 
-if (existsSync(MARKER) && readFileSync(MARKER, "utf8").trim() === VERSION && existsSync(path.join(OUT, "bin", "initdb.exe"))) {
+/* نتحقق من مكتبات lib أيضاً: initdb يحتاج dict_snowball.dll لإنشاء قواميس البحث */
+const COMPLETE = (dir) => existsSync(path.join(dir, "bin", "initdb.exe")) && existsSync(path.join(dir, "lib", "dict_snowball.dll"));
+if (existsSync(MARKER) && readFileSync(MARKER, "utf8").trim() === VERSION && COMPLETE(OUT)) {
   console.log(`PostgreSQL ${VERSION} موجود بالفعل في vendor/postgres`);
   process.exit(0);
 }
@@ -30,6 +32,7 @@ try {
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
   cpSync(path.join(native, "bin"), path.join(OUT, "bin"), { recursive: true });
+  cpSync(path.join(native, "lib"), path.join(OUT, "lib"), { recursive: true });
   cpSync(path.join(native, "share"), path.join(OUT, "share"), { recursive: true });
   writeFileSync(MARKER, VERSION);
   console.log(`تم تجهيز PostgreSQL ${VERSION} في vendor/postgres`);

@@ -66,6 +66,8 @@ function createBundledPostgres(options) {
   }
 
   function initCluster(password) {
+    /* لا نحذف مجلد البيانات إلا إذا أنشأناه نحن في هذه المحاولة */
+    const existedBefore = existsSync(dataDir);
     mkdirSync(dataDir, { recursive: true });
     const pwFile = path.join(path.dirname(secretFile), "pg-initpw.tmp");
     writeFileSync(pwFile, password);
@@ -85,7 +87,7 @@ function createBundledPostgres(options) {
         { windowsHide: true, stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" },
       );
     } catch (error) {
-      rmSync(dataDir, { recursive: true, force: true });
+      if (!existedBefore) rmSync(dataDir, { recursive: true, force: true });
       throw new Error(`تعذر إنشاء قاعدة البيانات: ${lastLines(error.stderr || error.message)}`);
     } finally {
       rmSync(pwFile, { force: true });
