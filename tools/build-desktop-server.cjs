@@ -35,6 +35,20 @@ cpSync(path.join(ROOT, ".next", "static"), path.join(OUT, ".next", "static"), { 
 if (existsSync(path.join(ROOT, "public"))) cpSync(path.join(ROOT, "public"), path.join(OUT, "public"), { recursive: true });
 cpSync(path.join(ROOT, "drizzle"), path.join(OUT, "drizzle"), { recursive: true });
 
+/* server.js يستدعي require('next') مباشرة. Next لا يضمن تجميع هذه الحزمة في standalone،
+   فننسخها صراحةً من node_modules الجذر إذا كانت ناقصة، ثم نتحقق من أنها تُحمَّل فعلاً. */
+const nextInOut = path.join(OUT, "node_modules", "next");
+if (!existsSync(path.join(nextInOut, "package.json"))) {
+  const nextSrc = path.join(ROOT, "node_modules", "next");
+  if (!existsSync(path.join(nextSrc, "package.json"))) throw new Error("حزمة next غير موجودة في node_modules");
+  cpSync(nextSrc, nextInOut, { recursive: true });
+  console.log("نُسخت حزمة next يدوياً إلى desktop-server");
+}
+execFileSync(process.execPath, [
+  "-e",
+  "require('next'); require('next/dist/server/lib/start-server');",
+], { cwd: OUT, stdio: "inherit" });
+
 /* فحص أمان: لا يُسمح بوجود إعدادات محلية أو أسرار داخل الحزمة */
 const leaked = [];
 const walk = (dir) => {
