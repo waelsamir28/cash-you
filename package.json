@@ -64,14 +64,21 @@
           "**/*"
         ]
       },
-      {
-        "from": "desktop-server",
-        "to": "app-server",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
+  {
+   "from": "desktop-server",
+   "to": "app-server",
+   "filter": [
+    "**/*"
+   ]
+  },
+  {
+   "from": "desktop-server/node_modules",
+   "to": "app-server/node_modules",
+   "filter": [
+    "**/*"
+   ]
+  }
+ ],
     "win": {
       "target": [
         "nsis"
