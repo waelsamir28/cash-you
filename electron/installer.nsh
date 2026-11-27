@@ -65,17 +65,11 @@
   !insertmacro MUI_UNPAGE_WELCOME
 !macroend
 
-; ---------- إعداد قاعدة PostgreSQL المدمجة أثناء التثبيت ----------
+; ---------- قاعدة PostgreSQL المدمجة ----------
 ; الملفات الثنائية في $INSTDIR\resources\postgres (مجلد البرنامج الذي يختاره المستخدم).
 ; بيانات المبيعات في %APPDATA%\CASH YOU\pgdata — ثابتة، ولا تُحذف عند التحديث أو الإزالة.
-; الأمر --setup-db يجهّز القاعدة ثم يخرج. إن فشل هنا يحاول البرنامج مرة أخرى عند أول تشغيل.
+; لا يُجهَّز القاعدة أثناء التثبيت: يجهّزها التطبيق عند أول تشغيل (ensure() في startBundledStack).
 !macro customInstall
-  DetailPrint "Setting up the CASH YOU database (PostgreSQL)..."
-  nsExec::ExecToLog '"$INSTDIR\${PRODUCT_FILENAME}.exe" --setup-db'
-  Pop $0
-  ${If} $0 != 0
-    MessageBox MB_ICONEXCLAMATION|MB_OK "The database could not be prepared during setup. CASH YOU will try again on first launch. Support: 01222355769"
-  ${EndIf}
 !macroend
 
 ; ---------- إيقاف قاعدة البيانات قبل إزالة البرنامج (دون حذف البيانات) ----------
