@@ -219,3 +219,37 @@ export const IcoMenu = ({ className = "w-4 h-4" }: P) => (
     <path d="M4 7h16M4 12h16M4 17h16" />
   </svg>
 );
+
+export const IcoWhatsApp = ({ className = "w-4 h-4" }: P) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${base} ${className}`}>
+    <path d="M3.5 20.5l1.2-4.1A8.5 8.5 0 1 1 8 19.3z" />
+    <path d="M9 9.5c0 2.8 2.7 5.5 5.5 5.5l1-1.2c.2-.2.1-.5-.1-.7l-1.4-.9c-.2-.1-.5 0-.6.2l-.4.5c-.9-.4-2.1-1.6-2.5-2.5l.5-.4c.2-.1.3-.4.2-.6l-.9-1.4c-.2-.2-.5-.3-.7-.1z" />
+  </svg>
+);
+
+export const IcoCalc = ({ className = "w-4 h-4" }: P) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${base} ${className}`}>
+    <rect x="5" y="3" width="14" height="18" rx="2" />
+    <path d="M8.5 7.5h7M8.5 12.5h1M12 12.5h1M15.5 12.5h.01M8.5 16h1M12 16h1M15.5 16h.01" />
+  </svg>
+);
+
+export const IcoCamera = ({ className = "w-4 h-4" }: P) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${base} ${className}`}>
+    <path d="M4 8h3l2-2.5h6L17 8h3v11H4z" />
+    <circle cx="12" cy="13" r="3.5" />
+  </svg>
+);
+
+export const IcoPause = ({ className = "w-4 h-4" }: P) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" className={`${base} ${className}`}>
+    <path d="M9 5v14M15 5v14" />
+  </svg>
+);
+
+export const IcoFile = ({ className = "w-4 h-4" }: P) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${base} ${className}`}>
+    <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+    <path d="M14 3v5h5M9 13h6M9 17h6" />
+  </svg>
+);

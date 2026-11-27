@@ -1,4 +1,5 @@
 import { deleteProduct, upsertProduct, type ProductInput } from "@/lib/operations";
+import { guardPermission, isDenied } from "@/lib/permission-guard";
 import { withOfflineIdempotency } from "@/lib/offline-idempotency";
 import { assertTrialAllows, bumpUsageCounter } from "@/lib/auth";
 
@@ -6,6 +7,8 @@ export const dynamic = "force-dynamic";
 
 async function handle(req: Request) {
   return withOfflineIdempotency(req, async () => {
+    const guard = await guardPermission(req, "products");
+    if (isDenied(guard)) return guard;
     try {
       const body = await req.json();
       if (req.method === "DELETE") {

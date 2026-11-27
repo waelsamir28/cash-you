@@ -13,6 +13,7 @@ const QUICK: { kind: ModuleKind; title: string; hint: string; color: string; ico
   { kind: "products", title: "الأصناف والمخازن", hint: "الأسعار وحدود المخزون", color: "bg-gradient-to-bl from-emerald-400 to-emerald-700 text-white border-emerald-800/30", icon: <IcoBox /> },
   { kind: "parties", title: "العملاء", hint: "كشوف حساب وسندات قبض", color: "bg-gradient-to-bl from-blue-400 to-blue-700 text-white border-blue-800/30", icon: <IcoUsers /> },
   { kind: "parties", title: "الموردون", hint: "أرصدة وسندات صرف", color: "bg-gradient-to-bl from-indigo-400 to-indigo-700 text-white border-indigo-800/30", icon: <IcoUsers /> },
+  { kind: "inventory", title: "الجرد", hint: "مطابقة الرصيد الفعلي", color: "bg-gradient-to-bl from-lime-400 to-green-700 text-white border-green-800/30", icon: <IcoBox /> },
   { kind: "installments", title: "نظام التقسيط", hint: "الاستحقاقات والتحصيل", color: "bg-gradient-to-bl from-fuchsia-400 to-fuchsia-700 text-white border-fuchsia-800/30", icon: <IcoWallet /> },
   { kind: "expenses", title: "المصروفات", hint: "إيجار وكهرباء ورواتب", color: "bg-gradient-to-bl from-rose-400 to-rose-700 text-white border-rose-800/30", icon: <IcoWallet /> },
   { kind: "treasury", title: "الخزينة", hint: "وارد ومنصرف ووردية", color: "bg-gradient-to-bl from-teal-400 to-teal-700 text-white border-teal-800/30", icon: <IcoWallet /> },
@@ -24,11 +25,13 @@ export function HomeScreen({
   onNewInvoice,
   onOpenInvoice,
   onOpenModule,
+  canOpen,
 }: {
   data: Bootstrap;
   onNewInvoice: () => void;
   onOpenInvoice: (i: InvoiceRow) => void;
   onOpenModule: (kind: ModuleKind, title: string) => void;
+  canOpen?: (kind: ModuleKind) => boolean;
 }) {
   const stats = useMemo(() => {
     const total = data.invoices.reduce((s, i) => s + i.total, 0);
@@ -117,7 +120,7 @@ export function HomeScreen({
           <span className="mr-auto text-[11px] font-bold text-slate-500">افتح أي وحدة في تبويب مستقل</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
-          {QUICK.map((q) => (
+          {QUICK.filter((q) => !canOpen || canOpen(q.kind)).map((q) => (
             <button key={q.title} onClick={() => q.kind === "invoice" ? onNewInvoice() : onOpenModule(q.kind, q.title)} className={`group relative overflow-hidden rounded-xl border p-3 text-right min-h-[94px] cy-press cy-focus ${q.color}`}>
               <span className="absolute -left-5 -bottom-7 w-20 h-20 rounded-full bg-white/10 group-hover:scale-125 transition-transform" />
               <span className="relative w-9 h-9 rounded-lg bg-white/20 grid place-items-center mb-2">{q.icon}</span>

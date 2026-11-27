@@ -8,6 +8,7 @@ import {
   type PublicUser,
 } from "@/lib/auth";
 import { db } from "@/db";
+import { effectivePermissions } from "@/lib/permissions";
 import { appUsers } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +71,7 @@ export async function POST(req: Request) {
       username: inserted[0].username,
       fullName: inserted[0].fullName,
       role: inserted[0].role === "cashier" ? "cashier" : "owner",
+      permissions: effectivePermissions(inserted[0].role, null),
     };
 
     /* أول حساب: نفتح له جلسة فوراً ونبدأ عدّاد التجربة. */

@@ -37,6 +37,7 @@ const TABS = [
   { id: "menu", label: "القائمة" },
   { id: "login", label: "شاشة الدخول" },
   { id: "overpay", label: "الدفع الزائد" },
+  { id: "scale", label: "ميزان الباركود" },
   { id: "visibility", label: "الإظهار والإخفاء" },
   { id: "database", label: "قاعدة البيانات" },
 ] as const;
@@ -108,6 +109,7 @@ export function SettingsScreen({
           {tab === "login" && <LoginSection prefs={prefs} onChange={onChange} />}
           {tab === "login" && <IdleLockSection prefs={prefs} onChange={onChange} />}
           {tab === "overpay" && <OverpaySection prefs={prefs} onChange={onChange} />}
+          {tab === "scale" && <ScaleSection prefs={prefs} onChange={onChange} />}
           {tab === "visibility" && <VisibilitySection prefs={prefs} onChange={onChange} />}
           {tab === "database" && <DatabaseSection isOwner={user?.role === "owner"} notify={notify} />}
         </div>
@@ -756,6 +758,41 @@ function IdleLockSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change
           { value: "30", label: "30 دقيقة" },
         ]}
       />
+    </Card>
+  );
+}
+
+/* ---------------- ميزان الباركود ---------------- */
+
+function ScaleSection({ prefs, onChange }: { prefs: UiPrefs; onChange: Change }) {
+  const sc = prefs.scale;
+  const set = (patch: Partial<UiPrefs["scale"]>) => onChange({ ...prefs, scale: { ...sc, ...patch } });
+  return (
+    <Card
+      title="ميزان الباركود"
+      subtitle="ملصقات الموازين (EAN-13) تحمل كود الصنف والوزن أو السعر. تُفعَّل من هنا فقط، والقراءة العادية تبقى كما هي."
+    >
+      <div className="grid gap-3">
+        <Toggle label="تفعيل قراءة ملصقات الميزان" checked={sc.enabled} onChange={(v) => set({ enabled: v })} />
+        <Segmented
+          label="المطبوع على الملصق"
+          value={sc.mode}
+          onChange={(v) => set({ mode: v })}
+          options={[
+            { value: "weight", label: "وزن (جرام)" },
+            { value: "price", label: "سعر (جنيه)" },
+          ]}
+        />
+        <TextField
+          label="بادئة الملصق (رقم واحد أو اثنان)"
+          value={sc.prefix}
+          onChange={(v) => set({ prefix: v.replace(/\D/g, "").slice(0, 2) })}
+          ltr
+        />
+        <p className="rounded-lg bg-amber-soft px-3 py-2 text-[11.5px] font-bold text-amber-900">
+          الشكل (13 رقماً): البادئة 2 + كود الصنف (6 أرقام) + الوزن بالجرام أو السعر بالقرش (5 أرقام) + رقم التحقق. مثال: 2 000012 01250 + رقم التحقق = 1.250 كجم من الصنف 12.
+        </p>
+      </div>
     </Card>
   );
 }

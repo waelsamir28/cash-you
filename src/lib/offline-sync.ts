@@ -283,6 +283,12 @@ async function runOfflineQueue(): Promise<{ synced: number; pending: number }> {
   return { synced, pending };
 }
 
+const ONLINE_ONLY: { method: string; path: string }[] = [
+  { method: "DELETE", path: "/api/invoices" },
+  { method: "POST", path: "/api/inventory" },
+  { method: "POST", path: "/api/auth/permissions" },
+];
+
 export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
   const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
@@ -305,6 +311,10 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
     }
   }
   if (method === "GET") throw new Error("لا يوجد اتصال بالخادم");
+  /* عمليات تمسّ الرصيد أو الصلاحيات أو سجل النشاط لا تُحفظ دون إنترنت حتى لا تختلف النسخة المحلية عن الخادم */
+  if (ONLINE_ONLY.some((rule) => rule.method === method && rule.path === new URL(url, location.href).pathname)) {
+    throw new Error("هذه العملية تحتاج اتصالاً بالإنترنت ولا تُحفظ مؤقتاً. أعد المحاولة عند عودة الاتصال.");
+  }
   const data = await readOfflineBootstrap();
   if (!data) throw new Error("لا توجد نسخة محلية محفوظة؛ اتصل بالإنترنت مرة واحدة أولًا");
   const body = init?.body ? JSON.parse(String(init.body)) : {};

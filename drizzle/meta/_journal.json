@@ -8,6 +8,13 @@
       "when": 1795738279829,
       "tag": "0000_short_screwball",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795747840729,
+      "tag": "0001_solid_liz_osborn",
+      "breakpoints": true
     }
   ]
 }

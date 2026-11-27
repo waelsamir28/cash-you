@@ -8,9 +8,13 @@ import { money, qtyText } from "@/lib/format";
 import { AmountTile } from "@/components/AmountTile";
 import {
   IcoBarcode,
+  IcoCalc,
+  IcoCamera,
+  IcoCart,
   IcoChevronLeft,
   IcoChevronRight,
   IcoMonitor,
+  IcoPause,
   IcoPlus,
   IcoPrint,
   IcoSearch,
@@ -18,6 +22,7 @@ import {
   IcoWallet,
   IcoX,
 } from "@/components/icons";
+import { CameraScanner } from "@/components/CameraScanner";
 
 const HUE: Record<string, { chip: string; dot: string }> = {
   amber: { chip: "bg-amber-500 text-ink-900 border-amber-600", dot: "bg-amber-500" },
@@ -54,6 +59,12 @@ export type PosActions = {
   openCustomerScreen: () => void;
   quickAddCustomer: () => void;
   quickAddPayment: () => void;
+  /** تعليق الفاتورة الحالية وفتح تبويب جديد */
+  hold: () => void;
+  /** فتح قائمة الفواتير المعلّقة */
+  openHeld: () => void;
+  /** إظهار/إخفاء الحاسبة العائمة */
+  toggleCalc: () => void;
 };
 
 export function PosScreen({
@@ -63,6 +74,7 @@ export function PosScreen({
   actions,
   barcodeRef,
   saving,
+  heldCount,
 }: {
   data: Bootstrap;
   draft: Draft;
@@ -70,8 +82,10 @@ export function PosScreen({
   actions: PosActions;
   barcodeRef: React.RefObject<HTMLInputElement | null>;
   saving: boolean;
+  heldCount: number;
 }) {
   const [code, setCode] = useState("");
+  const [camera, setCamera] = useState(false);
   const gridRef = useRef<HTMLDivElement | null>(null);
 
   const filtered = useMemo(() => {
@@ -145,6 +159,35 @@ export function PosScreen({
               <IcoMonitor className="w-4 h-4" />
               <span className="hidden md:inline">شاشة الزبون</span>
             </button>
+            <button
+              onClick={actions.hold}
+              disabled={draft.items.length === 0}
+              title="تعليق الفاتورة الحالية لخدمة زبون آخر (F8)"
+              aria-label="تعليق الفاتورة"
+              className="h-8 px-2.5 rounded-lg bg-ink-800 border border-white/15 text-slate-100 text-[12px] font-bold cy-press cy-focus flex items-center gap-1.5 hover:border-amber-brand/70 hover:text-amber-300 disabled:opacity-40"
+            >
+              <IcoPause className="w-4 h-4" />
+              <span className="hidden xl:inline">تعليق</span>
+            </button>
+            <button
+              onClick={actions.openHeld}
+              title="الفواتير المعلّقة"
+              aria-label="الفواتير المعلّقة"
+              className="h-8 px-2.5 rounded-lg bg-ink-800 border border-white/15 text-slate-100 text-[12px] font-bold cy-press cy-focus flex items-center gap-1.5 hover:border-amber-brand/70 hover:text-amber-300"
+            >
+              <IcoCart className="w-4 h-4" />
+              <span className="hidden xl:inline">المعلّقة</span>
+              {heldCount > 0 && <span className="cy-num min-w-[18px] rounded-full bg-amber-brand px-1 text-[10.5px] font-black text-ink-900">{heldCount}</span>}
+            </button>
+            <button
+              onClick={actions.toggleCalc}
+              title="حاسبة عائمة"
+              aria-label="الحاسبة"
+              className="h-8 px-2.5 rounded-lg bg-ink-800 border border-white/15 text-slate-100 text-[12px] font-bold cy-press cy-focus flex items-center gap-1.5 hover:border-cash-cyan/70 hover:text-cash-cyan"
+            >
+              <IcoCalc className="w-4 h-4" />
+              <span className="hidden xl:inline">حاسبة</span>
+            </button>
           </div>
 
           <h1 className="text-center text-white font-black text-[16px] sm:text-[18px] tracking-wide drop-shadow">
@@ -201,6 +244,16 @@ export function PosScreen({
               inputMode="numeric"
               className="flex-1 min-w-0 bg-transparent outline-none text-[13px] font-mono font-bold text-ink-900 placeholder:text-slate-400 placeholder:font-sans placeholder:font-normal h-full"
             />
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setCamera(true)}
+              title="قراءة الباركود بكاميرا الجهاز"
+              aria-label="قراءة الباركود بالكاميرا"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-slate-500 cy-press hover:bg-amber-soft hover:text-amber-800"
+            >
+              <IcoCamera className="w-4 h-4" />
+            </button>
           </Field>
 
           <Field label="بحث الصنف" icon={<IcoSearch className="w-4 h-4 text-slate-400" />} grow>
@@ -498,6 +551,15 @@ export function PosScreen({
           </span>
         </FnKey>
       </div>
+      {camera && (
+        <CameraScanner
+          onCode={(scanned) => actions.addByCode(scanned)}
+          onClose={() => {
+            setCamera(false);
+            window.setTimeout(() => barcodeRef.current?.focus(), 60);
+          }}
+        />
+      )}
     </section>
   );
 }

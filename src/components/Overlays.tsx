@@ -11,12 +11,17 @@ import {
   IcoCheck,
   IcoCopy,
   IcoDownload,
+  IcoFile,
   IcoLogo,
   IcoPrint,
+  IcoTrash,
   IcoUndo,
   IcoWarn,
+  IcoWhatsApp,
   IcoX,
 } from "@/components/icons";
+import { openWhatsApp } from "@/components/CustomerTools";
+import { exportInvoicePdf, invoiceWhatsAppText, type InvoiceDoc } from "@/lib/invoice-document";
 
 /* ============================ غلاف النافذة ============================ */
 
@@ -517,12 +522,17 @@ export function ReceiptModal({
   prefs,
   autoPrint = false,
   onClose,
+  customerPhone = null,
+  notify,
 }: {
   receipt: ReceiptData;
   shop: ShopInfo;
   prefs: ReceiptPrefs;
   autoPrint?: boolean;
   onClose: () => void;
+  /** رقم تليفون العميل لزر الواتساب (يظهر الزر فقط عند وجوده) */
+  customerPhone?: string | null;
+  notify?: (kind: "ok" | "err" | "warn" | "info", text: string) => void;
 }) {
   const [printed, setPrinted] = useState(false);
 
@@ -561,6 +571,27 @@ export function ReceiptModal({
           {printed ? "إعادة الطباعة" : "طباعة الإيصال"}
         </button>
         <button
+          onClick={() => void exportPdfOf(receipt, shop, notify)}
+          title="تصدير الفاتورة PDF"
+          aria-label="تصدير PDF"
+          className="cy-btn h-11 w-11 shrink-0 rounded-xl bg-slate-200 text-ink-800 grid place-items-center cy-press hover:bg-slate-300"
+        >
+          <IcoFile className="w-4 h-4" />
+        </button>
+        {customerPhone && (
+          <button
+            onClick={() => {
+              const text = invoiceWhatsAppText(receiptToDoc(receipt), shop);
+              if (!openWhatsApp(customerPhone, text)) notify?.("warn", "رقم العميل غير صالح للواتساب");
+            }}
+            title="إرسال الفاتورة على واتساب"
+            aria-label="إرسال على واتساب"
+            className="cy-btn h-11 w-11 shrink-0 rounded-xl bg-[#25D366] text-white grid place-items-center cy-press hover:brightness-95"
+          >
+            <IcoWhatsApp className="w-4 h-4" />
+          </button>
+        )}
+        <button
           onClick={onClose}
           className="cy-btn h-11 px-5 rounded-xl bg-slate-200 text-ink-800 font-black cy-press hover:bg-slate-300"
         >
@@ -587,11 +618,14 @@ export function ItemViewDialog({
   categoryName,
   onAdd,
   onClose,
+  onCard,
 }: {
   product: Product;
   categoryName: string;
   onAdd: () => void;
   onClose: () => void;
+  /** فتح كارت الصنف (الحركات)، إن كانت الصلاحية متاحة */
+  onCard?: () => void;
 }) {
   const rows: [string, string][] = [
     ["الكود", product.code],
@@ -619,6 +653,11 @@ export function ItemViewDialog({
         >
           إضافة إلى الفاتورة
         </button>
+        {onCard && (
+          <button onClick={onCard} className="h-11 px-4 rounded-xl bg-ink-800 text-white font-black cy-press hover:bg-ink-900">
+            كارت الصنف
+          </button>
+        )}
         <button onClick={onClose} className="h-11 px-5 rounded-xl bg-slate-200 text-ink-800 font-black cy-press hover:bg-slate-300">
           إغلاق
         </button>
@@ -861,6 +900,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
     ["F3", "التركيز على حقل الباركود"],
     ["F4", "فاتورة جديدة"],
     ["F5", "حفظ"],
+    ["F8", "تعليق الفاتورة الحالية"],
     ["F10", "حفظ وطباعة"],
     ["F11", "خصم (شاشة المشتريات والمرتجعات)"],
     ["F12", "دفع كامل"],
@@ -883,11 +923,80 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
 
 export function InvoiceDetail({
   invoice,
+  shop,
+  customerPhone,
+  canDelete,
   onClose,
+  onDeleted,
+  notify,
 }: {
   invoice: InvoiceRow;
+  shop: ShopInfo;
+  /** رقم تليفون العميل لزر الواتساب */
+  customerPhone: string | null;
+  /** صلاحية حذف الفواتير */
+  canDelete: boolean;
   onClose: () => void;
+  onDeleted: (number: number) => void;
+  notify: (kind: "ok" | "err" | "warn" | "info", text: string) => void;
 }) {
+  const [details, setDetails] = useState<{ items: InvoiceDoc["items"]; error: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const installment = invoice.saleType === "تقسيط";
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/invoices?number=${invoice.number}&t=${Date.now()}`, { cache: "no-store" })
+      .then(async (res) => {
+        const json = (await res.json()) as { items?: { code: string; name: string; unit: string; qty: number; price: number; total: number }[]; error?: string };
+        if (!res.ok) throw new Error(json.error ?? "تعذر تحميل أصناف الفاتورة");
+        if (alive) setDetails({ items: json.items ?? [], error: "" });
+      })
+      .catch((err: unknown) => {
+        if (alive) setDetails({ items: [], error: err instanceof Error ? err.message : "تعذر تحميل أصناف الفاتورة" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [invoice.number]);
+
+  const doc: InvoiceDoc = {
+    number: invoice.number,
+    createdAt: invoice.createdAt,
+    customerName: invoice.customerName,
+    paymentMethod: invoice.paymentMethod,
+    saleType: invoice.saleType,
+    total: invoice.total,
+    paid: invoice.paid,
+    remaining: invoice.remaining,
+    items: details?.items ?? [],
+  };
+
+  const confirmDelete = async () => {
+    if (busy) return;
+    if (reason.trim().length < 3) {
+      notify("warn", "اكتب سبب الحذف (3 أحرف على الأقل)");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiFetch("/api/invoices", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number: invoice.number, reason: reason.trim() }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "تعذر حذف الفاتورة");
+      onDeleted(invoice.number);
+    } catch (err) {
+      notify("err", err instanceof Error ? err.message : "تعذر حذف الفاتورة");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Modal
       title={`تفاصيل الفاتورة رقم ${invoice.number}`}
@@ -918,14 +1027,132 @@ export function InvoiceDetail({
           </span>
         </div>
       </div>
-      <button
-        onClick={onClose}
-        className="w-full mt-4 h-11 rounded-xl bg-ink-800 text-white font-black cy-press hover:bg-ink-900"
-      >
-        إغلاق
-      </button>
+
+      <div className="mt-3 max-h-40 overflow-auto cy-scroll rounded-xl border border-line bg-white">
+        {!details && <p className="p-3 text-center text-[12px] font-bold text-slate-500">جارٍ تحميل الأصناف...</p>}
+        {details?.error && <p className="p-3 text-center text-[12px] font-bold text-cash-red">{details.error}</p>}
+        {details && !details.error && details.items.length === 0 && <p className="p-3 text-center text-[12px] font-bold text-slate-500">لا توجد أصناف</p>}
+        {details && details.items.length > 0 && (
+          <table className="w-full text-[11.5px]">
+            <tbody>
+              {details.items.map((it, i) => (
+                <tr key={i} className={i % 2 ? "bg-paper-2" : "bg-white"}>
+                  <td className="px-2 py-1 font-bold text-ink-900">{it.name}</td>
+                  <td className="cy-num px-2 py-1 text-center text-slate-600">{qtyText(it.qty)} × {money(it.price)}</td>
+                  <td className="cy-num px-2 py-1 text-left font-black text-ink-900">{money(it.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {!deleting && (
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            onClick={async () => {
+              const outcome = await exportInvoicePdf(doc, shop);
+              if (outcome === "blocked") notify("warn", "المتصفح منع نافذة الطباعة. اسمح بالنوافذ المنبثقة ثم أعد المحاولة.");
+              if (outcome === "saved") notify("ok", "تم حفظ الفاتورة كملف PDF");
+            }}
+            disabled={!details || !!details.error}
+            className="h-10 flex-1 rounded-xl bg-ink-800 text-white text-[12.5px] font-black cy-press hover:bg-ink-900 disabled:opacity-40 flex items-center justify-center gap-2"
+          >
+            <IcoFile className="w-4 h-4" />
+            تصدير PDF
+          </button>
+          <button
+            onClick={() => {
+              const text = invoiceWhatsAppText(doc, shop);
+              if (!customerPhone) return notify("warn", "لا يوجد رقم تليفون لهذا العميل");
+              if (!openWhatsApp(customerPhone, text)) notify("warn", "رقم العميل غير صالح للواتساب");
+            }}
+            disabled={!customerPhone || !details || !!details.error}
+            title={customerPhone ? "إرسال الفاتورة على واتساب" : "لا يوجد رقم تليفون للعميل"}
+            aria-label="إرسال على واتساب"
+            className="h-10 w-10 shrink-0 rounded-xl bg-[#25D366] text-white grid place-items-center cy-press hover:brightness-95 disabled:opacity-40"
+          >
+            <IcoWhatsApp className="w-4 h-4" />
+          </button>
+          {canDelete && (
+            <button
+              onClick={() => setDeleting(true)}
+              disabled={installment}
+              title={installment ? "فواتير التقسيط لا تُحذف من هنا" : "حذف الفاتورة"}
+              aria-label="حذف الفاتورة"
+              className="h-10 w-10 shrink-0 rounded-xl bg-red-50 text-cash-red grid place-items-center cy-press hover:bg-red-100 disabled:opacity-40"
+            >
+              <IcoTrash className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {deleting && (
+        <div className="mt-3 rounded-xl border border-red-200 bg-red-50/60 p-3">
+          <p className="text-[12.5px] font-black text-cash-red">حذف الفاتورة رقم {invoice.number}</p>
+          <p className="mt-1 text-[11.5px] font-bold text-slate-600">
+            سيُرجَّع الصنف إلى المخزون، ويُعكس أثرها على رصيد العميل، وتُسجَّل حركة إلغاء في الخزينة. تُكتب الفاتورة كاملة في سجل النشاط.
+          </p>
+          <label className="mt-2 block">
+            <span className="mb-1 block text-[11.5px] font-black text-ink-700">سبب الحذف (مطلوب)</span>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={2}
+              autoFocus
+              placeholder="مثال: خطأ في الكمية، أو العميل ألغى الطلب"
+              className="w-full resize-none rounded-lg border border-line bg-white px-2.5 py-2 text-[12.5px] font-bold text-ink-900 outline-none focus:border-amber-brand"
+            />
+          </label>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={() => void confirmDelete()}
+              disabled={busy || reason.trim().length < 3}
+              className="h-10 flex-1 rounded-lg bg-cash-red text-white text-[12.5px] font-black cy-press hover:brightness-95 disabled:opacity-40"
+            >
+              {busy ? "جارٍ الحذف..." : "تأكيد الحذف"}
+            </button>
+            <button onClick={() => setDeleting(false)} disabled={busy} className="h-10 px-4 rounded-lg bg-slate-200 text-ink-800 text-[12.5px] font-black cy-press hover:bg-slate-300">
+              تراجع
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!deleting && (
+        <button
+          onClick={onClose}
+          className="w-full mt-4 h-11 rounded-xl bg-ink-800 text-white font-black cy-press hover:bg-ink-900"
+        >
+          إغلاق
+        </button>
+      )}
     </Modal>
   );
+}
+
+/** تحويل إيصال الحفظ إلى مستند الفاتورة الموحّد (للـ PDF والواتساب) */
+function receiptToDoc(receipt: ReceiptData): InvoiceDoc {
+  return {
+    number: receipt.number,
+    createdAt: receipt.createdAt,
+    customerName: receipt.customerName,
+    paymentMethod: receipt.paymentMethod,
+    saleType: receipt.saleType,
+    total: receipt.total,
+    paid: receipt.paid,
+    remaining: receipt.remaining,
+    previousBalance: receipt.previousBalance,
+    overpayCredit: receipt.overpayCredit,
+    items: receipt.items.map((it) => ({ code: it.code, name: it.name, unit: it.unit, qty: it.qty, price: it.price, total: it.total })),
+  };
+}
+
+async function exportPdfOf(receipt: ReceiptData, shop: ShopInfo, notify?: (kind: "ok" | "err" | "warn" | "info", text: string) => void) {
+  const outcome = await exportInvoicePdf(receiptToDoc(receipt), shop);
+  if (outcome === "blocked") notify?.("warn", "المتصفح منع نافذة الطباعة. اسمح بالنوافذ المنبثقة ثم أعد المحاولة.");
+  if (outcome === "saved") notify?.("ok", "تم حفظ الفاتورة كملف PDF");
 }
 
 function Stat({

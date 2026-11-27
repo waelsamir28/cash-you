@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld("cashYou", Object.freeze({
   getDeviceCode: () => ipcRenderer.invoke("cash-you:get-device-code"),
   getActivationRecord: () => ipcRenderer.invoke("cash-you:get-activation-record"),
   saveActivationRecord: (record) => ipcRenderer.invoke("cash-you:save-activation-record", record),
+  exportPdf: (payload) => ipcRenderer.invoke("cash-you:export-pdf", payload),
 }));
 
 /* حالة التحديث التلقائي: تُرسل من main.cjs وتُستدعى من الواجهة */

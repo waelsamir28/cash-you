@@ -18,6 +18,8 @@
     "desktop:dist": "node tools/make-icon.cjs && node tools/make-installer-art.cjs && node tools/fetch-postgres.cjs && node tools/build-desktop-server.cjs && electron-builder --win nsis --publish never"
   },
   "dependencies": {
+    "@zxing/browser": "^0.2.1",
+    "@zxing/library": "^0.23.0",
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.2",
     "electron-updater": "^6.8.12",
@@ -62,14 +64,21 @@
           "**/*"
         ]
       },
-      {
-        "from": "desktop-server",
-        "to": "app-server",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
+  {
+   "from": "desktop-server",
+   "to": "app-server",
+   "filter": [
+    "**/*"
+   ]
+  },
+  {
+   "from": "desktop-server/node_modules",
+   "to": "app-server/node_modules",
+   "filter": [
+    "**/*"
+   ]
+  }
+ ],
     "win": {
       "target": [
         "nsis"

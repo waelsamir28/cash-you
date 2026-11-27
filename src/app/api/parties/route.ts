@@ -1,4 +1,5 @@
 import { upsertParty, type PartyInput } from "@/lib/operations";
+import { guardPermission, isDenied } from "@/lib/permission-guard";
 import { withOfflineIdempotency } from "@/lib/offline-idempotency";
 import { assertTrialAllows, bumpUsageCounter } from "@/lib/auth";
 
@@ -6,6 +7,8 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   return withOfflineIdempotency(req, async () => {
+    const guard = await guardPermission(req, "parties");
+    if (isDenied(guard)) return guard;
     try {
       const body = (await req.json()) as PartyInput & { kind: "customer" | "supplier" };
       const isNew = !body.id;
