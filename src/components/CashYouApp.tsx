@@ -29,6 +29,7 @@ import { ExpensesScreen, InstallmentsScreen, ReportsScreen, TreasuryScreen } fro
 import { InstallmentDialog } from "@/components/InstallmentDialog";
 import { UsersScreen } from "@/components/UsersScreen";
 import { ActivationScreen } from "@/components/ActivationScreen";
+import { BackupPanel } from "@/components/BackupPanel";
 import { readOfflineBootstrap, saveOfflineBootstrap } from "@/lib/offline-cache";
 import {
   CloseConfirm,
@@ -58,7 +59,8 @@ type Overlay =
   | { kind: "preview" }
   | { kind: "overpay"; print: boolean }
   | { kind: "invoice"; invoice: InvoiceRow }
-  | { kind: "installment"; print: boolean };
+  | { kind: "installment"; print: boolean }
+  | { kind: "backup" };
 
 export default function CashYouApp({
   initial,
@@ -194,6 +196,7 @@ export default function CashYouApp({
   const openModule = useCallback((kind: ModuleKind, title: string) => {
     if (kind === "invoice") { openInvoiceTab(); return; }
     if (kind === "home") { setActiveId("home"); sfxKey(); return; }
+    if (kind === "backup") { setOverlay({ kind: "backup" }); sfxKey(); return; }
     const id = `module-${kind}-${title}`;
     setTabs((prev) => prev.some((t) => t.id === id) ? prev : [...prev, { id, kind, title }]);
     setActiveId(id);
@@ -951,6 +954,17 @@ export default function CashYouApp({
 
       {overlay.kind === "invoice" && (
         <InvoiceDetail invoice={overlay.invoice} onClose={() => setOverlay({ kind: "none" })} />
+      )}
+
+      {overlay.kind === "backup" && (
+        <BackupPanel
+          notify={toast}
+          onClose={() => setOverlay({ kind: "none" })}
+          onOpenDbSettings={() => {
+            setOverlay({ kind: "none" });
+            openSettings("database");
+          }}
+        />
       )}
 
       {overlay.kind === "close" && (

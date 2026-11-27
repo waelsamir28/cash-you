@@ -251,4 +251,5 @@ export type ModuleKind =
   | "reports"
   | "users"
   | "activation"
+  | "backup"
   | "settings";
