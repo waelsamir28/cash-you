@@ -241,9 +241,79 @@ export function CustomerDisplay({
   onClose: () => void;
 }) {
   const endRef = useRef<HTMLDivElement | null>(null);
+  // الافتراضي: الإجمالي والباقي فقط. يتذكر الاختيار على الجهاز
+  const [totalOnly, setTotalOnly] = useState<boolean>(() =>
+    typeof window === "undefined" ? true : window.localStorage.getItem("cy-customer-screen") !== "full",
+  );
+  const toggleView = () => {
+    setTotalOnly((v) => {
+      window.localStorage.setItem("cy-customer-screen", v ? "full" : "totals");
+      return !v;
+    });
+  };
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [draft.items.length]);
+
+  const viewToggle = (
+    <button
+      onClick={toggleView}
+      className="h-9 px-4 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-[12.5px] font-bold cy-press"
+    >
+      {totalOnly ? "عرض الأصناف" : "الإجمالي فقط"}
+    </button>
+  );
+
+  if (totalOnly) {
+    const owed = totals.remaining > 0 ? totals.remaining : 0;
+    return (
+      <div className="fixed inset-0 z-[90] cy-mesh cy-grain text-white flex flex-col cy-no-print" dir="rtl">
+        <div className="flex items-center gap-3 px-5 h-16 border-b border-white/10">
+          <IcoLogo className="w-10 h-10" />
+          <div>
+            <div className="font-black tracking-[0.18em] text-lg">
+              CASH<span className="text-amber-brand"> YOU</span>
+            </div>
+            <div className="text-[11px] text-slate-400">{shopName}</div>
+          </div>
+          <div className="mr-auto flex items-center gap-2">
+            {viewToggle}
+            <button
+              onClick={onClose}
+              className="h-9 px-4 rounded-xl bg-white/10 hover:bg-cash-red border border-white/15 text-[12.5px] font-bold cy-press"
+            >
+              إغلاق (Esc)
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 grid place-items-center p-6">
+          <div className="w-full max-w-4xl text-center">
+            <div className="text-[22px] font-black text-slate-300">الإجمالي المستحق</div>
+            <div className="text-[clamp(72px,18vw,200px)] leading-none font-black cy-num text-amber-brand mt-2">
+              {money(totals.total)}
+            </div>
+            {totals.change > 0 && (
+              <>
+                <div className="mt-8 text-[22px] font-black text-slate-300">الباقي للعميل</div>
+                <div className="text-[clamp(56px,12vw,140px)] leading-none font-black cy-num text-cash-green mt-2">
+                  {money(totals.change)}
+                </div>
+              </>
+            )}
+            {owed > 0 && (
+              <>
+                <div className="mt-8 text-[22px] font-black text-slate-300">المتبقي على العميل</div>
+                <div className="text-[clamp(56px,12vw,140px)] leading-none font-black cy-num text-cash-red mt-2">
+                  {money(owed)}
+                </div>
+              </>
+            )}
+            <p className="mt-10 text-[18px] font-black text-amber-brand">شكراً لتعاملكم معنا</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[90] cy-mesh cy-grain text-white flex flex-col cy-no-print" dir="rtl">
@@ -259,6 +329,7 @@ export function CustomerDisplay({
           <span className="text-[13px] font-bold text-slate-300">
             فاتورة رقم <span className="cy-num text-amber-brand font-black">{draft.number}</span>
           </span>
+          {viewToggle}
           <button
             onClick={onClose}
             className="h-9 px-4 rounded-xl bg-white/10 hover:bg-cash-red border border-white/15 text-[12.5px] font-bold cy-press"
@@ -776,6 +847,33 @@ export function DiscountDialog({
 }
 
 /* ============================ تفاصيل فاتورة ============================ */
+
+/** اختصارات لوحة المفاتيح (F1) */
+export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
+  const rows: [string, string][] = [
+    ["F1", "عرض هذه الشاشة"],
+    ["F3", "التركيز على حقل الباركود"],
+    ["F4", "فاتورة جديدة"],
+    ["F5", "حفظ"],
+    ["F10", "حفظ وطباعة"],
+    ["F11", "خصم (شاشة المشتريات والمرتجعات)"],
+    ["F12", "دفع كامل"],
+    ["Ctrl + K", "بحث عام"],
+    ["Esc", "إغلاق النافذة الحالية"],
+  ];
+  return (
+    <Modal title="اختصارات لوحة المفاتيح" subtitle="استخدمها لتسريع العمل" onClose={onClose} width="max-w-md">
+      <div className="grid gap-1.5">
+        {rows.map(([key, text]) => (
+          <div key={key} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2">
+            <span className="text-[13px] font-bold text-ink-800">{text}</span>
+            <kbd className="cy-num rounded-md bg-ink-800 px-2 py-0.5 text-[12px] font-black text-white">{key}</kbd>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+}
 
 export function InvoiceDetail({
   invoice,

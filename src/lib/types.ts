@@ -252,4 +252,5 @@ export type ModuleKind =
   | "users"
   | "activation"
   | "backup"
+  | "lastInvoice"
   | "settings";

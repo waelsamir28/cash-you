@@ -14,6 +14,7 @@ type Config = {
   lastRunAt: string | null;
   lastStatus: string;
   lastFile: string | null;
+  storage?: StorageStats;
   database: {
     engine: string;
     mode: "cloud" | "local" | null;
@@ -27,6 +28,15 @@ type Config = {
 };
 
 type BackupFile = { name: string; size: number; createdAt: string };
+
+type StorageStats = { databaseBytes: number | null; diskFreeBytes: number | null; diskTotalBytes: number | null };
+
+function fmtBytes(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "—";
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} كيلوبايت`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} ميجابايت`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} جيجابايت`;
+}
 
 const TABS = [
   { id: "db", label: "قاعدة البيانات" },
@@ -573,6 +583,14 @@ function DbTab({ cfg, onOpenDbSettings }: { cfg: Config | null; onOpenDbSettings
     ["مكان البيانات", db?.location ?? "—", true],
     ["مصدر الإعداد", sourceText, false],
     ["مكان ملفات النسخ", cfg?.resolvedDir ?? "—", true],
+    ["حجم القاعدة الحالي", fmtBytes(cfg?.storage?.databaseBytes), false],
+    [
+      "المساحة الفاضية على الجهاز",
+      cfg?.storage?.diskFreeBytes != null && cfg?.storage?.diskTotalBytes
+        ? `${fmtBytes(cfg.storage.diskFreeBytes)} من ${fmtBytes(cfg.storage.diskTotalBytes)}`
+        : "—",
+      false,
+    ],
   ];
   return (
     <Stack>

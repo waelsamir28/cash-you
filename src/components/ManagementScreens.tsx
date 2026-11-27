@@ -5,6 +5,8 @@ import { useMemo, useState } from "react";
 import type { Bootstrap, Party, Product } from "@/lib/types";
 import { money, qtyText, shortStamp, uid } from "@/lib/format";
 import { sfxAdd, sfxError, sfxSave } from "@/lib/sound";
+import { csvToProducts, productsToCsv } from "@/lib/products-csv";
+import { LATE_DAYS, lateInfo, openWhatsApp, reminderText, statementDoc, statementText, waNumber } from "@/components/CustomerTools";
 import { IcoBarcode, IcoCheck, IcoPlus, IcoSearch, IcoTrash, IcoWallet } from "@/components/icons";
 import { btnCls, Empty, Field, inputCls, ModuleShell, ModuleTitle, Panel, PrintDocumentModal, type PrintDoc } from "@/components/ModuleUI";
 
@@ -62,7 +64,7 @@ export function ProductsScreen({ data, refresh, notify }: Common) {
         </div>
       </Panel>
       <Panel title="سجل الأصناف" hint={`${rows.length} نتيجة · الأحمر يعني رصيداً أقل من أو يساوي حد التنبيه`}>
-        <div className="p-2 flex flex-wrap gap-2 border-b border-line"><label className="flex-1 min-w-[200px] h-9 rounded-lg border border-line px-2.5 flex items-center gap-2"><IcoSearch className="text-slate-400" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="بحث بالاسم أو الباركود..." className="flex-1 outline-none text-[12.5px] bg-transparent" /></label><button onClick={() => setLowOnly(!lowOnly)} className={`${btnCls} h-9 ${lowOnly ? "bg-cash-red text-white" : "bg-slate-200 text-ink-700"}`}>المخزون المنخفض فقط</button></div>
+        <div className="p-2 flex flex-wrap gap-2 border-b border-line"><ProductCsvTools data={data} refresh={refresh} notify={notify} /><label className="flex-1 min-w-[200px] h-9 rounded-lg border border-line px-2.5 flex items-center gap-2"><IcoSearch className="text-slate-400" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="بحث بالاسم أو الباركود..." className="flex-1 outline-none text-[12.5px] bg-transparent" /></label><button onClick={() => setLowOnly(!lowOnly)} className={`${btnCls} h-9 ${lowOnly ? "bg-cash-red text-white" : "bg-slate-200 text-ink-700"}`}>المخزون المنخفض فقط</button></div>
         <div className="overflow-auto cy-scroll max-h-[620px]"><table className="w-full text-[11.5px] border-collapse"><thead className="sticky top-0 bg-ink-800 text-white z-10"><tr>{["إجراءات", "الرصيد", "الحد", "جملة", "قطاعي", "شراء", "الوحدة", "التصنيف", "اسم الصنف", "الباركود"].map((h) => <th key={h} className="px-2 py-2.5 border-l border-white/10 whitespace-nowrap">{h}</th>)}</tr></thead><tbody>{rows.map((p, i) => { const low = p.stock <= p.minStockLimit; return <tr key={p.id} className={`${low ? "bg-red-100 text-red-900" : i % 2 ? "bg-paper-2" : "bg-white"} border-b border-slate-200 hover:brightness-95`}><td className="px-2 py-1.5 whitespace-nowrap"><button onClick={() => setForm({ ...p })} className="h-7 px-2 rounded bg-ink-700 text-white font-bold ml-1">تعديل</button><button onClick={() => void remove(p)} className="h-7 w-7 rounded bg-cash-red text-white inline-grid place-items-center" aria-label="حذف"><IcoTrash className="w-3.5 h-3.5" /></button></td><td className="text-center font-black cy-num">{qtyText(p.stock)}</td><td className="text-center cy-num">{qtyText(p.minStockLimit)}</td><td className="text-center cy-num">{money(p.wholesalePrice)}</td><td className="text-center font-bold cy-num">{money(p.price)}</td><td className="text-center cy-num">{money(p.cost)}</td><td className="text-center">{p.unit}</td><td className="text-center">{data.categories.find((c) => c.id === p.categoryId)?.name ?? "—"}</td><td className="px-2 font-bold">{p.name}</td><td className="text-center font-mono text-amber-800">{p.code}</td></tr>; })}</tbody></table>{!rows.length && <Empty text="لا توجد أصناف مطابقة للبحث" />}</div>
       </Panel>
     </div>
@@ -80,7 +82,13 @@ export function PartiesScreen({ data, refresh, notify, initialKind = "customer" 
   const [notes, setNotes] = useState("");
   const [doc, setDoc] = useState<PrintDoc | null>(null);
   const parties = kind === "customer" ? data.customers : data.suppliers;
-  const rows = parties.filter((p) => !query || p.name.includes(query) || p.phone.includes(query));
+  const [lateOnly, setLateOnly] = useState(false);
+  const lateMap = useMemo(() => {
+    const m = new Map<number, { days: number; amount: number }>();
+    if (kind === "customer") data.customers.forEach((c) => { const l = lateInfo(c, data.invoices); if (l) m.set(c.id, l); });
+    return m;
+  }, [kind, data.customers, data.invoices]);
+  const rows = parties.filter((p) => (!query || p.name.includes(query) || p.phone.includes(query)) && (!lateOnly || lateMap.has(p.id)));
   const set = (k: string, v: string | number) => setForm((f) => ({ ...f, [k]: v }));
 
   const save = async () => {
@@ -107,10 +115,122 @@ export function PartiesScreen({ data, refresh, notify, initialKind = "customer" 
       </Panel>
       <Panel title={kind === "customer" ? "كشف حساب العملاء" : "كشف حساب الموردين"} hint="الرصيد الموجب يعني مبلغاً مستحقاً">
         <div className="p-2 border-b border-line"><input value={query} onChange={(e) => setQuery(e.target.value)} className={inputCls} placeholder="بحث بالاسم أو التليفون..." /></div>
-        <div className="overflow-auto cy-scroll max-h-[590px]"><table className="w-full text-[12px]"><thead className="bg-ink-800 text-white sticky top-0"><tr>{["سند", "تعديل", "الرصيد الحالي", "الرصيد الافتتاحي", "العنوان", "التليفون", "الاسم"].map((h) => <th key={h} className="px-2 py-2.5 border-l border-white/10">{h}</th>)}</tr></thead><tbody>{rows.map((p, i) => <tr key={p.id} className={`${i % 2 ? "bg-paper-2" : "bg-white"} border-b border-slate-200`}><td className="p-1.5 text-center"><button onClick={() => { setVoucher(p); setAmount(String(Math.max(0, p.balance))); }} className="h-8 px-2.5 rounded-lg bg-cash-orange text-white font-black text-[11px] inline-flex items-center gap-1"><IcoWallet className="w-3.5 h-3.5" />{kind === "customer" ? "سند قبض" : "سند صرف"}</button></td><td className="text-center"><button onClick={() => setForm({ ...p })} className="h-8 px-3 rounded-lg bg-ink-700 text-white font-bold text-[11px]">تعديل</button></td><td className={`text-center font-black cy-num ${p.balance > 0 ? "text-cash-red" : "text-cash-green-deep"}`}>{money(p.balance)}</td><td className="text-center cy-num">{money(p.openingBalance)}</td><td className="text-center text-slate-600">{p.address || "—"}</td><td className="text-center cy-num">{p.phone || "—"}</td><td className="px-2 font-bold">{p.name}</td></tr>)}</tbody></table></div>
+        {kind === "customer" && lateMap.size > 0 && (
+          <div className="px-3 py-2 border-b border-line bg-amber-50 flex items-center gap-2 text-[12px] font-bold text-ink-900">
+            <span>{lateMap.size} عميل متأخر أكثر من {LATE_DAYS} يوم في السداد</span>
+            <button onClick={() => setLateOnly((v) => !v)} className="mr-auto h-8 px-3 rounded-lg bg-ink-800 text-white text-[11px] font-black">
+              {lateOnly ? "عرض الكل" : "عرض المتأخرين"}
+            </button>
+          </div>
+        )}
+        <div className="overflow-auto cy-scroll max-h-[590px]"><table className="w-full text-[12px]"><thead className="bg-ink-800 text-white sticky top-0"><tr>{["سند", "تعديل", "الرصيد الحالي", "الرصيد الافتتاحي", "العنوان", "التليفون", "الاسم", "كشف", "واتساب"].map((h) => <th key={h} className="px-2 py-2.5 border-l border-white/10">{h}</th>)}</tr></thead><tbody>{rows.map((p, i) => <tr key={p.id} className={`${i % 2 ? "bg-paper-2" : "bg-white"} border-b border-slate-200`}><td className="p-1.5 text-center"><button onClick={() => { setVoucher(p); setAmount(String(Math.max(0, p.balance))); }} className="h-8 px-2.5 rounded-lg bg-cash-orange text-white font-black text-[11px] inline-flex items-center gap-1"><IcoWallet className="w-3.5 h-3.5" />{kind === "customer" ? "سند قبض" : "سند صرف"}</button></td><td className="text-center"><button onClick={() => setForm({ ...p })} className="h-8 px-3 rounded-lg bg-ink-700 text-white font-bold text-[11px]">تعديل</button></td><td className={`text-center font-black cy-num ${p.balance > 0 ? "text-cash-red" : "text-cash-green-deep"}`}>{money(p.balance)}</td><td className="text-center cy-num">{money(p.openingBalance)}</td><td className="text-center text-slate-600">{p.address || "—"}</td><td className="text-center cy-num">{p.phone || "—"}</td><td className="px-2 font-bold">{p.name}</td><td className="p-1.5 text-center"><button onClick={() => setDoc(statementDoc(p, data))} className="h-8 px-2.5 rounded-lg bg-ink-700 text-white font-bold text-[11px]">كشف</button></td><td className="p-1.5 text-center">{kind === "customer" && (() => { const late = lateMap.get(p.id); const ok = waNumber(p.phone) !== null; return <button disabled={!ok} onClick={() => openWhatsApp(p.phone, late ? reminderText(p, data, late.days) : statementText(p, data))} title={ok ? "" : "لا يوجد رقم تليفون صالح"} className={`h-8 px-2.5 rounded-lg text-white font-bold text-[11px] disabled:opacity-40 ${late ? "bg-cash-red" : "bg-cash-green"}`}>{late ? "تذكير متأخر" : "واتساب"}</button>; })()}</td></tr>)}</tbody></table></div>
       </Panel>
     </div>
     {voucher && <div className="fixed inset-0 z-[80] bg-ink-950/70 grid place-items-center p-3" dir="rtl"><div className="w-full max-w-sm rounded-2xl bg-white cy-pop overflow-hidden"><div className="bg-ink-800 p-4 text-white font-black">{kind === "customer" ? "سند قبض من عميل" : "سند صرف لمورد"}</div><div className="p-4 space-y-3"><p className="font-bold text-[13px]">{voucher.name} · الرصيد الحالي <b className="cy-num text-cash-red">{money(voucher.balance)}</b></p><Field label="قيمة السند"><input autoFocus type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className={`${inputCls} text-[20px] cy-num`} /></Field><Field label="البيان"><input value={notes} onChange={(e) => setNotes(e.target.value)} className={inputCls} placeholder="تحصيل من الحساب" /></Field><div className="flex gap-2"><button onClick={() => void saveVoucher()} className={`${btnCls} flex-1 bg-cash-green text-white`}>حفظ وطباعة السند</button><button onClick={() => setVoucher(null)} className={`${btnCls} bg-slate-200 text-ink-800`}>إلغاء</button></div></div></div></div>}
     {doc && <PrintDocumentModal doc={doc} shop={data.shop} onClose={() => setDoc(null)} />}
   </ModuleShell>;
+}
+
+/* تصدير واستيراد الأصناف بملف CSV (يفتح في Excel) */
+function ProductCsvTools({ data, refresh, notify }: Common) {
+  const [busy, setBusy] = useState(false);
+
+  const exportCsv = () => {
+    const csv = productsToCsv(
+      data.products.map((p) => ({
+        code: p.code,
+        name: p.name,
+        categoryName: data.categories.find((c) => c.id === p.categoryId)?.name ?? "",
+        unit: p.unit,
+        cost: p.cost,
+        price: p.price,
+        wholesalePrice: p.wholesalePrice,
+        stock: p.stock,
+        minStockLimit: p.minStockLimit,
+      })),
+    );
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `cash-you-products-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    notify("ok", `تم تصدير ${data.products.length} صنف`);
+  };
+
+  const importCsv = async (file: File) => {
+    const { rows, errors } = csvToProducts(await file.text());
+    if (errors.length && !rows.length) {
+      sfxError();
+      notify("err", errors[0]);
+      return;
+    }
+    const updates = rows.filter((r) => data.products.some((p) => p.code === r.code)).length;
+    const ok = window.confirm(
+      `سيتم استيراد ${rows.length} صنف: ${updates} تحديث لأصناف موجودة و${rows.length - updates} صنف جديد.\n` +
+        "الرصيد في الملف يحل محل الرصيد الحالي للصنف.\n" +
+        (errors.length ? `تم تجاهل ${errors.length} سطر غير صالح.\n` : "") +
+        "هل تريد المتابعة؟",
+    );
+    if (!ok) return;
+    setBusy(true);
+    let done = 0;
+    let failed = 0;
+    for (const r of rows) {
+      const existing = data.products.find((p) => p.code === r.code);
+      const categoryId =
+        data.categories.find((c) => c.name === r.categoryName)?.id ?? existing?.categoryId ?? data.categories[0]?.id ?? 0;
+      try {
+        const res = await apiFetch("/api/products", {
+          method: existing ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: existing?.id,
+            code: r.code,
+            name: r.name,
+            categoryId,
+            unit: r.unit,
+            cost: r.cost,
+            price: r.price,
+            wholesalePrice: r.wholesalePrice,
+            stock: r.stock,
+            minStockLimit: r.minStockLimit,
+          }),
+        });
+        if (res.ok) done++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+    }
+    setBusy(false);
+    await refresh();
+    if (failed) {
+      sfxError();
+      notify("warn", `تم استيراد ${done} صنف، وفشل ${failed}`);
+    } else {
+      sfxSave();
+      notify("ok", `تم استيراد ${done} صنف`);
+    }
+  };
+
+  return (
+    <>
+      <button onClick={exportCsv} className={`${btnCls} bg-ink-800 text-white`}>تصدير Excel</button>
+      <label className={`${btnCls} bg-amber-brand text-ink-900 cursor-pointer ${busy ? "opacity-50 pointer-events-none" : ""}`}>
+        {busy ? "جارٍ الاستيراد…" : "استيراد من Excel"}
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (f) void importCsv(f);
+          }}
+        />
+      </label>
+    </>
+  );
 }

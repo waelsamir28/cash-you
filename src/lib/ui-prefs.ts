@@ -106,6 +106,22 @@ export const HIDE_ITEMS = [
 ] as const;
 export type HideKey = (typeof HIDE_ITEMS)[number]["key"];
 
+/** إعدادات نافذة «المبلغ المدفوع أكبر من المطلوب» (البيع والمشتريات) */
+export type OverpayMode = "ask" | "change" | "credit";
+export type OverpayChoice = "change" | "credit";
+export type OverpayPrefs = {
+  mode: OverpayMode; // ask: تعرض النافذة، change/credit: تُطبَّق مباشرة بدون سؤال
+  title: string;
+  showPreviousBalance: boolean;
+  showChange: boolean; // إظهار زر تسليم الباقي
+  showCredit: boolean; // إظهار زر التنزيل على الحساب
+  changeLabel: string;
+  changeHint: string;
+  creditLabel: string;
+  creditHint: string; // يمكن استخدام {name} لاسم الطرف
+  defaultChoice: OverpayChoice; // الزر المحدد افتراضياً (Enter يختاره)
+};
+
 export type UiPrefs = {
   theme: ThemeId;
   /** ألوان مخصّصة تتجاوز ألوان الثيم المختار */
@@ -158,6 +174,8 @@ export type UiPrefs = {
   receipt: ReceiptPrefs;
   showWelcome: boolean;
   amounts: Record<AmountKey, AmountStyle>;
+  overpay: OverpayPrefs;
+  lock: { idleMinutes: number }; // 0 = مُعطَّل
 };
 
 type ThemePreset = { id: ThemeId; label: string; mode: "dark" | "light"; chrome: string; paper: string; accent: string };
@@ -206,6 +224,19 @@ export const DEFAULT_PREFS: UiPrefs = {
   },
   showWelcome: true,
   amounts: DEFAULT_AMOUNTS,
+  overpay: {
+    mode: "ask",
+    title: "المبلغ المدفوع أكبر من المطلوب",
+    showPreviousBalance: true,
+    showChange: true,
+    showCredit: true,
+    changeLabel: "تسليم الباقي",
+    changeHint: "يُعطى نقداً الآن",
+    creditLabel: "تنزيل من الحساب",
+    creditHint: "يُضاف رصيداً دائناً لـ {name}",
+    defaultChoice: "change",
+  },
+  lock: { idleMinutes: 0 },
 };
 
 const STORAGE_KEY = "cash-you.ui-prefs.v1";
@@ -242,7 +273,22 @@ export function mergePrefs(p: Partial<UiPrefs>): UiPrefs {
     hidden: { ...(p.hidden ?? {}) },
     receipt: { ...DEFAULT_PREFS.receipt, ...(p.receipt ?? {}) },
     amounts: mergeAmounts(p.amounts),
+    overpay: mergeOverpay(p.overpay),
+    lock: { idleMinutes: [0, 5, 10, 15, 30].includes(Number(p.lock?.idleMinutes)) ? Number(p.lock?.idleMinutes) : 0 },
   };
+}
+
+function mergeOverpay(src: Partial<OverpayPrefs> | undefined): OverpayPrefs {
+  const out: OverpayPrefs = { ...DEFAULT_PREFS.overpay, ...(src ?? {}) };
+  if (!["ask", "change", "credit"].includes(out.mode)) out.mode = "ask";
+  if (!out.showChange && !out.showCredit) out.showChange = true; // لازم يبقى زر واحد على الأقل
+  if (!["change", "credit"].includes(out.defaultChoice)) out.defaultChoice = "change";
+  return out;
+}
+
+/** نص يظهر في النافذة مع استبدال {name} باسم الطرف */
+export function overpayText(text: string, name: string): string {
+  return text.replace(/\{name\}/g, name || "العميل");
 }
 
 function mergeAmounts(src: Partial<Record<AmountKey, Partial<AmountStyle>>> | undefined): Record<AmountKey, AmountStyle> {

@@ -1,4 +1,4 @@
-import { readBackupConfig, backupDir, writeBackupConfig, type BackupConfig } from "@/lib/backup";
+import { readBackupConfig, backupDir, storageStats, writeBackupConfig, type BackupConfig } from "@/lib/backup";
 import { describeDatabase } from "@/lib/backup";
 import { requireBackupOwner } from "@/lib/backup-guard";
 
@@ -29,7 +29,7 @@ function publicView() {
 export async function GET(req: Request) {
   const denied = await requireBackupOwner(req);
   if (denied) return denied;
-  return Response.json(publicView());
+  return Response.json({ ...publicView(), storage: await storageStats() });
 }
 
 export async function PUT(req: Request) {

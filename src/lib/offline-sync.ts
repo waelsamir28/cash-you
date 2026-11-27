@@ -170,6 +170,8 @@ function applyOffline(data: Bootstrap, url: string, method: string, body: any): 
     const discountPercent = Math.max(0, Math.min(100, Number(body.discountPercent ?? 0)));
     const total = r2(subtotal - subtotal * discountPercent / 100);
     const paid = r2(Math.max(0, Math.min(total, Number(body.paid ?? 0))));
+    const overpay = body.kind === "purchase" ? r2(Math.max(0, Number(body.paid ?? 0) - total)) : 0;
+    const creditBack = overpay > 0 && body.overMode === "credit" ? overpay : 0;
     const party = body.kind === "salesReturn" ? data.customers.find((row) => row.id === Number(body.partyId)) : data.suppliers.find((row) => row.id === Number(body.partyId));
     const partyName = party?.name ?? "";
     const number = body.kind === "purchase" ? data.nextPurchaseNumber++ : Math.max(9001, ...data.returns.map((item) => item.number + 1));
@@ -182,12 +184,13 @@ function applyOffline(data: Bootstrap, url: string, method: string, body: any): 
       else product.stock = r2(product.stock - qty);
       if (body.kind === "purchase") product.cost = Number(item.price);
     }
-    if (party && body.kind === "purchase") party.balance = r2(party.balance + total - paid);
+    if (party && body.kind === "purchase") party.balance = r2(party.balance + total - paid - creditBack);
     if (party && body.kind !== "purchase") party.balance = r2(party.balance - total + paid);
     if (body.kind === "purchase") {
       data.summary.todayPurchases = r2(data.summary.todayPurchases + total);
       data.purchases.unshift({ id, number, supplierId: Number(body.partyId), supplierName: partyName, total, paid, remaining: r2(total - paid), createdAt: now });
       treasury(data, "منصرف", "مشتريات", `شراء-${number}`, partyName, paid, "مزامنة مستند شراء مؤجل");
+      if (overpay > 0 && body.overMode === "change") treasury(data, "وارد", "مشتريات", `شراء-${number}`, partyName, overpay, "باقي مسلَّم من المورد للزيادة في الدفع");
     } else {
       data.summary.todayReturns = r2(data.summary.todayReturns + total);
       data.returns.unshift({ id, number, kind: body.kind === "salesReturn" ? "مرتجع مبيعات" : "مرتجع مشتريات", referenceNumber: body.referenceNumber ?? null, partyName, total, cashAmount: paid, createdAt: now });

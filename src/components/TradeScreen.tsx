@@ -6,6 +6,8 @@ import type { Bootstrap, ModuleKind, Product } from "@/lib/types";
 import { money, qtyText, shortStamp, uid } from "@/lib/format";
 import { sfxAdd, sfxCash, sfxError, sfxKey, sfxRemove, sfxSave, sfxScan } from "@/lib/sound";
 import { DiscountDialog, PromptDialog } from "@/components/Overlays";
+import { OverpayDialog } from "@/components/SaleDialogs";
+import type { OverpayChoice, OverpayPrefs } from "@/lib/ui-prefs";
 import {
   IcoBarcode,
   IcoCheck,
@@ -31,6 +33,7 @@ type Props = {
   refresh: () => Promise<void>;
   notify: (kind: "ok" | "err" | "warn" | "info", text: string) => void;
   stamp: { date: string; time: string };
+  overpay: OverpayPrefs;
 };
 
 const PAGE_SIZE = 24;
@@ -94,7 +97,7 @@ const CONFIG = {
 
 const r2 = (n: number) => Math.round((Number.isFinite(n) ? n : 0) * 100) / 100;
 
-export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
+export function TradeScreen({ kind, data, refresh, notify, stamp, overpay }: Props) {
   const cfg = CONFIG[kind];
   const parties = kind === "salesReturn" ? data.customers : data.suppliers;
   const isPurchase = kind === "purchase";
@@ -115,6 +118,7 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
   const [doc, setDoc] = useState<PrintDoc | null>(null);
   const [showDiscount, setShowDiscount] = useState(false);
   const [showParty, setShowParty] = useState(false);
+  const [overpayFor, setOverpayFor] = useState<{ print: boolean } | null>(null);
 
   const barcodeRef = useRef<HTMLInputElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -219,7 +223,7 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
   };
 
   /* ---------------- الحفظ ---------------- */
-  const save = async (print: boolean) => {
+  const save = async (print: boolean, pickedMode?: OverpayChoice) => {
     if (busy) return;
     if (!lines.length) {
       sfxError();
@@ -231,6 +235,15 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
       notify("err", `اختر ${cfg.party} أولاً`);
       return;
     }
+    // المشتريات: المدفوع أكبر من الإجمالي يقرر المستخدم مصيره (تسليم الباقي أو تنزيله على حساب المورد)
+    const rawPaid = Number(paid) || 0;
+    const extraPaid = isPurchase ? r2(Math.max(0, rawPaid - total)) : 0;
+    const fixedMode = overpay.mode === "ask" ? undefined : overpay.mode;
+    const overMode = pickedMode ?? fixedMode;
+    if (extraPaid > 0 && !overMode) {
+      setOverpayFor({ print });
+      return;
+    }
     setBusy(true);
     try {
       const res = await apiFetch("/api/trade", {
@@ -240,7 +253,8 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
           kind,
           partyId,
           referenceNumber: reference ? Number(reference) : null,
-          paid: cash,
+          paid: isPurchase ? rawPaid : cash,
+          overMode: extraPaid > 0 ? overMode : undefined,
           discountPercent,
           notes,
           items: lines.map((l) => ({ productId: l.product.id, qty: l.qty, price: l.price })),
@@ -260,6 +274,9 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
           ...(discountPercent > 0 ? [{ label: `الخصم (${discountPercent}%)`, value: money(discountValue) }] : []),
           { label: cfg.cash, value: money(json.paid) },
           { label: cfg.rest, value: money(json.remaining) },
+          ...(json.overpay > 0
+            ? [{ label: json.overMode === "credit" ? "زيادة نُزّلت على حساب المورد" : "باقي مسلَّم من المورد", value: money(json.overpay) }]
+            : []),
         ],
         notes: notes || (isPurchase ? "تم تحديث سعر الشراء ورصيد المخزن وحساب المورد" : "تم عكس الكميات وتسوية الحساب بدقة"),
       });
@@ -813,6 +830,22 @@ export function TradeScreen({ kind, data, refresh, notify, stamp }: Props) {
         />
       )}
 
+      {overpayFor && (
+        <OverpayDialog
+          previousBalance={party?.balance ?? 0}
+          total={total}
+          paid={Number(paid) || 0}
+          partyName={party?.name ?? ""}
+          creditAllowed={Boolean(party)}
+          prefs={overpay}
+          onClose={() => setOverpayFor(null)}
+          onPick={(m) => {
+            const print = overpayFor.print;
+            setOverpayFor(null);
+            void save(print, m);
+          }}
+        />
+      )}
       {doc && <PrintDocumentModal doc={doc} shop={data.shop} onClose={() => setDoc(null)} />}
     </section>
   );

@@ -68,6 +68,8 @@ export type TradeInput = {
   discountPercent?: number;
   notes?: string;
   items: TradeItem[];
+  /** عند دفع أكثر من المطلوب لمستند شراء: تسليم الباقي من المورد نقداً، أو خصمه من رصيد المورد */
+  overMode?: "change" | "credit";
 };
 
 export async function saveTrade(input: TradeInput) {
@@ -85,6 +87,9 @@ export async function saveTrade(input: TradeInput) {
   const discountPercent = Math.min(100, Math.max(0, input.discountPercent ?? 0));
   const total = r2(subtotal - r2((subtotal * discountPercent) / 100));
   const cash = r2(Math.max(0, Math.min(total, input.paid)));
+  // الزيادة فوق الإجمالي (للشراء فقط): لا تضيع، ويقرر المستخدم مصيرها
+  const overpay = input.kind === "purchase" ? r2(Math.max(0, input.paid - total)) : 0;
+  if (overpay > 0) must(input.overMode === "change" || input.overMode === "credit", "المدفوع أكبر من المطلوب: اختر تسليم الباقي أو التنزيل على الحساب");
 
   if (input.kind === "purchase") {
     const supplier = (await db.select().from(suppliers).where(eq(suppliers.id, input.partyId)).limit(1))[0];
@@ -102,10 +107,17 @@ export async function saveTrade(input: TradeInput) {
       await db.update(products).set({ stock: sql`${products.stock} + ${r.qty}`, cost: r.price })
         .where(eq(products.id, r.product.id));
     }
-    await db.update(suppliers).set({ balance: sql`${suppliers.balance} + ${r2(total - cash)}` }).where(eq(suppliers.id, supplier.id));
+    const creditBack = overpay > 0 && input.overMode === "credit" ? overpay : 0;
+    await db.update(suppliers).set({ balance: sql`${suppliers.balance} + ${r2(total - cash - creditBack)}` }).where(eq(suppliers.id, supplier.id));
     if (cash > 0) await db.insert(treasuryMovements).values({ direction: "منصرف", source: "مشتريات", reference: `شراء-${number}`, partyName: supplier.name, amount: cash, notes: "مدفوع من فاتورة مشتريات" });
+    if (overpay > 0 && input.overMode === "change") {
+      await db.insert(treasuryMovements).values({ direction: "وارد", source: "مشتريات", reference: `شراء-${number}`, partyName: supplier.name, amount: overpay, notes: "باقي مسلَّم من المورد للزيادة في الدفع" });
+    }
+    if (creditBack > 0) {
+      await db.update(purchases).set({ notes: `${input.notes ?? ""} — زيادة ${overpay} نُزّلت على حساب المورد`.trim() }).where(eq(purchases.id, inserted[0].id));
+    }
     await setSetting("next_purchase", String(number + 1));
-    return { number, subtotal, discountPercent, total, paid: cash, remaining: r2(total - cash), partyName: supplier.name };
+    return { number, subtotal, discountPercent, total, paid: cash, remaining: r2(total - cash), overpay, overMode: overpay > 0 ? input.overMode : undefined, partyName: supplier.name };
   }
 
   const isSales = input.kind === "salesReturn";

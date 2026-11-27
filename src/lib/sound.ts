@@ -65,6 +65,12 @@ export const sfxAdd = () => {
   tone({ freq: 1320, dur: 0.09, type: "triangle", gain: 0.05, delay: 0.05 });
 };
 
+export const sfxOutOfStock = () => {
+  tone({ freq: 330, dur: 0.12, type: "square", gain: 0.05 });
+  tone({ freq: 330, dur: 0.12, type: "square", gain: 0.05, delay: 0.16 });
+  tone({ freq: 220, dur: 0.24, type: "square", gain: 0.05, delay: 0.32 });
+};
+
 export const sfxRemove = () => {
   tone({ freq: 420, dur: 0.13, type: "sawtooth", gain: 0.045, sweepTo: 180 });
 };
