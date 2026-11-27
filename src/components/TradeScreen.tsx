@@ -270,6 +270,7 @@ export function TradeScreen({ kind, data, refresh, notify, stamp, overpay }: Pro
         date: shortStamp(new Date().toISOString()),
         amount: json.total,
         lines: [
+          ...(json.previousBalance != null ? [{ label: "الرصيد السابق", value: money(json.previousBalance) }] : []),
           ...lines.map((l) => ({ label: `${l.product.name} × ${qtyText(l.qty)}`, value: money(l.qty * l.price) })),
           ...(discountPercent > 0 ? [{ label: `الخصم (${discountPercent}%)`, value: money(discountValue) }] : []),
           { label: cfg.cash, value: money(json.paid) },

@@ -117,7 +117,7 @@ export async function saveTrade(input: TradeInput) {
       await db.update(purchases).set({ notes: `${input.notes ?? ""} — زيادة ${overpay} نُزّلت على حساب المورد`.trim() }).where(eq(purchases.id, inserted[0].id));
     }
     await setSetting("next_purchase", String(number + 1));
-    return { number, subtotal, discountPercent, total, paid: cash, remaining: r2(total - cash), overpay, overMode: overpay > 0 ? input.overMode : undefined, partyName: supplier.name };
+    return { number, subtotal, discountPercent, total, paid: cash, remaining: r2(total - cash), overpay, overMode: overpay > 0 ? input.overMode : undefined, partyName: supplier.name, previousBalance: Number(supplier.balance), overpayCredit: creditBack };
   }
 
   const isSales = input.kind === "salesReturn";
@@ -151,7 +151,7 @@ export async function saveTrade(input: TradeInput) {
     notes: isSales ? "مبلغ مسترد نقداً للعميل" : "مبلغ مسترد نقداً من المورد",
   });
   await setSetting("next_return", String(number + 1));
-  return { number, subtotal, discountPercent, total, paid: cash, remaining: credit, partyName: party.name };
+  return { number, subtotal, discountPercent, total, paid: cash, remaining: credit, partyName: party.name, previousBalance: Number(party.balance) };
 }
 
 export async function saveVoucher(input: { kind: "receipt" | "payment"; partyId: number; amount: number; notes?: string }) {

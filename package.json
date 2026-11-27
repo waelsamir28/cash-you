@@ -20,6 +20,7 @@
   "dependencies": {
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.2",
+    "electron-updater": "^6.8.12",
     "next": "16.4.2",
     "pg": "8.20.0",
     "react": "19.2.6",
@@ -90,6 +91,14 @@
       "shortcutName": "CASH YOU",
       "deleteAppDataOnUninstall": false,
       "artifactName": "CASH-YOU-Setup-${version}.${ext}"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "waelsamir28",
+        "repo": "cash-you",
+        "releaseType": "release"
+      }
+    ]
   }
 }

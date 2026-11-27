@@ -124,6 +124,7 @@ function applyOffline(data: Bootstrap, url: string, method: string, body: any): 
     const customerName = String(body.customerName || "عميل نقدي");
     const createdAt = now;
     const customer = data.customers.find((row) => row.id === body.customerId);
+    const previousBalance = customer ? customer.balance : null;
     if (customer && remaining - credit !== 0) customer.balance = r2(customer.balance + remaining - credit);
     for (const item of items) {
       const product = data.products.find((row) => row.id === item.productId);
@@ -158,7 +159,7 @@ function applyOffline(data: Bootstrap, url: string, method: string, body: any): 
       }
     }
     data.summary.todaySales = r2(data.summary.todaySales + total);
-    return { result: { id, number, total, paid, remaining, customerName, createdAt, newCustomerBalance: customer?.balance ?? 0, nextInvoiceNumber: data.nextInvoiceNumber, installmentPlanId, installmentIds }, tempId: id, refs };
+    return { result: { id, number, total, paid, remaining, customerName, createdAt, previousBalance, overpayCredit: credit, newCustomerBalance: customer?.balance ?? 0, nextInvoiceNumber: data.nextInvoiceNumber, installmentPlanId, installmentIds }, tempId: id, refs };
   }
 
   if (path === "/api/trade") {
@@ -184,6 +185,7 @@ function applyOffline(data: Bootstrap, url: string, method: string, body: any): 
       else product.stock = r2(product.stock - qty);
       if (body.kind === "purchase") product.cost = Number(item.price);
     }
+    const previousBalance = party ? party.balance : null;
     if (party && body.kind === "purchase") party.balance = r2(party.balance + total - paid - creditBack);
     if (party && body.kind !== "purchase") party.balance = r2(party.balance - total + paid);
     if (body.kind === "purchase") {
@@ -196,7 +198,7 @@ function applyOffline(data: Bootstrap, url: string, method: string, body: any): 
       data.returns.unshift({ id, number, kind: body.kind === "salesReturn" ? "مرتجع مبيعات" : "مرتجع مشتريات", referenceNumber: body.referenceNumber ?? null, partyName, total, cashAmount: paid, createdAt: now });
       treasury(data, body.kind === "salesReturn" ? "منصرف" : "وارد", body.kind === "salesReturn" ? "مرتجع مبيعات" : "مرتجع مشتريات", `مرتجع-${number}`, partyName, paid, "مزامنة مرتجع مؤجل");
     }
-    return { result: { number, subtotal, discountPercent, total, paid, remaining: r2(total - paid), partyName }, tempId: id };
+    return { result: { number, subtotal, discountPercent, total, paid, remaining: r2(total - paid), partyName, previousBalance, overpay, overMode: overpay > 0 ? body.overMode : undefined, overpayCredit: creditBack }, tempId: id };
   }
 
   if (path === "/api/vouchers") {

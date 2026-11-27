@@ -22,6 +22,7 @@ import {
 import { FloatingMenu, GlobalSearch, StatusBar, TabStrip, TitleBar, type Tab } from "@/components/Chrome";
 import { OverpayDialog, SalePreviewDialog } from "@/components/SaleDialogs";
 import { IdleLock } from "@/components/IdleLock";
+import { DesktopUpdateToast } from "@/components/DesktopUpdateToast";
 import { SettingsScreen } from "@/components/SettingsScreen";
 import { PosScreen, type PosActions } from "@/components/PosScreen";
 import { HomeScreen } from "@/components/HomeScreen";
@@ -486,6 +487,8 @@ export default function CashYouApp({
           total: json.total,
           paid: json.paid,
           remaining: json.remaining,
+          previousBalance: json.previousBalance ?? null,
+          overpayCredit: json.overpayCredit ?? 0,
           items: snapshot.items.map((li) => ({
             name: li.name,
             code: li.code,
@@ -829,6 +832,7 @@ export default function CashYouApp({
 
       {/* ---------------- الطبقات العلوية ---------------- */}
       <IdleLock minutes={prefs.lock.idleMinutes} />
+      <DesktopUpdateToast />
       {overlay.kind === "customerScreen" && (
         <CustomerDisplay
           draft={draft}
@@ -951,6 +955,7 @@ export default function CashYouApp({
             total: totals.total,
             paid: totals.paid,
             remaining: totals.remaining,
+            previousBalance: draft.customerId ? (data.customers.find((c) => c.id === draft.customerId)?.balance ?? null) : null,
             items: draft.items.map((li) => ({
               name: li.name,
               code: li.code,

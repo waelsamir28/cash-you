@@ -430,6 +430,10 @@ export type ReceiptData = {
   total: number;
   paid: number;
   remaining: number;
+  /** الرصيد قبل الفاتورة؛ null للبيع النقدي */
+  previousBalance?: number | null;
+  /** قيمة الزيادة التي نُزّلت على حساب العميل */
+  overpayCredit?: number;
   items: { name: string; code: string; qty: number; price: number; total: number; unit: string }[];
 };
 
@@ -493,9 +497,11 @@ export function ReceiptPaper({ receipt, shop, prefs }: { receipt: ReceiptData; s
       </table>
       <div className="border-b border-dashed border-slate-400 my-2" />
       <div className="space-y-0.5 cy-num">
+        {receipt.previousBalance != null && <Row2 k="الرصيد السابق" v={money(receipt.previousBalance)} />}
         <Row2 k="الإجمالي" v={money(receipt.total)} big />
         <Row2 k="المدفوع" v={money(receipt.paid)} />
         <Row2 k={receipt.remaining < 0 ? "الباقي للزبون" : "المتبقي"} v={money(Math.abs(receipt.remaining))} />
+        {(receipt.overpayCredit ?? 0) > 0 && <Row2 k="تنزيل على الحساب" v={money(receipt.overpayCredit ?? 0)} />}
       </div>
       <div className="border-b border-dashed border-slate-400 my-2" />
       <div className="text-center font-bold leading-relaxed">

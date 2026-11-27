@@ -68,6 +68,7 @@ jobs:
           test -f assets/branding/installer-header.bmp
           test -f assets/branding/installer-sidebar.bmp
           test -f assets/branding/uninstaller-sidebar.bmp
+          test -f release/latest.yml
           compgen -G "release/*.exe" > /dev/null
           ls -lh assets/branding release
 
@@ -78,6 +79,7 @@ jobs:
           path: |
             release/*.exe
             release/*.blockmap
+            release/latest.yml
           if-no-files-found: error
           retention-days: 30
 
@@ -93,7 +95,7 @@ jobs:
 
           # اجمع ملفات الإصدار التي وُلدت فعلاً: المثبت وملف blockmap إن وُجد
           FILES=()
-          while IFS= read -r -d '' f; do FILES+=("$f"); done < <(find release -maxdepth 1 -type f \( -name '*.exe' -o -name '*.blockmap' \) -print0)
+          while IFS= read -r -d '' f; do FILES+=("$f"); done < <(find release -maxdepth 1 -type f \( -name '*.exe' -o -name '*.blockmap' -o -name 'latest.yml' \) -print0)
 
           if [ ${#FILES[@]} -eq 0 ]; then
             echo "No release files found" >&2
