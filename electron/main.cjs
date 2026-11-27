@@ -1,8 +1,10 @@
 const { app, BrowserWindow, ipcMain, shell, safeStorage } = require("electron");
 const { execFileSync } = require("node:child_process");
 const { createHash } = require("node:crypto");
-const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");
+const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const path = require("node:path");
+const { createBundledPostgres } = require("./bundled-postgres.cjs");
+const { startLocalServer } = require("./local-server.cjs");
 
 function getDeviceCode() {
   if (process.platform !== "win32") throw new Error("CASH YOU desktop activation is supported on Windows only");
@@ -73,6 +75,63 @@ ipcMain.handle("cash-you:save-activation-record", (_event, record) => {
   return true;
 });
 
+/* ---------- قاعدة PostgreSQL المدمجة وخادم التطبيق المحلي ---------- */
+const APP_SERVER_PORT = 3917;
+const DATA_ROOT = () => app.getPath("userData");
+let bundledPg = null;
+let localServer = null;
+
+function isBundledInstall() {
+  return app.isPackaged
+    && existsSync(path.join(process.resourcesPath, "app-server", "server.js"))
+    && existsSync(path.join(process.resourcesPath, "postgres"));
+}
+
+function getBundledPostgres() {
+  if (bundledPg) return bundledPg;
+  const root = DATA_ROOT();
+  bundledPg = createBundledPostgres({
+    bundleDir: path.join(process.resourcesPath, "postgres"),
+    dataDir: path.join(root, "pgdata"),
+    secretFile: path.join(root, "db-secret.bin"),
+    logDir: path.join(root, "logs"),
+    protect: (text) => safeStorage.encryptString(text),
+    unprotect: (buf) => safeStorage.decryptString(buf),
+  });
+  return bundledPg;
+}
+
+/* يجهّز القاعدة فقط (يُستدعى من المثبّت بعد النسخ) */
+function prepareBundledDatabase() {
+  const pg = getBundledPostgres();
+  pg.ensure();
+  pg.stop();
+}
+
+/* يشغّل القاعدة وخادم التطبيق ويعيد عنوان الواجهة */
+async function startBundledStack() {
+  const root = DATA_ROOT();
+  const databaseUrl = getBundledPostgres().ensure();
+  localServer = await startLocalServer({
+    serverDir: path.join(process.resourcesPath, "app-server"),
+    cwd: root,
+    port: APP_SERVER_PORT,
+    logFile: path.join(root, "logs", "app-server.log"),
+    env: {
+      DATABASE_URL: databaseUrl,
+      CASH_YOU_BUNDLED_DB: "1",
+      CASH_YOU_MIGRATIONS_DIR: path.join(process.resourcesPath, "app-server", "drizzle"),
+      CASH_YOU_DATA_DIR: path.join(root, "pgdata"),
+    },
+  });
+  return localServer.url;
+}
+
+function showStartupError(win, message) {
+  const html = `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><body style="margin:0;background:#0b1220;color:#e2e8f0;font:16px Tahoma;display:grid;place-items:center;height:100vh;text-align:center"><main style="max-width:620px;padding:36px;border:1px solid #334155;border-radius:22px;background:#111c31"><h1 style="color:#fbbf24">CASH YOU</h1><p>${message.replace(/[<>&]/g, "")}</p><p style="color:#94a3b8">للمساعدة الفنية اتصل بالرقم 01222355769</p></main></body></html>`;
+  win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+}
+
 function createWindow() {
   const config = readConfig();
   const win = new BrowserWindow({
@@ -92,6 +151,19 @@ function createWindow() {
     },
   });
 
+  if (isBundledInstall()) {
+    win.webContents.setWindowOpenHandler(({ url }) => {
+      if (url.startsWith("https://") || url.startsWith("http://")) void shell.openExternal(url);
+      return { action: "deny" };
+    });
+    startBundledStack()
+      .then((url) => win.loadURL(url))
+      .catch((error) => {
+        showStartupError(win, String(error.message || error));
+      });
+    return;
+  }
+
   if (!config.url || !/^https?:\/\//i.test(config.url)) {
     /* صفحة الإعداد تظهر عند عدم ضبط رابط الموقع في app-config.json */
     const iconDataUrl = `data:image/png;base64,${readFileSync(windowIcon).toString("base64")}`;
@@ -107,12 +179,38 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   app.setAppUserModelId("com.cashyou.pos");
+
+  /* يستدعيه مثبّت NSIS أثناء التثبيت: يجهّز القاعدة ثم يخرج دون فتح النافذة */
+  if (process.argv.includes("--setup-db")) {
+    try {
+      prepareBundledDatabase();
+      app.exit(0);
+    } catch (error) {
+      console.error(error);
+      app.exit(1);
+    }
+    return;
+  }
+
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on("before-quit", () => {
+  try {
+    localServer?.stop();
+  } catch {
+    /* تجاهل: التطبيق يغلق */
+  }
+  try {
+    bundledPg?.stop();
+  } catch {
+    /* تجاهل: التطبيق يغلق */
+  }
 });
 
 app.on("window-all-closed", () => {

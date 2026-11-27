@@ -64,3 +64,23 @@
   !define MUI_WELCOMEPAGE_TEXT "This will remove CASH YOU from your computer.$\r$\n$\r$\nYour saved business data is not deleted. Click Next to continue."
   !insertmacro MUI_UNPAGE_WELCOME
 !macroend
+
+; ---------- إعداد قاعدة PostgreSQL المدمجة أثناء التثبيت ----------
+; الملفات الثنائية في $INSTDIR\resources\postgres (مجلد البرنامج الذي يختاره المستخدم).
+; بيانات المبيعات في %APPDATA%\CASH YOU\pgdata — ثابتة، ولا تُحذف عند التحديث أو الإزالة.
+; الأمر --setup-db يجهّز القاعدة ثم يخرج. إن فشل هنا يحاول البرنامج مرة أخرى عند أول تشغيل.
+!macro customInstall
+  DetailPrint "Setting up the CASH YOU database (PostgreSQL)..."
+  nsExec::ExecToLog '"$INSTDIR\${PRODUCT_FILENAME}.exe" --setup-db'
+  Pop $0
+  ${If} $0 != 0
+    MessageBox MB_ICONEXCLAMATION|MB_OK "The database could not be prepared during setup. CASH YOU will try again on first launch. Support: 01222355769"
+  ${EndIf}
+!macroend
+
+; ---------- إيقاف قاعدة البيانات قبل إزالة البرنامج (دون حذف البيانات) ----------
+!macro customUnInstall
+  SetShellVarContext current
+  nsExec::ExecToLog '"$INSTDIR\resources\postgres\bin\pg_ctl.exe" stop -D "$APPDATA\${CY_APP_NAME}\pgdata" -m fast'
+  Pop $0
+!macroend
